@@ -16,6 +16,7 @@ dist-ssr
 !.env.example
 .2klife/
 .pnpm-store/
+/spec/
 
 # Editor directories and files
 .vscode/*

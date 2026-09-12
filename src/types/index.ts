@@ -10,4 +10,9 @@ export type {
 } from "./identity";
 export type { FollowerChange, SocialMedia } from "./social-media";
 export type { Interview } from "./interview";
+export type {
+  Percentage, UsdDollars, SponsorTier, SponsorTierDefinition, CommercialCategory,
+  PreferredPersonalityPair, SponsorStat, PermanentMilestone, DynamicMilestone,
+  BaseContractTerms, FootwearSponsor, GeneralSponsor, SponsorBrand, SponsorCatalog,
+} from './sponsor.ts';
 export type { MyProfile, Position } from "./profile";
