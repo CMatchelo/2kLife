@@ -11,6 +11,7 @@ function App() {
   const [saves, setSaves] = useState<CareerSummary[]>([]);
   const [error, setError] = useState("");
   const [revision, setRevision] = useState(0);
+  const [dayMenu, setDayMenu] = useState<HTMLDivElement | null>(null);
   useEffect(() => {
     let active = true;
     api<CareerSummary[]>("careers")
@@ -33,7 +34,7 @@ function App() {
   return (
     <div className="min-h-screen">
       <header className="border-b border-divider">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-6">
+        <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4 px-6 py-6">
           <a
             href="/"
             aria-label="2kLife home"
@@ -41,9 +42,12 @@ function App() {
           >
             2k<span className="text-court-red">Life</span>
           </a>
-          <span className="text-xs font-semibold uppercase tracking-widest text-muted">
-            Your career. Your story.
-          </span>
+          <div ref={setDayMenu} />
+          {!career && (
+            <span className="text-xs font-semibold uppercase tracking-widest text-muted">
+              Your career. Your story.
+            </span>
+          )}
         </div>
       </header>
       <main className="mx-auto max-w-6xl px-6 py-16 md:py-24">
@@ -58,6 +62,7 @@ function App() {
           />
         ) : career ? (
           <CareerDashboard
+            dayMenu={dayMenu}
             key={career.id}
             career={career}
             onHome={() => {

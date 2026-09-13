@@ -48,6 +48,7 @@ export type CareerDraft = {
   requestId: string;
 };
 export type Career = {
+  currentDate: string | null;
   id: string;
   saveName: string;
   createdAt: string;

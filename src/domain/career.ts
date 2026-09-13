@@ -108,6 +108,8 @@ export const sameFixture = (a: Partial<Game>, b: Partial<Game>) =>
   a.date === b.date && a.teamId === b.teamId;
 export function validateCareer(draft: CareerDraft): string[] {
   const errors: string[] = [];
+  if (!draft.games.length)
+    errors.push("Add the first scheduled game before starting the career.");
   const p = draft.player;
   if (!draft.saveName?.trim() || draft.saveName.length > 100)
     errors.push("Career save name is required (up to 100 characters).");
