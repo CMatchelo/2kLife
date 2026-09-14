@@ -29,7 +29,7 @@ export default function SeasonProgress({ current }: { current: Career }) {
 
   return (
     <section
-      className="career-card overflow-hidden"
+      className="career-card dashboard-card overflow-hidden"
       aria-labelledby="season-progress-title"
     >
       <div className="flex flex-wrap items-end justify-between gap-3 border-b border-divider pb-5">
@@ -37,9 +37,16 @@ export default function SeasonProgress({ current }: { current: Career }) {
           <p className="text-sm font-bold uppercase tracking-[0.2em] text-court-red">
             {current.season.year} regular season
           </p>
-          <h2 id="season-progress-title" className="mt-1 text-2xl font-black">
+          <h2
+            id="season-progress-title"
+            className="mt-1 text-2xl font-black uppercase tracking-wide"
+          >
             {hasGames ? "Season averages" : "Your season is ready to begin"}
           </h2>
+          <span
+            className="mt-3 block h-1 w-14 rounded-full bg-gold"
+            aria-hidden="true"
+          />
         </div>
         <p className="rounded-full bg-court-blue px-4 py-2 text-sm font-bold text-white">
           {stats.gamesPlayed} {stats.gamesPlayed === 1 ? "game" : "games"}{" "}
@@ -48,7 +55,10 @@ export default function SeasonProgress({ current }: { current: Career }) {
       </div>
       <dl className="mt-5 grid gap-3 sm:grid-cols-3">
         {headline.map(([label, value]) => (
-          <div key={label} className="rounded-xl bg-court-blue p-5 text-white">
+          <div
+            key={label}
+            className="rounded-xl border border-court-blue bg-transparent p-5 text-white"
+          >
             <dt className="text-xs font-bold uppercase tracking-widest text-white/75">
               {label}
             </dt>
@@ -59,9 +69,12 @@ export default function SeasonProgress({ current }: { current: Career }) {
         ))}
       </dl>
       <div className="mt-4 grid gap-4 lg:grid-cols-2">
-        <dl className="grid grid-cols-2 gap-px overflow-hidden rounded-xl bg-divider">
+        <dl className="grid grid-cols-2 gap-px overflow-hidden rounded-xl bg-transparent">
           {supporting.map(([label, value]) => (
-            <div key={label} className="bg-cream p-4">
+            <div
+              key={label}
+              className="border border-slate-600 bg-transparent p-4"
+            >
               <dt className="text-xs font-semibold uppercase tracking-wide text-muted">
                 {label}
               </dt>
@@ -71,7 +84,7 @@ export default function SeasonProgress({ current }: { current: Career }) {
             </div>
           ))}
         </dl>
-        <dl className="grid grid-cols-3 gap-3 rounded-xl bg-ink p-4 text-white">
+        <dl className="grid grid-cols-3 gap-3 rounded-xl border border-gold bg-transparent p-4 text-white">
           {shooting.map(([label, value]) => (
             <div
               key={label}

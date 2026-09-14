@@ -23,7 +23,7 @@ export default function CalendarView({
   const days = new Date(Date.UTC(y, m, 0)).getUTCDate();
   const first = new Date(Date.UTC(y, m - 1, 1)).getUTCDay();
   const label = (game: Game) =>
-      `${game.location === "home" ? "Home" : "Away"} · ${teamName(teams, game.opponentId)} · ${categoryNames[game.category]}`;
+    `${game.location === "home" ? "Home" : "Away"} · ${teamName(teams, game.opponentId)} · ${categoryNames[game.category]}`;
 
   return (
     <div>
@@ -55,7 +55,7 @@ export default function CalendarView({
           return (
             <div
               key={date}
-              className="relative min-h-12 py-0! min-w-0 overflow-hidden rounded-md border border-divider/50 bg-cream p-1 md:min-h-14 md:p-2"
+              className="relative min-h-12 py-0! min-w-0 overflow-hidden rounded-md border border-slate-600 bg-[#2a3947] p-1 md:min-h-14 md:p-2"
             >
               {game && (
                 <>
@@ -88,7 +88,7 @@ export default function CalendarView({
                   />
                 </>
               )}
-              <span className="pointer-events-none relative text-lg font-extrabold text-muted">
+              <span className="pointer-events-none relative text-lg font-extrabold text-slate-200">
                 {i + 1}
               </span>
             </div>

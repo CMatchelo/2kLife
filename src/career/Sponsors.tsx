@@ -1,0 +1,905 @@
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
+import { sponsorCatalog } from "../domain/sponsors";
+import type { Career } from "../types/career";
+import type {
+  CommercialCategory,
+  PermanentMilestone,
+  SponsorActiveContract,
+  SponsorBrand,
+  SponsorBrandState,
+  SponsorTier,
+  SponsorsOverview,
+} from "../types/sponsor";
+import { api } from "./api";
+
+const brandById = new Map(
+  sponsorCatalog.brands.map((brand) => [brand.id, brand]),
+);
+const tierRank: Record<SponsorTier, number> = { entry: 1, middle: 2, top: 3 };
+const money = new Intl.NumberFormat("en-US", {
+  style: "currency",
+  currency: "USD",
+  maximumFractionDigits: 0,
+});
+const integer = new Intl.NumberFormat("en-US");
+const labels: Record<CommercialCategory, string> = {
+  footwear: "Footwear",
+  energy_drinks: "Energy drinks",
+  telecommunications: "Telecommunications",
+  consumer_electronics: "Consumer electronics",
+  tourism_attractions: "Tourism attractions",
+  video_games: "Video games",
+  automotive: "Automotive",
+  alcoholic_beverages: "Alcoholic beverages",
+  wellness_nutrition: "Wellness & nutrition",
+  audio: "Audio",
+  sports_drinks: "Sports drinks",
+  insurance: "Insurance",
+  soft_drinks: "Soft drinks",
+};
+const categoryImages: Record<CommercialCategory, string> = {
+  footwear: "/category/shoes.png",
+  energy_drinks: "/category/energy_drinks.png",
+  telecommunications: "/category/tellecomunications.png",
+  consumer_electronics: "/category/electronics.png",
+  tourism_attractions: "/category/tourism.png",
+  video_games: "/category/videogames.png",
+  automotive: "/category/automotive.png",
+  alcoholic_beverages: "/category/alcoholic_bevarages.png",
+  wellness_nutrition: "/category/wllness_and_nutrition.png",
+  audio: "/category/audio.png",
+  sports_drinks: "/category/sports_drink.png",
+  insurance: "/category/insurance.png",
+  soft_drinks: "/category/soft_bevarages.png",
+};
+
+function Logo({
+  brandId,
+  brandName,
+  large = false,
+}: {
+  brandId: string;
+  brandName: string;
+  large?: boolean;
+}) {
+  return (
+    <img
+      src={`/sponsors/${brandId}.png`}
+      alt={`${brandName} logo`}
+      className={`${large ? "h-16 w-16 sm:h-20 sm:w-20" : "h-9 w-9"} rounded-md object-contain`}
+      onError={(event) => {
+        event.currentTarget.onerror = null;
+        event.currentTarget.src = "/sponsors/2k.png";
+      }}
+    />
+  );
+}
+
+function milestoneDescription(milestone: PermanentMilestone) {
+  if (milestone.kind === "singleGame")
+    return `Record ${integer.format(milestone.threshold)} ${statLabel(milestone.stat)} in one appearance.`;
+  if (milestone.kind === "appearanceStreak")
+    return `Record ${integer.format(milestone.threshold)} ${statLabel(milestone.stat)} in ${milestone.requiredCount} consecutive appearances.`;
+  return milestone.kind === "doubleDouble"
+    ? "Record a double-double."
+    : "Record a triple-double.";
+}
+
+function statLabel(stat: string) {
+  return (
+    {
+      points: "points",
+      assists: "assists",
+      rebounds: "rebounds",
+      steals: "steals",
+      blocks: "blocks",
+      threePointersMade: "made three-pointers",
+      minutes: "minutes",
+    }[stat] ?? stat
+  );
+}
+
+function PermanentProgress({
+  state,
+  index,
+}: {
+  state: SponsorBrandState;
+  index: number;
+}) {
+  const progress = state.permanentMilestones[index];
+  const definition = progress.definition;
+  let current = progress.completed ? "Target reached" : "Not reached";
+  let target = "Complete once";
+  if (definition.kind === "singleGame") {
+    current = progress.evidence?.value
+      ? integer.format(progress.evidence.value)
+      : "No qualifying result yet";
+    target = integer.format(definition.threshold);
+  } else if (definition.kind === "appearanceStreak") {
+    current = `${progress.streakProgress} consecutive`;
+    target = `${definition.requiredCount} consecutive`;
+  }
+  return (
+    <tr className="border-b border-slate-600">
+      <th scope="row" className="p-3 text-left font-medium">
+        {milestoneDescription(definition)}
+      </th>
+      <td className="p-3">{current}</td>
+      <td className="p-3">{target}</td>
+      <td className="p-3">
+        <span
+          className={
+            progress.completed ? "font-bold text-sky-300" : "text-slate-400"
+          }
+        >
+          {progress.completed ? "Completed" : "Incomplete"}
+        </span>
+      </td>
+      <td className="p-3">Permanent</td>
+    </tr>
+  );
+}
+
+function MilestoneDetails({ state }: { state: SponsorBrandState }) {
+  const dynamic = state.dynamicMilestone;
+  const required = dynamic.definition.threshold * 100;
+  return (
+    <div className="rounded-xl border border-slate-600 bg-[#2a3947] p-4 text-slate-100">
+      <h4 className="mb-3 text-base font-bold">All five milestones</h4>
+      <div className="overflow-x-auto">
+        <table className="min-w-[48rem] w-full text-sm">
+          <thead className="bg-gold text-ink">
+            <tr className="border-b border-slate-600">
+              <th scope="col" className="p-3 text-left">
+                Description
+              </th>
+              <th scope="col" className="p-3 text-left">
+                Current progress
+              </th>
+              <th scope="col" className="p-3 text-left">
+                Target
+              </th>
+              <th scope="col" className="p-3 text-left">
+                Status
+              </th>
+              <th scope="col" className="p-3 text-left">
+                Type
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {state.permanentMilestones.map((item, index) => (
+              <PermanentProgress
+                key={item.milestoneId}
+                state={state}
+                index={index}
+              />
+            ))}
+            <tr>
+              <th scope="row" className="p-3 text-left font-medium">
+                Maintain the required current-season shooting percentage and
+                attempts.
+              </th>
+              <td className="p-3">
+                {dynamic.displayPercentage === null
+                  ? "—"
+                  : `${dynamic.displayPercentage}%`}{" "}
+                · {integer.format(dynamic.attempts)} attempts
+              </td>
+              <td className="p-3">
+                {required}% ·{" "}
+                {integer.format(dynamic.definition.minimumAttempts)} attempts
+                minimum
+              </td>
+              <td className="p-3">
+                <span
+                  className={
+                    dynamic.completed
+                      ? "font-bold text-sky-300"
+                      : "text-slate-400"
+                  }
+                >
+                  {dynamic.completed ? "Completed" : "Incomplete"}
+                </span>
+              </td>
+              <td className="p-3">Dynamic</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+function projectedInstallment(contract: SponsorActiveContract) {
+  return Math.max(
+    0,
+    contract.fixedPaymentUsd * 0.8 -
+      Math.max(0, contract.requiredEvents - contract.attendedEvents) *
+        contract.fixedPaymentUsd *
+        0.2,
+  );
+}
+
+function ConfirmDialog({
+  brand,
+  action,
+  saving,
+  onCancel,
+  onConfirm,
+}: {
+  brand: SponsorBrand;
+  action: "block" | "unblock";
+  saving: boolean;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  const ref = useRef<HTMLDialogElement>(null);
+  useEffect(() => {
+    const dialog = ref.current!;
+    dialog.showModal();
+    return () => dialog.close();
+  }, []);
+  const title =
+    action === "block" ? `Block ${brand.name}?` : `Unblock ${brand.name}?`;
+  return createPortal(
+    <dialog
+      ref={ref}
+      className="ai-dialog rounded-2xl border border-divider bg-butter text-ink"
+      aria-labelledby="sponsor-confirm-title"
+      onCancel={(event) => {
+        event.preventDefault();
+        if (!saving) onCancel();
+      }}
+    >
+      <div className="space-y-5 p-6">
+        <h2 id="sponsor-confirm-title" className="text-2xl font-bold">
+          {title}
+        </h2>
+        <p>
+          {action === "block"
+            ? "This brand will stop approaching you, and its permanent milestone progress will reset. You can unblock it later."
+            : "Unblocking starts this brand’s permanent milestone progress from zero."}
+        </p>
+        {action === "unblock" && (
+          <p className="text-sm text-muted">
+            Unblocking does not bypass follower, personality, category, or
+            cooldown requirements.
+          </p>
+        )}
+        <div className="flex flex-wrap gap-3">
+          <button
+            type="button"
+            className="ai-primary"
+            disabled={saving}
+            onClick={onConfirm}
+          >
+            {saving
+              ? "Saving…"
+              : action === "block"
+                ? "Block approaches"
+                : "Unblock brand"}
+          </button>
+          <button
+            type="button"
+            className="ai-secondary"
+            disabled={saving}
+            onClick={onCancel}
+          >
+            Cancel
+          </button>
+        </div>
+      </div>
+    </dialog>,
+    document.body,
+  );
+}
+
+export default function Sponsors({ career }: { career: Career }) {
+  const careerId = career.id;
+  const [overview, setOverview] = useState<SponsorsOverview | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [category, setCategory] = useState<CommercialCategory | "all">("all");
+  const [tier, setTier] = useState<SponsorTier | "all">("all");
+  const [expanded, setExpanded] = useState<string | null>(null);
+  const [expandedContract, setExpandedContract] = useState<string | null>(null);
+  const [confirming, setConfirming] = useState<{
+    brand: SponsorBrand;
+    action: "block" | "unblock";
+    requestId: string;
+  } | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  async function load() {
+    setLoading(true);
+    setError("");
+    try {
+      setOverview(await api<SponsorsOverview>(`careers/${careerId}/sponsors`));
+    } catch (cause) {
+      setError(
+        cause instanceof Error
+          ? cause.message
+          : "Could not load sponsors. Retry.",
+      );
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    void load();
+  }, [career, careerId]);
+
+  const potential = useMemo(
+    () =>
+      [...(overview?.potentialSponsors ?? [])]
+        .filter((state) => {
+          const brand = brandById.get(state.brandId)!;
+          return (
+            (category === "all" || brand.category === category) &&
+            (tier === "all" || brand.tier === tier)
+          );
+        })
+        .sort((a, b) => {
+          const left = brandById.get(a.brandId)!;
+          const right = brandById.get(b.brandId)!;
+          return (
+            b.interestPercentage - a.interestPercentage ||
+            tierRank[right.tier] - tierRank[left.tier] ||
+            left.name.localeCompare(right.name)
+          );
+        }),
+    [overview, category, tier],
+  );
+
+  async function mutate() {
+    if (!confirming || saving) return;
+    setSaving(true);
+    setError("");
+    try {
+      const result = await api<SponsorsOverview>(
+        `careers/${careerId}/sponsors/${confirming.action}`,
+        { brandId: confirming.brand.id, requestId: confirming.requestId },
+      );
+      setOverview(result);
+      setExpanded(null);
+      setConfirming(null);
+    } catch (cause) {
+      setError(
+        cause instanceof Error
+          ? cause.message
+          : "Could not save this sponsor change. Retry.",
+      );
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="space-y-8">
+      <section
+        className="career-card dashboard-card"
+        aria-labelledby="active-contracts-title"
+      >
+        <h2
+          id="active-contracts-title"
+          className="text-2xl font-black uppercase tracking-wide"
+        >
+          Active contracts
+        </h2>
+        <span
+          className="mt-3 block h-1 w-14 rounded-full bg-gold"
+          aria-hidden="true"
+        />
+        <p className="mt-2 text-sm text-muted">
+          Projected final installment: If no more appearances are attended.
+        </p>
+        <div className="mt-5 overflow-x-auto">
+          <table className="min-w-[76rem] w-full text-left text-sm">
+            <thead className="bg-gold">
+              <tr>
+                {[
+                  "Brand",
+                  "Logo",
+                  "Commercial category",
+                  "Total fixed payment",
+                  "Payment per match",
+                  "Payment per event",
+                  "Remaining mandatory appearances",
+                  "Matches remaining",
+                  "Projected final installment",
+                ].map((heading) => (
+                  <th key={heading} scope="col" className="p-3">
+                    {heading}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {overview?.activeContracts.map((contract) => {
+                const brand = brandById.get(contract.brandId)!;
+                const isExpanded = expandedContract === contract.id;
+                return (
+                  <Fragment key={contract.id}>
+                    <tr className="border-b border-divider/60">
+                      <th scope="row" className="p-3">
+                        {brand.name}
+                      </th>
+                      <td className="p-3">
+                        <Logo brandId={brand.id} brandName={brand.name} />
+                      </td>
+                      <td className="p-3">{labels[brand.category]}</td>
+                      <td className="p-3">
+                        {money.format(contract.fixedPaymentUsd)}
+                      </td>
+                      <td className="p-3">
+                        {money.format(contract.perMatchUsd)}
+                      </td>
+                      <td className="p-3">
+                        {money.format(contract.perEventUsd)}
+                      </td>
+                      <td className="p-3">
+                        {Math.max(
+                          0,
+                          contract.requiredEvents - contract.attendedEvents,
+                        )}{" "}
+                        remaining / {contract.requiredEvents} required
+                      </td>
+                      <td className="p-3">{contract.matchesRemaining}</td>
+                      <td className="p-3 font-bold">
+                        {money.format(projectedInstallment(contract))}
+                        <button
+                          type="button"
+                          className="ai-link mt-2 block font-normal"
+                          aria-expanded={isExpanded}
+                          aria-controls={`contract-${contract.id}`}
+                          onClick={() =>
+                            setExpandedContract(isExpanded ? null : contract.id)
+                          }
+                        >
+                          {isExpanded ? "Hide details" : "Contract details"}
+                        </button>
+                      </td>
+                    </tr>
+                    {isExpanded && (
+                      <tr id={`contract-${contract.id}`}>
+                        <td colSpan={9} className="p-3">
+                          <div className="grid gap-3 rounded-xl border border-divider bg-cream p-4 sm:grid-cols-2 lg:grid-cols-4">
+                            <div>
+                              <strong className="block">
+                                Start and duration
+                              </strong>
+                              <time dateTime={contract.startDate}>
+                                {contract.startDate}
+                              </time>{" "}
+                              · {contract.durationMatches} matches
+                            </div>
+                            <div>
+                              <strong className="block">
+                                Attendance progress
+                              </strong>
+                              {contract.attendedEvents} attended ·{" "}
+                              {Math.max(
+                                0,
+                                contract.requiredEvents -
+                                  contract.attendedEvents,
+                              )}{" "}
+                              remaining
+                            </div>
+                            <div>
+                              <strong className="block">
+                                Signing / renewal
+                              </strong>
+                              {contract.signingPaymentUsd === undefined
+                                ? "Not available"
+                                : money.format(contract.signingPaymentUsd)}{" "}
+                              /{" "}
+                              {contract.renewalBonusUsd === undefined
+                                ? "Not available"
+                                : money.format(contract.renewalBonusUsd)}
+                            </div>
+                            <div>
+                              <strong className="block">
+                                Settlement projection
+                              </strong>
+                              80% fixed:{" "}
+                              {money.format(contract.fixedPaymentUsd * 0.8)} ·
+                              missed-appearance deduction:{" "}
+                              {money.format(
+                                Math.max(
+                                  0,
+                                  contract.requiredEvents -
+                                    contract.attendedEvents,
+                                ) *
+                                  contract.fixedPaymentUsd *
+                                  0.2,
+                              )}{" "}
+                              · projected:{" "}
+                              {money.format(projectedInstallment(contract))}
+                            </div>
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </Fragment>
+                );
+              })}
+              {!loading && overview?.activeContracts.length === 0 && (
+                <tr>
+                  <td colSpan={9} className="p-5 text-center text-muted">
+                    No active sponsor contracts are recorded for this career.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section
+        className="overflow-hidden rounded-2xl border border-slate-700 bg-[#091119] p-5 text-slate-100 shadow-xl md:p-7"
+        aria-labelledby="potential-sponsors-title"
+      >
+        <div className="flex flex-wrap items-end justify-between gap-5 border-b border-slate-700 pb-5">
+          <div>
+            <h2
+              id="potential-sponsors-title"
+              className="text-2xl font-black uppercase tracking-wide md:text-3xl"
+            >
+              Potential sponsors
+            </h2>
+            <span
+              className="mt-3 block h-1 w-14 rounded-full bg-gold"
+              aria-hidden="true"
+            />
+            <p className="mt-2 text-sm text-slate-400">
+              Build your brand by completing milestones. Interest measures
+              progress, not the probability of an offer.
+            </p>
+          </div>
+          <div className="grid w-full gap-3 sm:w-auto sm:grid-cols-2">
+            <label className="flex min-w-44 flex-col gap-2 text-sm font-semibold text-slate-300">
+              Category
+              <select
+                className="rounded-lg border border-slate-600 bg-[#121d27] px-3 py-2 text-base text-white"
+                value={category}
+                onChange={(event) =>
+                  setCategory(event.target.value as CommercialCategory | "all")
+                }
+              >
+                <option value="all">All categories</option>
+                {Object.entries(labels).map(([value, label]) => (
+                  <option key={value} value={value}>
+                    {label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="flex min-w-36 flex-col gap-2 text-sm font-semibold text-slate-300">
+              Tier
+              <select
+                className="rounded-lg border border-slate-600 bg-[#121d27] px-3 py-2 text-base text-white"
+                value={tier}
+                onChange={(event) =>
+                  setTier(event.target.value as SponsorTier | "all")
+                }
+              >
+                <option value="all">All tiers</option>
+                <option value="entry">Entry</option>
+                <option value="middle">Middle</option>
+                <option value="top">Top</option>
+              </select>
+            </label>
+          </div>
+        </div>
+        {loading && (
+          <p role="status" className="mt-5 text-slate-300">
+            Loading sponsors…
+          </p>
+        )}
+        {error && (
+          <div className="mt-5" role="alert">
+            <p className="text-red-300">{error}</p>
+            <button
+              type="button"
+              className="ai-secondary mt-3 text-ink"
+              disabled={loading || saving}
+              onClick={() => void load()}
+            >
+              Retry
+            </button>
+          </div>
+        )}
+        {!loading && !error && (
+          <div className="mt-5 space-y-3">
+            {potential.map((state) => {
+              const brand = brandById.get(state.brandId)!;
+              const isExpanded = expanded === brand.id;
+              const completed =
+                state.permanentMilestones.filter((item) => item.completed)
+                  .length + (state.dynamicMilestone.completed ? 1 : 0);
+              return (
+                <article
+                  key={brand.id}
+                  className="overflow-hidden rounded-xl border border-slate-600 bg-[#0d161f] shadow-lg"
+                >
+                  <div
+                    className="relative grid gap-5 p-4 sm:p-5 lg:grid-cols-[minmax(15rem,1.2fr)_minmax(12rem,.85fr)_minmax(16rem,1fr)_auto] lg:items-center"
+                    style={{
+                      backgroundImage: `linear-gradient(90deg, rgb(7 14 21) 0%, rgb(7 14 21) 25%, rgb(7 14 21 / 0%) 75%, rgb(7 14 21 / 0%) 100%), url(${categoryImages[brand.category]})`,
+                      backgroundPosition: "center, center",
+                      backgroundSize: "cover, cover",
+                      backgroundRepeat: "no-repeat",
+                    }}
+                  >
+                    <div className="flex min-w-0 items-center gap-4">
+                      <Logo brandId={brand.id} brandName={brand.name} large />
+                      <h3 className="truncate text-2xl font-black sm:text-3xl">
+                        {brand.name}
+                      </h3>
+                    </div>
+                    <dl className="grid grid-cols-2 gap-4 lg:grid-cols-1">
+                      <div>
+                        <dt className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                          Category
+                        </dt>
+                        <dd className="mt-1 font-semibold">
+                          {labels[brand.category]}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                          Interest
+                        </dt>
+                        <dd className="mt-1 text-2xl font-black">
+                          {state.interestPercentage}%
+                        </dd>
+                      </div>
+                    </dl>
+                    <div className="space-y-4">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="rounded-full border border-slate-500 bg-slate-700/70 px-4 py-1 text-xs font-bold uppercase tracking-wider">
+                          {brand.tier}
+                        </span>
+                        <span className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                          Prefers
+                        </span>
+                        {brand.preferredIdentities.map((identity) => (
+                          <span
+                            key={identity}
+                            className="rounded-full border border-slate-500 bg-slate-800/80 px-3 py-1 text-sm capitalize"
+                          >
+                            {identity}
+                          </span>
+                        ))}
+                      </div>
+                      <div>
+                        <div className="flex items-center justify-between gap-3 text-sm">
+                          <span className="font-semibold">
+                            Milestone progress
+                          </span>
+                          <span>{completed} of 5 completed</span>
+                        </div>
+                        <div
+                          className="mt-2 h-2 overflow-hidden rounded-full bg-slate-600"
+                          role="progressbar"
+                          aria-label={`${brand.name} milestone progress`}
+                          aria-valuemin={0}
+                          aria-valuemax={5}
+                          aria-valuenow={completed}
+                        >
+                          <div
+                            className="h-full rounded-full bg-sky-400 transition-[width]"
+                            style={{ width: `${completed * 20}%` }}
+                          />
+                        </div>
+                        <button
+                          type="button"
+                          className="mt-2 font-semibold text-sky-400 underline underline-offset-2"
+                          aria-expanded={isExpanded}
+                          aria-controls={`milestones-${brand.id}`}
+                          onClick={() =>
+                            setExpanded(isExpanded ? null : brand.id)
+                          }
+                        >
+                          {isExpanded ? "Hide details" : "View details"}
+                        </button>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      className="w-full cursor-pointer rounded-lg bg-court-red px-4 py-3 font-bold text-white shadow-lg transition-opacity hover:opacity-90 disabled:cursor-wait disabled:opacity-50 lg:w-auto"
+                      disabled={saving}
+                      onClick={() =>
+                        setConfirming({
+                          brand,
+                          action: "block",
+                          requestId: crypto.randomUUID(),
+                        })
+                      }
+                    >
+                      Block approaches
+                    </button>
+                  </div>
+                  {isExpanded && (
+                    <div
+                      id={`milestones-${brand.id}`}
+                      className="border-t border-slate-600 bg-[#0d161f] p-3 text-slate-100 sm:p-4"
+                    >
+                      <MilestoneDetails state={state} />
+                    </div>
+                  )}
+                </article>
+              );
+            })}
+            {potential.length === 0 && (
+              <p className="rounded-xl border border-slate-700 bg-[#0d161f] p-6 text-center text-slate-400">
+                {overview?.potentialSponsors.length
+                  ? "No eligible brands match these filters."
+                  : "When a brand becomes interested in your player, it will appear here."}
+              </p>
+            )}
+          </div>
+        )}
+      </section>
+
+      <div className="grid items-start gap-8 lg:grid-cols-2">
+        <section
+          className="overflow-hidden rounded-2xl border border-slate-700 bg-[#091119] p-5 text-slate-100 shadow-xl md:p-7"
+          aria-labelledby="blocked-by-player-title"
+        >
+          <h2
+            id="blocked-by-player-title"
+            className="text-2xl font-black uppercase tracking-wide"
+          >
+            Blocked by you
+          </h2>
+          <span
+            className="mt-3 block h-1 w-14 rounded-full bg-gold"
+            aria-hidden="true"
+          />
+          <p className="mt-3 text-sm text-slate-400">
+            Brands you have asked not to approach your player.
+          </p>
+          <div className="mt-5 space-y-3">
+            {overview?.playerBlocks.map((block) => {
+              const brand = brandById.get(block.brandId)!;
+              return (
+                <article
+                  key={block.brandId}
+                  className="grid min-h-40 grid-cols-[7rem_1fr] items-center gap-4 overflow-hidden rounded-xl border border-slate-600 p-4"
+                  style={{
+                    backgroundImage: `linear-gradient(90deg, rgb(7 14 21) 0%, rgb(7 14 21) 30%, rgb(7 14 21 / 72%) 100%), url(${categoryImages[brand.category]})`,
+                    backgroundPosition: "center",
+                    backgroundSize: "cover",
+                  }}
+                >
+                  <div className="flex min-w-0 flex-col items-center gap-2 text-center">
+                    <Logo brandId={brand.id} brandName={brand.name} large />
+                    <h3 className="max-w-full truncate text-lg font-black">
+                      {brand.name}
+                    </h3>
+                    <span className="text-xs text-slate-400">
+                      {labels[brand.category]}
+                    </span>
+                  </div>
+                  <div className="flex flex-col items-end gap-3 text-right">
+                    {block.blockedAt && (
+                      <time
+                        className="text-xs text-slate-400"
+                        dateTime={block.blockedAt}
+                      >
+                        Blocked {new Date(block.blockedAt).toLocaleDateString()}
+                      </time>
+                    )}
+                    <button
+                      type="button"
+                      className="cursor-pointer rounded-lg bg-court-blue px-4 py-3 font-bold text-white transition-opacity hover:opacity-90 disabled:cursor-wait disabled:opacity-50"
+                      disabled={saving}
+                      onClick={() =>
+                        setConfirming({
+                          brand,
+                          action: "unblock",
+                          requestId: crypto.randomUUID(),
+                        })
+                      }
+                    >
+                      Unblock
+                    </button>
+                  </div>
+                </article>
+              );
+            })}
+            {!loading && overview?.playerBlocks.length === 0 && (
+              <p className="rounded-xl border border-slate-700 bg-[#0d161f] p-6 text-center text-slate-400">
+                You have not blocked any brands.
+              </p>
+            )}
+          </div>
+        </section>
+
+        <section
+          className="overflow-hidden rounded-2xl border border-slate-700 bg-[#091119] p-5 text-slate-100 shadow-xl md:p-7"
+          aria-labelledby="professionalism-blocks-title"
+        >
+          <h2
+            id="professionalism-blocks-title"
+            className="text-2xl font-black uppercase tracking-wide"
+          >
+            Blocked you
+          </h2>
+          <span
+            className="mt-3 block h-1 w-14 rounded-full bg-gold"
+            aria-hidden="true"
+          />
+          <p className="mt-3 text-sm text-slate-400">
+            Permanent brand decisions cannot be removed.
+          </p>
+          <div className="mt-5 space-y-3">
+            {overview?.professionalismBlocks.map((block) => {
+              const brand = brandById.get(block.brandId)!;
+              const datedContracts = block.failedContracts.filter(
+                (contract) => contract.date,
+              );
+              return (
+                <article
+                  key={block.brandId}
+                  className="grid min-h-40 grid-cols-[7rem_1fr] items-center gap-4 overflow-hidden rounded-xl border border-slate-600 p-4"
+                  style={{
+                    backgroundImage: `linear-gradient(90deg, rgb(7 14 21) 0%, rgb(7 14 21) 30%, rgb(7 14 21 / 78%) 100%), url(${categoryImages[brand.category]})`,
+                    backgroundPosition: "center",
+                    backgroundSize: "cover",
+                  }}
+                >
+                  <div className="flex min-w-0 flex-col items-center gap-2 text-center">
+                    <Logo brandId={brand.id} brandName={brand.name} large />
+                    <h3 className="max-w-full truncate text-lg font-black">
+                      {brand.name}
+                    </h3>
+                    <span className="text-xs text-slate-400">
+                      {labels[brand.category]}
+                    </span>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-sm leading-relaxed text-slate-200">
+                      We no longer wish to pursue a partnership due to
+                      non-compliance with previous contracts.
+                    </p>
+                    <p className="mt-2 text-xs text-slate-400">
+                      {datedContracts.length
+                        ? `Contracts: ${datedContracts.map((contract) => contract.date).join(" · ")}`
+                        : block.failedContracts.length
+                          ? `Contracts: ${block.failedContracts.map((contract) => contract.reference).join(" · ")}`
+                          : "Contract dates are not available."}
+                    </p>
+                    {block.reason && (
+                      <p className="mt-2 text-xs text-red-300">
+                        {block.reason}
+                      </p>
+                    )}
+                  </div>
+                </article>
+              );
+            })}
+            {!loading && overview?.professionalismBlocks.length === 0 && (
+              <p className="rounded-xl border border-slate-700 bg-[#0d161f] p-6 text-center text-slate-400">
+                No brands have permanently blocked this player.
+              </p>
+            )}
+          </div>
+        </section>
+      </div>
+      {confirming && (
+        <ConfirmDialog
+          brand={confirming.brand}
+          action={confirming.action}
+          saving={saving}
+          onCancel={() => setConfirming(null)}
+          onConfirm={() => void mutate()}
+        />
+      )}
+    </div>
+  );
+}

@@ -5,7 +5,7 @@
   "percentageUnit": "fraction",
   "tiers": {
     "entry": {
-      "minimumFollowers": 0,
+      "minimumFollowers": 1000,
       "footwearRoyaltyRate": 0.2
     },
     "middle": {

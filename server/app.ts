@@ -15,6 +15,7 @@ import { normalizeImport } from "../src/domain/import.ts";
 import { advanceCareerDay } from "./progression.ts";
 import { calendarDate } from "../src/domain/calendarDate.ts";
 import type { AdvanceDayRequest } from "../src/types/progression.ts";
+import type { SponsorBlockMutation } from "../src/types/sponsor.ts";
 
 async function readBody(req: IncomingMessage, limit: number): Promise<unknown> {
   if (req.headers["content-type"] !== "application/json")
@@ -194,13 +195,61 @@ export function connectionServer(
             careers.create(await readBody(req, 2 * 1024 * 1024)),
           );
       }
-      const careerMatch = req.url?.match(/^\/api\/careers\/([\w-]+)$/);
-      if (careers && careerMatch && req.method === "GET") {
-        const career = careers.get(careerMatch[1]);
+      const sponsorMatch = req.url?.match(
+        /^\/api\/careers\/([\w-]+)\/sponsors$/,
+      );
+      if (careers && sponsorMatch && req.method === "GET") {
+        const career = careers.get(sponsorMatch[1]);
         return send(
           career ? 200 : 404,
-          career ?? { message: "Career not found." },
+          career
+            ? careers.sponsors.getOverview(career)
+            : { message: "Career not found." },
         );
+      }
+      const sponsorBlockMatch = req.url?.match(
+        /^\/api\/careers\/([\w-]+)\/sponsors\/(block|unblock)$/,
+      );
+      if (careers && sponsorBlockMatch && req.method === "POST") {
+        const career = careers.get(sponsorBlockMatch[1]);
+        if (!career) return send(404, { message: "Career not found." });
+        const body = (await readBody(req, 4096)) as SponsorBlockMutation | null;
+        if (
+          !body ||
+          typeof body.brandId !== "string" ||
+          !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(body.brandId) ||
+          typeof body.requestId !== "string" ||
+          !/^[\w-]{20,80}$/.test(body.requestId)
+        )
+          throw new ValidationError(
+            "Invalid sponsor request. Reload Sponsors and retry.",
+          );
+        return send(
+          200,
+          careers.sponsors.setPlayerBlock(
+            career,
+            body.brandId,
+            sponsorBlockMatch[2] === "block",
+            body.requestId,
+          ),
+        );
+      }
+      const careerMatch = req.url?.match(/^\/api\/careers\/([\w-]+)$/);
+      if (careers && careerMatch) {
+        if (req.method === "GET") {
+          const career = careers.get(careerMatch[1]);
+          return send(
+            career ? 200 : 404,
+            career ?? { message: "Career not found." },
+          );
+        }
+        if (req.method === "DELETE") {
+          const deleted = careers.delete(careerMatch[1]);
+          return send(
+            deleted ? 200 : 404,
+            deleted ? { deleted: true } : { message: "Career not found." },
+          );
+        }
       }
       const gamesMatch = req.url?.match(/^\/api\/careers\/([\w-]+)\/games$/);
       if (careers && gamesMatch && req.method === "POST") {
@@ -355,12 +404,12 @@ export function connectionServer(
         return send(400, { message: error.message });
       if (
         req.url?.match(
-          /^\/api\/careers\/([\w-]+)\/(advance-day|calendar-settings)$/,
+          /^\/api\/careers\/([\w-]+)\/(advance-day|calendar-settings|sponsors\/block|sponsors\/unblock)$/,
         )
       )
         return send(500, {
           message:
-            "The calendar operation could not finish. Check that the local career database is writable, then retry. Saved matches are preserved.",
+            "The career operation could not finish. Check that the local career database is writable, then retry. Saved data is preserved.",
         });
       send(500, {
         message:
