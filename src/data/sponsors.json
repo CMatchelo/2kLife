@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "currency": "USD",
-  "moneyUnit": "dollars",
+  "moneyUnit": "cents",
   "percentageUnit": "fraction",
   "tiers": {
     "entry": {
@@ -66,10 +66,10 @@
       },
       "baseContract": {
         "durationMatches": 24,
-        "fixedPaymentUsd": 30000,
-        "perMatchUsd": 500,
-        "perEventUsd": 2000,
-        "requiredEvents": 2
+        "requiredEvents": 2,
+        "fixedPaymentUsdCents": 3000000,
+        "perMatchUsdCents": 50000,
+        "perEventUsdCents": 200000
       },
       "royaltyRate": 0.2,
       "customShoeEntitlement": 2
@@ -122,10 +122,10 @@
       },
       "baseContract": {
         "durationMatches": 22,
-        "fixedPaymentUsd": 27000,
-        "perMatchUsd": 500,
-        "perEventUsd": 2500,
-        "requiredEvents": 2
+        "requiredEvents": 2,
+        "fixedPaymentUsdCents": 2700000,
+        "perMatchUsdCents": 50000,
+        "perEventUsdCents": 250000
       },
       "royaltyRate": 0.2,
       "customShoeEntitlement": 2
@@ -178,10 +178,10 @@
       },
       "baseContract": {
         "durationMatches": 20,
-        "fixedPaymentUsd": 18000,
-        "perMatchUsd": 500,
-        "perEventUsd": 4000,
-        "requiredEvents": 3
+        "requiredEvents": 3,
+        "fixedPaymentUsdCents": 1800000,
+        "perMatchUsdCents": 50000,
+        "perEventUsdCents": 400000
       },
       "royaltyRate": 0.2,
       "customShoeEntitlement": 2
@@ -234,10 +234,10 @@
       },
       "baseContract": {
         "durationMatches": 20,
-        "fixedPaymentUsd": 24000,
-        "perMatchUsd": 500,
-        "perEventUsd": 3000,
-        "requiredEvents": 2
+        "requiredEvents": 2,
+        "fixedPaymentUsdCents": 2400000,
+        "perMatchUsdCents": 50000,
+        "perEventUsdCents": 300000
       },
       "royaltyRate": 0.2,
       "customShoeEntitlement": 2
@@ -290,10 +290,10 @@
       },
       "baseContract": {
         "durationMatches": 18,
-        "fixedPaymentUsd": 21000,
-        "perMatchUsd": 500,
-        "perEventUsd": 3500,
-        "requiredEvents": 2
+        "requiredEvents": 2,
+        "fixedPaymentUsdCents": 2100000,
+        "perMatchUsdCents": 50000,
+        "perEventUsdCents": 350000
       },
       "royaltyRate": 0.2,
       "customShoeEntitlement": 2
@@ -346,10 +346,10 @@
       },
       "baseContract": {
         "durationMatches": 16,
-        "fixedPaymentUsd": 15000,
-        "perMatchUsd": 500,
-        "perEventUsd": 4500,
-        "requiredEvents": 3
+        "requiredEvents": 3,
+        "fixedPaymentUsdCents": 1500000,
+        "perMatchUsdCents": 50000,
+        "perEventUsdCents": 450000
       },
       "royaltyRate": 0.2,
       "customShoeEntitlement": 2
@@ -402,10 +402,10 @@
       },
       "baseContract": {
         "durationMatches": 20,
-        "fixedPaymentUsd": 18000,
-        "perMatchUsd": 500,
-        "perEventUsd": 4000,
-        "requiredEvents": 3
+        "requiredEvents": 3,
+        "fixedPaymentUsdCents": 1800000,
+        "perMatchUsdCents": 50000,
+        "perEventUsdCents": 400000
       }
     },
     {
@@ -456,10 +456,10 @@
       },
       "baseContract": {
         "durationMatches": 18,
-        "fixedPaymentUsd": 15000,
-        "perMatchUsd": 500,
-        "perEventUsd": 4500,
-        "requiredEvents": 3
+        "requiredEvents": 3,
+        "fixedPaymentUsdCents": 1500000,
+        "perMatchUsdCents": 50000,
+        "perEventUsdCents": 450000
       }
     },
     {
@@ -510,10 +510,10 @@
       },
       "baseContract": {
         "durationMatches": 24,
-        "fixedPaymentUsd": 30000,
-        "perMatchUsd": 500,
-        "perEventUsd": 2000,
-        "requiredEvents": 2
+        "requiredEvents": 2,
+        "fixedPaymentUsdCents": 3000000,
+        "perMatchUsdCents": 50000,
+        "perEventUsdCents": 200000
       }
     },
     {
@@ -564,10 +564,10 @@
       },
       "baseContract": {
         "durationMatches": 22,
-        "fixedPaymentUsd": 27000,
-        "perMatchUsd": 500,
-        "perEventUsd": 2500,
-        "requiredEvents": 2
+        "requiredEvents": 2,
+        "fixedPaymentUsdCents": 2700000,
+        "perMatchUsdCents": 50000,
+        "perEventUsdCents": 250000
       }
     },
     {
@@ -618,10 +618,10 @@
       },
       "baseContract": {
         "durationMatches": 20,
-        "fixedPaymentUsd": 24000,
-        "perMatchUsd": 500,
-        "perEventUsd": 3000,
-        "requiredEvents": 2
+        "requiredEvents": 2,
+        "fixedPaymentUsdCents": 2400000,
+        "perMatchUsdCents": 50000,
+        "perEventUsdCents": 300000
       }
     },
     {
@@ -672,10 +672,10 @@
       },
       "baseContract": {
         "durationMatches": 18,
-        "fixedPaymentUsd": 21000,
-        "perMatchUsd": 500,
-        "perEventUsd": 3500,
-        "requiredEvents": 2
+        "requiredEvents": 2,
+        "fixedPaymentUsdCents": 2100000,
+        "perMatchUsdCents": 50000,
+        "perEventUsdCents": 350000
       }
     },
     {
@@ -726,10 +726,10 @@
       },
       "baseContract": {
         "durationMatches": 40,
-        "fixedPaymentUsd": 150000,
-        "perMatchUsd": 1500,
-        "perEventUsd": 8000,
-        "requiredEvents": 3
+        "requiredEvents": 3,
+        "fixedPaymentUsdCents": 15000000,
+        "perMatchUsdCents": 150000,
+        "perEventUsdCents": 800000
       },
       "royaltyRate": 0.3,
       "customShoeEntitlement": 2
@@ -782,10 +782,10 @@
       },
       "baseContract": {
         "durationMatches": 32,
-        "fixedPaymentUsd": 105000,
-        "perMatchUsd": 1500,
-        "perEventUsd": 14000,
-        "requiredEvents": 4
+        "requiredEvents": 4,
+        "fixedPaymentUsdCents": 10500000,
+        "perMatchUsdCents": 150000,
+        "perEventUsdCents": 1400000
       },
       "royaltyRate": 0.3,
       "customShoeEntitlement": 2
@@ -838,10 +838,10 @@
       },
       "baseContract": {
         "durationMatches": 36,
-        "fixedPaymentUsd": 135000,
-        "perMatchUsd": 1500,
-        "perEventUsd": 10000,
-        "requiredEvents": 3
+        "requiredEvents": 3,
+        "fixedPaymentUsdCents": 13500000,
+        "perMatchUsdCents": 150000,
+        "perEventUsdCents": 1000000
       },
       "royaltyRate": 0.3,
       "customShoeEntitlement": 2
@@ -894,10 +894,10 @@
       },
       "baseContract": {
         "durationMatches": 30,
-        "fixedPaymentUsd": 90000,
-        "perMatchUsd": 1500,
-        "perEventUsd": 16000,
-        "requiredEvents": 4
+        "requiredEvents": 4,
+        "fixedPaymentUsdCents": 9000000,
+        "perMatchUsdCents": 150000,
+        "perEventUsdCents": 1600000
       },
       "royaltyRate": 0.3,
       "customShoeEntitlement": 2
@@ -950,10 +950,10 @@
       },
       "baseContract": {
         "durationMatches": 34,
-        "fixedPaymentUsd": 120000,
-        "perMatchUsd": 1500,
-        "perEventUsd": 12000,
-        "requiredEvents": 3
+        "requiredEvents": 3,
+        "fixedPaymentUsdCents": 12000000,
+        "perMatchUsdCents": 150000,
+        "perEventUsdCents": 1200000
       },
       "royaltyRate": 0.3,
       "customShoeEntitlement": 2
@@ -1006,10 +1006,10 @@
       },
       "baseContract": {
         "durationMatches": 28,
-        "fixedPaymentUsd": 75000,
-        "perMatchUsd": 1500,
-        "perEventUsd": 18000,
-        "requiredEvents": 4
+        "requiredEvents": 4,
+        "fixedPaymentUsdCents": 7500000,
+        "perMatchUsdCents": 150000,
+        "perEventUsdCents": 1800000
       },
       "royaltyRate": 0.3,
       "customShoeEntitlement": 2
@@ -1062,10 +1062,10 @@
       },
       "baseContract": {
         "durationMatches": 28,
-        "fixedPaymentUsd": 75000,
-        "perMatchUsd": 1500,
-        "perEventUsd": 18000,
-        "requiredEvents": 4
+        "requiredEvents": 4,
+        "fixedPaymentUsdCents": 7500000,
+        "perMatchUsdCents": 150000,
+        "perEventUsdCents": 1800000
       }
     },
     {
@@ -1116,10 +1116,10 @@
       },
       "baseContract": {
         "durationMatches": 32,
-        "fixedPaymentUsd": 105000,
-        "perMatchUsd": 1500,
-        "perEventUsd": 14000,
-        "requiredEvents": 4
+        "requiredEvents": 4,
+        "fixedPaymentUsdCents": 10500000,
+        "perMatchUsdCents": 150000,
+        "perEventUsdCents": 1400000
       }
     },
     {
@@ -1170,10 +1170,10 @@
       },
       "baseContract": {
         "durationMatches": 40,
-        "fixedPaymentUsd": 150000,
-        "perMatchUsd": 1500,
-        "perEventUsd": 8000,
-        "requiredEvents": 3
+        "requiredEvents": 3,
+        "fixedPaymentUsdCents": 15000000,
+        "perMatchUsdCents": 150000,
+        "perEventUsdCents": 800000
       }
     },
     {
@@ -1224,10 +1224,10 @@
       },
       "baseContract": {
         "durationMatches": 36,
-        "fixedPaymentUsd": 135000,
-        "perMatchUsd": 1500,
-        "perEventUsd": 10000,
-        "requiredEvents": 3
+        "requiredEvents": 3,
+        "fixedPaymentUsdCents": 13500000,
+        "perMatchUsdCents": 150000,
+        "perEventUsdCents": 1000000
       }
     },
     {
@@ -1278,10 +1278,10 @@
       },
       "baseContract": {
         "durationMatches": 30,
-        "fixedPaymentUsd": 90000,
-        "perMatchUsd": 1500,
-        "perEventUsd": 16000,
-        "requiredEvents": 4
+        "requiredEvents": 4,
+        "fixedPaymentUsdCents": 9000000,
+        "perMatchUsdCents": 150000,
+        "perEventUsdCents": 1600000
       }
     },
     {
@@ -1332,10 +1332,10 @@
       },
       "baseContract": {
         "durationMatches": 34,
-        "fixedPaymentUsd": 120000,
-        "perMatchUsd": 1500,
-        "perEventUsd": 12000,
-        "requiredEvents": 3
+        "requiredEvents": 3,
+        "fixedPaymentUsdCents": 12000000,
+        "perMatchUsdCents": 150000,
+        "perEventUsdCents": 1200000
       }
     },
     {
@@ -1388,10 +1388,10 @@
       },
       "baseContract": {
         "durationMatches": 60,
-        "fixedPaymentUsd": 600000,
-        "perMatchUsd": 4000,
-        "perEventUsd": 25000,
-        "requiredEvents": 5
+        "requiredEvents": 5,
+        "fixedPaymentUsdCents": 60000000,
+        "perMatchUsdCents": 400000,
+        "perEventUsdCents": 2500000
       },
       "royaltyRate": 0.5,
       "customShoeEntitlement": 2
@@ -1444,10 +1444,10 @@
       },
       "baseContract": {
         "durationMatches": 56,
-        "fixedPaymentUsd": 540000,
-        "perMatchUsd": 4000,
-        "perEventUsd": 30000,
-        "requiredEvents": 5
+        "requiredEvents": 5,
+        "fixedPaymentUsdCents": 54000000,
+        "perMatchUsdCents": 400000,
+        "perEventUsdCents": 3000000
       },
       "royaltyRate": 0.5,
       "customShoeEntitlement": 2
@@ -1502,10 +1502,10 @@
       },
       "baseContract": {
         "durationMatches": 50,
-        "fixedPaymentUsd": 420000,
-        "perMatchUsd": 4000,
-        "perEventUsd": 40000,
-        "requiredEvents": 6
+        "requiredEvents": 6,
+        "fixedPaymentUsdCents": 42000000,
+        "perMatchUsdCents": 400000,
+        "perEventUsdCents": 4000000
       },
       "royaltyRate": 0.5,
       "customShoeEntitlement": 2
@@ -1560,10 +1560,10 @@
       },
       "baseContract": {
         "durationMatches": 48,
-        "fixedPaymentUsd": 360000,
-        "perMatchUsd": 4000,
-        "perEventUsd": 45000,
-        "requiredEvents": 7
+        "requiredEvents": 7,
+        "fixedPaymentUsdCents": 36000000,
+        "perMatchUsdCents": 400000,
+        "perEventUsdCents": 4500000
       },
       "royaltyRate": 0.5,
       "customShoeEntitlement": 2
@@ -1616,10 +1616,10 @@
       },
       "baseContract": {
         "durationMatches": 44,
-        "fixedPaymentUsd": 300000,
-        "perMatchUsd": 4000,
-        "perEventUsd": 50000,
-        "requiredEvents": 7
+        "requiredEvents": 7,
+        "fixedPaymentUsdCents": 30000000,
+        "perMatchUsdCents": 400000,
+        "perEventUsdCents": 5000000
       },
       "royaltyRate": 0.5,
       "customShoeEntitlement": 2
@@ -1674,10 +1674,10 @@
       },
       "baseContract": {
         "durationMatches": 54,
-        "fixedPaymentUsd": 480000,
-        "perMatchUsd": 4000,
-        "perEventUsd": 35000,
-        "requiredEvents": 6
+        "requiredEvents": 6,
+        "fixedPaymentUsdCents": 48000000,
+        "perMatchUsdCents": 400000,
+        "perEventUsdCents": 3500000
       },
       "royaltyRate": 0.5,
       "customShoeEntitlement": 2
@@ -1730,10 +1730,10 @@
       },
       "baseContract": {
         "durationMatches": 60,
-        "fixedPaymentUsd": 600000,
-        "perMatchUsd": 4000,
-        "perEventUsd": 25000,
-        "requiredEvents": 5
+        "requiredEvents": 5,
+        "fixedPaymentUsdCents": 60000000,
+        "perMatchUsdCents": 400000,
+        "perEventUsdCents": 2500000
       }
     },
     {
@@ -1786,10 +1786,10 @@
       },
       "baseContract": {
         "durationMatches": 44,
-        "fixedPaymentUsd": 300000,
-        "perMatchUsd": 4000,
-        "perEventUsd": 50000,
-        "requiredEvents": 7
+        "requiredEvents": 7,
+        "fixedPaymentUsdCents": 30000000,
+        "perMatchUsdCents": 400000,
+        "perEventUsdCents": 5000000
       }
     },
     {
@@ -1842,10 +1842,10 @@
       },
       "baseContract": {
         "durationMatches": 56,
-        "fixedPaymentUsd": 540000,
-        "perMatchUsd": 4000,
-        "perEventUsd": 30000,
-        "requiredEvents": 5
+        "requiredEvents": 5,
+        "fixedPaymentUsdCents": 54000000,
+        "perMatchUsdCents": 400000,
+        "perEventUsdCents": 3000000
       }
     },
     {
@@ -1896,10 +1896,10 @@
       },
       "baseContract": {
         "durationMatches": 54,
-        "fixedPaymentUsd": 480000,
-        "perMatchUsd": 4000,
-        "perEventUsd": 35000,
-        "requiredEvents": 6
+        "requiredEvents": 6,
+        "fixedPaymentUsdCents": 48000000,
+        "perMatchUsdCents": 400000,
+        "perEventUsdCents": 3500000
       }
     },
     {
@@ -1950,10 +1950,10 @@
       },
       "baseContract": {
         "durationMatches": 48,
-        "fixedPaymentUsd": 360000,
-        "perMatchUsd": 4000,
-        "perEventUsd": 45000,
-        "requiredEvents": 7
+        "requiredEvents": 7,
+        "fixedPaymentUsdCents": 36000000,
+        "perMatchUsdCents": 400000,
+        "perEventUsdCents": 4500000
       }
     },
     {
@@ -2006,10 +2006,10 @@
       },
       "baseContract": {
         "durationMatches": 50,
-        "fixedPaymentUsd": 420000,
-        "perMatchUsd": 4000,
-        "perEventUsd": 40000,
-        "requiredEvents": 6
+        "requiredEvents": 6,
+        "fixedPaymentUsdCents": 42000000,
+        "perMatchUsdCents": 400000,
+        "perEventUsdCents": 4000000
       }
     }
   ]

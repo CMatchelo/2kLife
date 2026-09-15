@@ -10,18 +10,20 @@ import type {
   SponsorBrandState,
   SponsorTier,
   SponsorsOverview,
+  SponsorApproachGroup,
 } from "../types/sponsor";
 import { api } from "./api";
+import SponsorApproachModal from "./SponsorApproachModal";
 
 const brandById = new Map(
   sponsorCatalog.brands.map((brand) => [brand.id, brand]),
 );
 const tierRank: Record<SponsorTier, number> = { entry: 1, middle: 2, top: 3 };
-const money = new Intl.NumberFormat("en-US", {
+const currency = new Intl.NumberFormat("en-US", {
   style: "currency",
   currency: "USD",
-  maximumFractionDigits: 0,
 });
+const money = (cents: number) => currency.format(cents / 100);
 const integer = new Intl.NumberFormat("en-US");
 const labels: Record<CommercialCategory, string> = {
   footwear: "Footwear",
@@ -215,10 +217,9 @@ function MilestoneDetails({ state }: { state: SponsorBrandState }) {
 function projectedInstallment(contract: SponsorActiveContract) {
   return Math.max(
     0,
-    contract.fixedPaymentUsd * 0.8 -
+    contract.remainingFixedPaymentUsdCents -
       Math.max(0, contract.requiredEvents - contract.attendedEvents) *
-        contract.fixedPaymentUsd *
-        0.2,
+        contract.signingPaymentUsdCents,
   );
 }
 
@@ -311,12 +312,19 @@ export default function Sponsors({ career }: { career: Career }) {
     requestId: string;
   } | null>(null);
   const [saving, setSaving] = useState(false);
+  const [approaches, setApproaches] = useState<SponsorApproachGroup[]>([]);
+  const [openApproach, setOpenApproach] = useState<SponsorApproachGroup | null>(null);
 
   async function load() {
     setLoading(true);
     setError("");
     try {
-      setOverview(await api<SponsorsOverview>(`careers/${careerId}/sponsors`));
+      const [nextOverview, nextApproaches] = await Promise.all([
+        api<SponsorsOverview>(`careers/${careerId}/sponsors`),
+        api<SponsorApproachGroup[]>(`careers/${careerId}/sponsor-offers`),
+      ]);
+      setOverview(nextOverview);
+      setApproaches(nextApproaches);
     } catch (cause) {
       setError(
         cause instanceof Error
@@ -379,6 +387,29 @@ export default function Sponsors({ career }: { career: Career }) {
 
   return (
     <div className="space-y-8">
+      {approaches.length > 0 && (
+        <section className="career-card dashboard-card" aria-labelledby="pending-offers-title">
+          <h2 id="pending-offers-title" className="text-2xl font-black uppercase tracking-wide">Sponsor offers</h2>
+          <p className="mt-2 text-muted">Closing an approach does not refuse it. Review it again before its match boundary expires.</p>
+          <div className="mt-4 flex flex-wrap gap-3">
+            {approaches.map((approach) => <button key={approach.id} type="button" className="ai-primary" onClick={() => setOpenApproach(approach)}>Review {approach.offers.filter((offer) => offer.status === "pending").length} offer{approach.offers.filter((offer) => offer.status === "pending").length === 1 ? "" : "s"}</button>)}
+          </div>
+        </section>
+      )}
+      <section className="career-card dashboard-card" aria-labelledby="sponsor-finances-title">
+        <h2 id="sponsor-finances-title" className="text-2xl font-black uppercase tracking-wide">Finances</h2>
+        <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <div><span className="text-sm text-muted">Current balance</span><strong className="block text-xl">{money(overview?.finances.balanceUsdCents ?? 0)}</strong></div>
+          <div><span className="text-sm text-muted">Sponsor earnings</span><strong className="block text-xl">{money(overview?.finances.sponsorEarningsUsdCents ?? 0)}</strong></div>
+          <div><span className="text-sm text-muted">Signing payments</span><strong className="block text-xl">{money(overview?.finances.signingEarningsUsdCents ?? 0)}</strong></div>
+          <div><span className="text-sm text-muted">Match payments</span><strong className="block text-xl">{money(overview?.finances.sponsorMatchEarningsUsdCents ?? 0)}</strong></div>
+        </div>
+        <h3 className="mt-5 font-bold">Recent transactions</h3>
+        <div className="mt-2 overflow-x-auto"><table className="w-full text-left text-sm"><thead><tr><th className="p-2">Date</th><th className="p-2">Description</th><th className="p-2">Reason</th><th className="p-2 text-right">Amount</th></tr></thead><tbody>
+          {overview?.finances.recentTransactions.map((transaction) => <tr key={transaction.id} className="border-t border-divider/60"><td className="p-2">{transaction.inGameDate}</td><td className="p-2">{transaction.description ?? transaction.originReference}</td><td className="p-2 capitalize">{transaction.reason.replaceAll("_", " ")}</td><td className="p-2 text-right font-bold">{money(transaction.amountUsdCents)}</td></tr>)}
+          {!loading && overview?.finances.recentTransactions.length === 0 && <tr><td colSpan={4} className="p-4 text-center text-muted">No financial transactions recorded.</td></tr>}
+        </tbody></table></div>
+      </section>
       <section
         className="career-card dashboard-card"
         aria-labelledby="active-contracts-title"
@@ -394,7 +425,7 @@ export default function Sponsors({ career }: { career: Career }) {
           aria-hidden="true"
         />
         <p className="mt-2 text-sm text-muted">
-          Projected final installment: If no more appearances are attended.
+          Projected if no more sponsor events are attended.
         </p>
         <div className="mt-5 overflow-x-auto">
           <table className="min-w-[76rem] w-full text-left text-sm">
@@ -419,26 +450,25 @@ export default function Sponsors({ career }: { career: Career }) {
             </thead>
             <tbody>
               {overview?.activeContracts.map((contract) => {
-                const brand = brandById.get(contract.brandId)!;
                 const isExpanded = expandedContract === contract.id;
                 return (
                   <Fragment key={contract.id}>
                     <tr className="border-b border-divider/60">
                       <th scope="row" className="p-3">
-                        {brand.name}
+                        {contract.brandName}
                       </th>
                       <td className="p-3">
-                        <Logo brandId={brand.id} brandName={brand.name} />
+                        <Logo brandId={contract.brandId} brandName={contract.brandName} />
                       </td>
-                      <td className="p-3">{labels[brand.category]}</td>
+                      <td className="p-3">{labels[contract.category]}</td>
                       <td className="p-3">
-                        {money.format(contract.fixedPaymentUsd)}
-                      </td>
-                      <td className="p-3">
-                        {money.format(contract.perMatchUsd)}
+                        {money(contract.fixedPaymentUsdCents)}
                       </td>
                       <td className="p-3">
-                        {money.format(contract.perEventUsd)}
+                        {money(contract.perMatchUsdCents)}
+                      </td>
+                      <td className="p-3">
+                        {money(contract.perEventUsdCents)}
                       </td>
                       <td className="p-3">
                         {Math.max(
@@ -449,7 +479,7 @@ export default function Sponsors({ career }: { career: Career }) {
                       </td>
                       <td className="p-3">{contract.matchesRemaining}</td>
                       <td className="p-3 font-bold">
-                        {money.format(projectedInstallment(contract))}
+                        {money(projectedInstallment(contract))}
                         <button
                           type="button"
                           className="ai-link mt-2 block font-normal"
@@ -492,32 +522,27 @@ export default function Sponsors({ career }: { career: Career }) {
                               <strong className="block">
                                 Signing / renewal
                               </strong>
-                              {contract.signingPaymentUsd === undefined
-                                ? "Not available"
-                                : money.format(contract.signingPaymentUsd)}{" "}
+                              {money(contract.signingPaymentUsdCents)}{" "}
                               /{" "}
-                              {contract.renewalBonusUsd === undefined
-                                ? "Not available"
-                                : money.format(contract.renewalBonusUsd)}
+                              {money(contract.renewalBonusUsdCents)}
                             </div>
                             <div>
                               <strong className="block">
                                 Settlement projection
                               </strong>
                               80% fixed:{" "}
-                              {money.format(contract.fixedPaymentUsd * 0.8)} ·
+                              {money(contract.remainingFixedPaymentUsdCents)} ·
                               missed-appearance deduction:{" "}
-                              {money.format(
+                              {money(
                                 Math.max(
                                   0,
                                   contract.requiredEvents -
                                     contract.attendedEvents,
                                 ) *
-                                  contract.fixedPaymentUsd *
-                                  0.2,
+                                  contract.signingPaymentUsdCents,
                               )}{" "}
                               · projected:{" "}
-                              {money.format(projectedInstallment(contract))}
+                              {money(projectedInstallment(contract))}
                             </div>
                           </div>
                         </td>
@@ -900,6 +925,7 @@ export default function Sponsors({ career }: { career: Career }) {
           onConfirm={() => void mutate()}
         />
       )}
+      {openApproach && <SponsorApproachModal careerId={careerId} initial={openApproach} onChanged={() => void load()} onClose={() => { setOpenApproach(null); void load(); }} />}
     </div>
   );
 }

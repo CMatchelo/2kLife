@@ -150,9 +150,9 @@ export function validateSponsorCatalog(
     "expected version 1",
   );
   requireValue(
-    catalog.currency === "USD" && catalog.moneyUnit === "dollars",
+    catalog.currency === "USD" && catalog.moneyUnit === "cents",
     "currency",
-    "money must be whole USD dollars",
+    "money must be integer USD cents",
   );
   requireValue(
     catalog.percentageUnit === "fraction",
@@ -329,18 +329,18 @@ export function validateSponsorCatalog(
       terms,
       [
         "durationMatches",
-        "fixedPaymentUsd",
-        "perMatchUsd",
-        "perEventUsd",
+        "fixedPaymentUsdCents",
+        "perMatchUsdCents",
+        "perEventUsdCents",
         "requiredEvents",
       ],
       `${path}.baseContract`,
     );
     integer(terms.durationMatches, 1, `${path}.baseContract.durationMatches`);
     for (const key of [
-      "fixedPaymentUsd",
-      "perMatchUsd",
-      "perEventUsd",
+      "fixedPaymentUsdCents",
+      "perMatchUsdCents",
+      "perEventUsdCents",
       "requiredEvents",
     ]) {
       integer(terms[key], 0, `${path}.baseContract.${key}`);

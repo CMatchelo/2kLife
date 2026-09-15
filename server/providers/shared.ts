@@ -1,7 +1,8 @@
 import type { InterviewContext } from '../../src/types/interview.ts';
 export type Configuration = { configured: boolean; message: string };
 import type { ImportContext, ImportImage } from '../../src/types/career.ts';
-export interface Provider { interview?(context: InterviewContext): Promise<unknown>; check(): Promise<Configuration>; test(): Promise<void>; extract?(images: ImportImage[], context: ImportContext): Promise<unknown> }
+import type { SponsorApproachAIContext } from '../../src/types/sponsor.ts';
+export interface Provider { interview?(context: InterviewContext): Promise<unknown>; sponsorApproach?(context: SponsorApproachAIContext): Promise<unknown>; check(): Promise<Configuration>; test(): Promise<void>; extract?(images: ImportImage[], context: ImportContext): Promise<unknown> }
 export const TEST_PROMPT = 'Reply with only OK. Do not use tools or read any files.';
 
 // Only allowlisted messages cross the HTTP boundary. Never return provider output.

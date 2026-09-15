@@ -576,6 +576,14 @@ export class CareerStore {
         )
         .run(id);
       for (const table of [
+        "financial_transactions",
+        "sponsor_contract_matches",
+        "sponsor_contracts",
+        "sponsor_offer_mutations",
+        "sponsor_offers",
+        "sponsor_offer_evaluations",
+        "sponsor_approach_groups",
+        "sponsor_cooldowns",
         "sponsor_game_boundaries",
         "sponsor_reset_history",
         "sponsor_mutation_requests",

@@ -12,7 +12,7 @@ export type { FollowerChange, SocialMedia } from "./social-media";
 export type { Interview } from "./interview";
 export type {
   Percentage,
-  UsdDollars,
+  UsdCents,
   SponsorTier,
   SponsorTierDefinition,
   CommercialCategory,
@@ -33,6 +33,9 @@ export type {
   SponsorPermanentMilestoneProgress,
   SponsorDynamicMilestoneProgress,
   SponsorActiveContract,
+  FinancialTransaction,
+  FinancialTransactionReason,
+  CareerFinancialSummary,
   SponsorPlayerBlock,
   SponsorProfessionalismBlock,
   SponsorsOverview,
