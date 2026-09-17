@@ -42,3 +42,11 @@ export type {
   SponsorBlockMutation,
 } from "./sponsor.ts";
 export type { MyProfile, Position } from "./profile";
+export type {
+  DailyInvitationType,
+  DailyInvitationStatus,
+  SponsorEventType,
+  DailyInvitation,
+  DailyDecisionGroup,
+  DailyEventResult,
+} from "./daily-invitations";

@@ -185,7 +185,27 @@ export type SponsorActiveContract = {
   signingPaymentUsdCents: number;
   remainingFixedPaymentUsdCents: number;
   renewalBonusUsdCents: number;
+  appearanceSchedule: SponsorContractAppearance[];
 };
+
+export type SponsorAppearanceStatus = "scheduled" | "calendar_conflict" | "cancelled" | "attended" | "refused";
+export type SponsorAppearanceDate = {
+  id: string;
+  offerId: string;
+  originalDate: string;
+  date: string;
+  source: "original" | "signing_replacement";
+  replacedDate: string | null;
+  status: SponsorAppearanceStatus;
+};
+export type SponsorOfferScheduleSnapshot = {
+  readonly entries: readonly SponsorAppearanceDate[];
+  readonly selectedAt: string;
+  readonly triggeringDate: string;
+  readonly contractEndDate: string;
+};
+export type SponsorContractAppearance = SponsorAppearanceDate & { contractId: string; conflictReason: string | null };
+export type SponsorScheduleReview = { id: string; kept: SponsorAppearanceDate[]; replaced: SponsorAppearanceDate[]; finalSchedule: SponsorAppearanceDate[] };
 
 export type FinancialTransactionReason =
   | "salary"
@@ -226,12 +246,33 @@ export type SponsorPlayerBlock = {
 
 export type SponsorProfessionalismBlock = {
   brandId: string;
+  brandName: string;
+  blockedAt: string;
   reason: string;
-  failedContracts: readonly { reference: string; date: string | null }[];
+  failedContracts: readonly { reference: string; date: string | null; requiredAppearances: number; attendedAppearances: number }[];
+};
+
+export type SponsorRenewalResultStatus = "offered" | "failed" | "blocked" | "waiting_for_calendar";
+export type SponsorContractSettlement = {
+  id: string; contractId: string; careerId: string; brandId: string; brandName: string;
+  expirationDate: string; triggeringGameId: string; fixedPaymentUsdCents: number;
+  signingInstallmentUsdCents: number; requiredAppearances: number; attendedAppearances: number;
+  missingAppearances: number; penaltyPerMissingAppearanceUsdCents: number;
+  attendancePenaltyUsdCents: number; originalFinalInstallmentUsdCents: number;
+  finalInstallmentUsdCents: number; totalFixedReceivedUsdCents: number;
+  attendanceFailed: boolean; brandFailureCount: number; permanentBlockTriggered: boolean;
+  renewalResult: SponsorRenewalResultStatus; renewalFailureReason: string | null;
+  settledAt: string; idempotencyReference: string;
+};
+export type SponsorCompletedContract = SponsorActiveContract & {
+  completionDate: string; settlementStatus: "settled"; settlement: SponsorContractSettlement;
+  perMatchEarningsUsdCents: number; eventEarningsUsdCents: number; renewalSequence: number;
 };
 
 export type SponsorsOverview = {
   activeContracts: SponsorActiveContract[];
+  completedContracts: SponsorCompletedContract[];
+  pendingOffers: SponsorOffer[];
   finances: CareerFinancialSummary;
   potentialSponsors: SponsorBrandState[];
   playerBlocks: SponsorPlayerBlock[];
@@ -274,7 +315,7 @@ export type SponsorOffer = {
   signingPaymentUsdCents: number | null;
   terms: SponsorOfferTerms;
   interestPercentage: 60 | 80 | 100;
-  completedMilestones: Array<{ milestoneId: string; description: string }>;
+  completedMilestones: Array<{ milestoneId: string; description: string; evidence?: SponsorCompletionEvidence | { seasonPercentage: number; made: number; attempts: number } }>;
   triggeringGameId: string;
   createdMatchBoundary: number;
   expirationMatchBoundary: number;
@@ -288,9 +329,20 @@ export type SponsorOffer = {
     existingRequiredAppearances: number;
     totalCommitments: number;
     expiringObligations: string[];
+    overlaps: Array<{ date: string; brands: string[] }>;
     risk: SponsorScheduleRisk;
   };
+  appearanceSchedule: SponsorOfferScheduleSnapshot;
+  confirmedSchedule: SponsorContractAppearance[] | null;
+  signingReview: SponsorScheduleReview | null;
   advice: string;
+  sponsorMessage: string;
+  offerKind: "initial" | "renewal";
+  renewal: null | {
+    previousContractId: string; sequence: number; bonusRate: number;
+    originalTerms: SponsorOfferTerms; offeredTerms: SponsorOfferTerms;
+    attendedAppearances: number; requiredAppearances: number;
+  };
 };
 export type SponsorApproachGroup = {
   id: string;
@@ -312,7 +364,8 @@ export type SponsorApproachAIContext = {
     category: CommercialCategory;
     terms: SponsorOfferTerms;
     interestPercentage: number;
-    completedMilestones: Array<{ milestoneId: string; description: string }>;
+    completedMilestones: Array<{ milestoneId: string; description: string; evidence?: SponsorCompletionEvidence | { seasonPercentage: number; made: number; attempts: number } }>;
+    recentAppearances: Array<{ date: string; points: number; assists: number; rebounds: number; steals: number; blocks: number; threePointersMade: number }>;
     expirationMatchBoundary: number;
     expirationGameDate: string | null;
     minimumEventWindows: number;
@@ -322,13 +375,16 @@ export type SponsorApproachAIContext = {
     totalSponsorCommitments: number;
     obligationsExpiringWithinPeriod: string[];
     scheduleRisk: SponsorScheduleRisk;
+    proposedDates: string[];
+    overlaps: Array<{ date: string; brands: string[] }>;
+    renewal: SponsorOffer["renewal"];
   }>;
 };
 export type SponsorApproachAIResponse = {
-  introduction: string;
-  offerAdvice: Array<{ offerId: string; message: string }>;
+  sponsorMessages: Array<{ offerId: string; message: string }>;
 };
 export type SponsorOfferMutation = {
   requestId: string;
-  action: "accept" | "refuse" | "block" | "pending";
+  action: "prepare" | "confirm" | "refuse" | "block" | "pending";
+  reviewId?: string;
 };

@@ -138,7 +138,6 @@ function PermanentProgress({
           {progress.completed ? "Completed" : "Incomplete"}
         </span>
       </td>
-      <td className="p-3">Permanent</td>
     </tr>
   );
 }
@@ -164,9 +163,6 @@ function MilestoneDetails({ state }: { state: SponsorBrandState }) {
               </th>
               <th scope="col" className="p-3 text-left">
                 Status
-              </th>
-              <th scope="col" className="p-3 text-left">
-                Type
               </th>
             </tr>
           </thead>
@@ -205,7 +201,6 @@ function MilestoneDetails({ state }: { state: SponsorBrandState }) {
                   {dynamic.completed ? "Completed" : "Incomplete"}
                 </span>
               </td>
-              <td className="p-3">Dynamic</td>
             </tr>
           </tbody>
         </table>
@@ -314,6 +309,23 @@ export default function Sponsors({ career }: { career: Career }) {
   const [saving, setSaving] = useState(false);
   const [approaches, setApproaches] = useState<SponsorApproachGroup[]>([]);
   const [openApproach, setOpenApproach] = useState<SponsorApproachGroup | null>(null);
+  const [replacement, setReplacement] = useState<{ entryId: string; oldDate: string; choices: string[]; chosen: string; reviewing: boolean } | null>(null);
+
+  async function reviewReplacement(entryId: string) {
+    try {
+      const result = await api<{ oldDate: string; choices: string[] }>(`careers/${careerId}/sponsor-appearances/${entryId}/replacement`);
+      setReplacement({ entryId, oldDate: result.oldDate, choices: result.choices, chosen: result.choices[0] ?? "", reviewing: false });
+      setError("");
+    } catch (cause) { setError(cause instanceof Error ? cause.message : "Could not load replacement dates."); }
+  }
+
+  async function confirmReplacement() {
+    if (!replacement?.chosen || !replacement.reviewing) return;
+    try {
+      setOverview(await api<SponsorsOverview>(`careers/${careerId}/sponsor-appearances/${replacement.entryId}/replacement`, { date: replacement.chosen }));
+      setReplacement(null); setError("");
+    } catch (cause) { setError(cause instanceof Error ? cause.message : "Could not confirm the replacement."); }
+  }
 
   async function load() {
     setLoading(true);
@@ -456,6 +468,7 @@ export default function Sponsors({ career }: { career: Career }) {
                     <tr className="border-b border-divider/60">
                       <th scope="row" className="p-3">
                         {contract.brandName}
+                        {contract.appearanceSchedule.some((entry) => entry.status === "calendar_conflict") && <span className="mt-1 block text-xs font-bold text-red-700">Calendar conflict — open contract details</span>}
                       </th>
                       <td className="p-3">
                         <Logo brandId={contract.brandId} brandName={contract.brandName} />
@@ -518,6 +531,14 @@ export default function Sponsors({ career }: { career: Career }) {
                               )}{" "}
                               remaining
                             </div>
+                            <div className="sm:col-span-2 lg:col-span-4">
+                              <strong className="block">Confirmed appearance dates</strong>
+                              <ol className="mt-1 list-decimal pl-5">{contract.appearanceSchedule.map((entry) => <li key={entry.id} className={entry.status === "calendar_conflict" ? "text-red-700" : ""}>{entry.date}{entry.status === "calendar_conflict" ? ` — calendar conflict (${entry.conflictReason?.replaceAll("_", " ")})` : entry.status === "cancelled" ? " — cancelled (attendance requirement fulfilled)" : entry.status === "attended" ? " — attended" : entry.status === "refused" ? " — refused" : ""}{entry.replacedDate ? ` (replaced ${entry.replacedDate})` : ""}{entry.status === "calendar_conflict" && <button type="button" className="ai-link ml-2" onClick={() => void reviewReplacement(entry.id)}>Choose replacement</button>}</li>)}</ol>
+                              {replacement && contract.appearanceSchedule.some((entry) => entry.id === replacement.entryId) && <div className="mt-3 rounded-lg border-2 border-blue-500 bg-white p-3">
+                                <label className="block font-bold" htmlFor={`replacement-${replacement.entryId}`}>Replacement for {replacement.oldDate}</label>
+                                {replacement.choices.length ? <><select id={`replacement-${replacement.entryId}`} className="mt-2 rounded border p-2 text-ink" value={replacement.chosen} onChange={(event) => setReplacement({ ...replacement, chosen: event.target.value, reviewing: false })}>{replacement.choices.map((date) => <option key={date} value={date}>{date}</option>)}</select><div className="mt-2 flex flex-wrap gap-2">{replacement.reviewing ? <><p className="w-full">Confirm {replacement.oldDate} → {replacement.chosen}. The original date remains in schedule history.</p><button type="button" className="ai-primary" onClick={() => void confirmReplacement()}>Confirm change</button></> : <button type="button" className="ai-primary" onClick={() => setReplacement({ ...replacement, reviewing: true })}>Review change</button>}<button type="button" className="ai-secondary" onClick={() => setReplacement(null)}>Cancel</button></div></> : <p className="mt-2 text-red-700">No confirmed off days remain in this contract period. Confirm more calendar coverage or add future games, then retry.</p>}
+                              </div>}
+                            </div>
                             <div>
                               <strong className="block">
                                 Signing / renewal
@@ -561,6 +582,22 @@ export default function Sponsors({ career }: { career: Career }) {
             </tbody>
           </table>
         </div>
+      </section>
+
+      <section className="career-card dashboard-card" aria-labelledby="completed-contracts-title">
+        <h2 id="completed-contracts-title" className="text-2xl font-black uppercase tracking-wide">Completed contracts</h2>
+        <div className="mt-5 space-y-3">{overview?.completedContracts.map((contract) => <details key={contract.id} className="rounded-xl border border-divider bg-cream p-4">
+          <summary className="cursor-pointer font-black">{contract.brandName} · {contract.startDate} to {contract.completionDate} · {contract.settlementStatus}</summary>
+          <dl className="mt-3 grid grid-cols-2 gap-3 text-sm sm:grid-cols-3">
+            <div><dt className="text-muted">Duration</dt><dd className="font-bold">{contract.durationMatches} matches</dd></div>
+            <div><dt className="text-muted">Attendance</dt><dd className={contract.settlement.attendanceFailed ? "font-bold text-red-700" : "font-bold"}>{contract.attendedEvents} of {contract.requiredEvents}</dd></div>
+            <div><dt className="text-muted">Total fixed received</dt><dd className="font-bold">{money(contract.settlement.totalFixedReceivedUsdCents)}</dd></div>
+            <div><dt className="text-muted">Match earnings</dt><dd className="font-bold">{money(contract.perMatchEarningsUsdCents)}</dd></div>
+            <div><dt className="text-muted">Event earnings</dt><dd className="font-bold">{money(contract.eventEarningsUsdCents)}</dd></div>
+            <div><dt className="text-muted">Renewal sequence</dt><dd className="font-bold">{contract.renewalSequence}</dd></div>
+          </dl>
+          <div className="mt-4 border-t border-divider pt-3 text-sm"><p>Original final installment: <strong>{money(contract.settlement.originalFinalInstallmentUsdCents)}</strong></p><p className={contract.settlement.attendancePenaltyUsdCents ? "text-red-700" : ""}>Attendance deduction: <strong>−{money(contract.settlement.attendancePenaltyUsdCents)}</strong></p><p>Final payment: <strong>{money(contract.settlement.finalInstallmentUsdCents)}</strong></p><p>Renewal result: <strong>{contract.settlement.renewalResult.replaceAll("_", " ")}</strong></p></div>
+        </details>)}{!loading && overview?.completedContracts.length === 0 && <p className="text-muted">No completed sponsor contracts yet.</p>}</div>
       </section>
 
       <section
@@ -685,9 +722,6 @@ export default function Sponsors({ career }: { career: Career }) {
                     </dl>
                     <div className="space-y-4">
                       <div className="flex flex-wrap items-center gap-2">
-                        <span className="rounded-full border border-slate-500 bg-slate-700/70 px-4 py-1 text-xs font-bold uppercase tracking-wider">
-                          {brand.tier}
-                        </span>
                         <span className="text-xs font-semibold uppercase tracking-wide text-slate-400">
                           Prefers
                         </span>
@@ -853,7 +887,7 @@ export default function Sponsors({ career }: { career: Career }) {
             id="professionalism-blocks-title"
             className="text-2xl font-black uppercase tracking-wide"
           >
-            Blocked you
+            Blocked you — unprofessional behavior
           </h2>
           <span
             className="mt-3 block h-1 w-14 rounded-full bg-gold"
@@ -865,9 +899,6 @@ export default function Sponsors({ career }: { career: Career }) {
           <div className="mt-5 space-y-3">
             {overview?.professionalismBlocks.map((block) => {
               const brand = brandById.get(block.brandId)!;
-              const datedContracts = block.failedContracts.filter(
-                (contract) => contract.date,
-              );
               return (
                 <article
                   key={block.brandId}
@@ -893,12 +924,9 @@ export default function Sponsors({ career }: { career: Career }) {
                       non-compliance with previous contracts.
                     </p>
                     <p className="mt-2 text-xs text-slate-400">
-                      {datedContracts.length
-                        ? `Contracts: ${datedContracts.map((contract) => contract.date).join(" · ")}`
-                        : block.failedContracts.length
-                          ? `Contracts: ${block.failedContracts.map((contract) => contract.reference).join(" · ")}`
-                          : "Contract dates are not available."}
+                      Blocked on {block.blockedAt}
                     </p>
+                    <ul className="mt-2 space-y-1 text-xs text-red-200">{block.failedContracts.map((contract) => <li key={contract.reference}>{contract.date ?? "Unknown date"} · attended {contract.attendedAppearances} of {contract.requiredAppearances} required · {contract.reference}</li>)}</ul>
                     {block.reason && (
                       <p className="mt-2 text-xs text-red-300">
                         {block.reason}

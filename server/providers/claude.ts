@@ -9,6 +9,7 @@ import { TEST_PROMPT } from './shared.ts';
 import { runProcess } from './process.ts';
 import { extractionPrompt, extractionSchema } from '../../src/domain/import.ts';
 import { sponsorApproachPrompt, sponsorApproachSchema } from '../../src/domain/sponsorApproach.ts';
+import { dailySponsorEventsPrompt, dailySponsorEventsSchema } from '../../src/domain/dailySponsorEvents.ts';
 
 export type RunClaude = (args: string[], cwd?: string) => Promise<string>;
 
@@ -63,11 +64,36 @@ export function claudeProvider(
 ): Provider {
   const hasKey = () => !!env.ANTHROPIC_API_KEY?.trim();
   return {
+    async dailySponsorEvents(context) {
+      if (hasKey()) {
+        const reply = await makeClient(env.ANTHROPIC_API_KEY!).messages.create({
+          model: env.ANTHROPIC_MODEL?.trim() || 'claude-haiku-4-5-20251001', max_tokens: 3600,
+          tools: [{ name: 'daily_sponsor_events', description: 'Create structured presentation copy for today’s sponsor events.', input_schema: dailySponsorEventsSchema as unknown as Anthropic.Tool.InputSchema }],
+          tool_choice: { type: 'tool', name: 'daily_sponsor_events' }, messages: [{ role: 'user', content: dailySponsorEventsPrompt(context) }],
+        }, { timeout: 120000 });
+        const block = reply.content.find(item => item.type === 'tool_use' && item.name === 'daily_sponsor_events');
+        if (!block || block.type !== 'tool_use') throw new Error('Missing structured sponsor events.');
+        return block.input;
+      }
+      const directory = await mkdtemp(join(tmpdir(), '2klife-events-'));
+      try {
+        const output = await run(['-p', dailySponsorEventsPrompt(context), '--output-format', 'json', '--tools', '', '--permission-mode', 'default'], directory);
+        const json = firstJsonObject(parseCliResult(output));
+        if (!json) throw new Error('No sponsor event JSON returned.');
+        const parsed = JSON.parse(json) as { events?: unknown; invitations?: unknown };
+        // Claude CLI occasionally mirrors the input noun despite the requested
+        // output shape. Normalize only that exact wrapper; field validation still
+        // happens at the service boundary.
+        return !parsed.events && Array.isArray(parsed.invitations)
+          ? { events: parsed.invitations }
+          : parsed;
+      } finally { await rm(directory, { recursive: true, force: true }); }
+    },
     async sponsorApproach(context) {
       if (hasKey()) {
         const reply = await makeClient(env.ANTHROPIC_API_KEY!).messages.create({
-          model: env.ANTHROPIC_MODEL?.trim() || 'claude-haiku-4-5-20251001', max_tokens: 1800,
-          tools: [{ name: 'sponsor_approach', description: 'Write the agent introduction and advice for exactly the supplied sponsor offers.', input_schema: sponsorApproachSchema as unknown as Anthropic.Tool.InputSchema }],
+          model: env.ANTHROPIC_MODEL?.trim() || 'claude-haiku-4-5-20251001', max_tokens: 3600,
+          tools: [{ name: 'sponsor_approach', description: 'Write agent advice and a distinct brand-voiced message for each supplied sponsor offer.', input_schema: sponsorApproachSchema as unknown as Anthropic.Tool.InputSchema }],
           tool_choice: { type: 'tool', name: 'sponsor_approach' }, messages: [{ role: 'user', content: sponsorApproachPrompt(context) }],
         }, { timeout: 120000 });
         const block = reply.content.find(item => item.type === 'tool_use' && item.name === 'sponsor_approach');

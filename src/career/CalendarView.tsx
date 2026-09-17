@@ -2,11 +2,14 @@ import { categoryNames } from "../domain/career";
 import { teamLogo, teamName } from "../domain/teams";
 import type { Team } from "../types/career";
 import type { Game } from "../types/game";
+import type { SponsorActiveContract } from "../types/sponsor";
 
 interface CalendarViewProps {
   games: Game[];
   teams: Team[];
   month: string;
+  currentDate?: string | null;
+  sponsorContracts?: SponsorActiveContract[];
   onEdit?: (game: Game) => void;
 }
 
@@ -14,6 +17,8 @@ export default function CalendarView({
   games,
   teams,
   month,
+  currentDate,
+  sponsorContracts = [],
   onEdit,
 }: CalendarViewProps) {
   const visible = games
@@ -24,6 +29,16 @@ export default function CalendarView({
   const first = new Date(Date.UTC(y, m - 1, 1)).getUTCDay();
   const label = (game: Game) =>
     `${game.location === "home" ? "Home" : "Away"} · ${teamName(teams, game.opponentId)} · ${categoryNames[game.category]}`;
+  const sponsorEvents = sponsorContracts.flatMap((contract) =>
+    contract.appearanceSchedule
+      .filter((appearance) => appearance.status === "scheduled")
+      .map((appearance) => ({
+        id: appearance.id,
+        date: appearance.date,
+        brandId: contract.brandId,
+        brandName: contract.brandName,
+      })),
+  );
 
   return (
     <div>
@@ -35,6 +50,15 @@ export default function CalendarView({
         <span className="flex items-center gap-1.5">
           <span className="inline-block h-3 w-3 rounded-sm bg-court-blue/40" />
           Blue: Home match
+        </span>
+        <span className="flex items-center gap-1.5">
+          <span className="grid h-3 w-3 grid-cols-2 gap-px rounded-sm bg-slate-950/80 p-px">
+            <span className="bg-gold" />
+            <span className="bg-gold" />
+            <span className="bg-gold" />
+            <span className="bg-gold" />
+          </span>
+          Logos: Scheduled sponsor events
         </span>
       </div>
       <div className="grid grid-cols-7 text-center text-xs font-bold text-muted">
@@ -52,10 +76,17 @@ export default function CalendarView({
           const date = `${month}-${String(i + 1).padStart(2, "0")}`;
           const game = visible.find((g) => g.date === date);
           const logo = game ? teamLogo(game.opponentId) : null;
+          const events = sponsorEvents.filter((event) => event.date === date);
+          const displayedEvents = events.length > 4 ? events.slice(0, 3) : events.slice(0, 4);
+          const hasOverflow = events.length > 4;
+          const sponsorDescription = events.length
+            ? ` Sponsor events: ${events.map((event) => event.brandName).join(", ")}.`
+            : "";
           return (
             <div
               key={date}
-              className="relative min-h-12 py-0! min-w-0 overflow-hidden rounded-md border border-slate-600 bg-[#2a3947] p-1 md:min-h-14 md:p-2"
+              title={events.length ? `${events.map((event) => event.brandName).join(", ")} sponsor event${events.length === 1 ? "" : "s"}` : undefined}
+              className={`relative min-h-12 py-0! min-w-0 overflow-hidden rounded-md border bg-[#2a3947] p-1 md:min-h-14 md:p-2 ${date === currentDate ? "border-gold" : "border-slate-600"}`}
             >
               {game && (
                 <>
@@ -83,14 +114,43 @@ export default function CalendarView({
                     type="button"
                     disabled={!onEdit}
                     onClick={() => onEdit?.(game)}
-                    aria-label={`${date}: ${label(game)}`}
+                    aria-label={`${date}: ${label(game)}.${sponsorDescription}`}
                     className="absolute inset-0 cursor-pointer disabled:cursor-default"
                   />
                 </>
               )}
-              <span className="pointer-events-none relative text-lg font-extrabold text-slate-200">
+              <span className="pointer-events-none absolute left-1 top-1 z-10 text-lg font-extrabold text-slate-200 md:left-2 md:top-2">
                 {i + 1}
               </span>
+              {events.length > 0 && (
+                <div
+                  className="pointer-events-none absolute inset-y-1 right-1 z-10 grid w-[46%] grid-cols-2 grid-rows-2 gap-0.5 md:inset-y-1.5 md:right-1.5 md:gap-1"
+                  aria-hidden="true"
+                >
+                  {displayedEvents.map((event) => (
+                    <span
+                      key={event.id}
+                      className="flex min-h-0 min-w-0 items-center justify-center overflow-hidden rounded-sm bg-slate-950/65 p-0.5"
+                      title={`${event.brandName} sponsor event`}
+                    >
+                      <img
+                        src={`/sponsors/${event.brandId}.png`}
+                        alt=""
+                        className="h-full w-full object-contain"
+                        onError={(error) => {
+                          error.currentTarget.onerror = null;
+                          error.currentTarget.src = "/sponsors/2k.png";
+                        }}
+                      />
+                    </span>
+                  ))}
+                  {hasOverflow && (
+                    <span className="flex min-h-0 min-w-0 items-center justify-center rounded-sm bg-slate-950/80 text-sm font-black text-white md:text-base">
+                      +
+                    </span>
+                  )}
+                </div>
+              )}
             </div>
           );
         })}

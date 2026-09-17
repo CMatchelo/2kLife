@@ -17,6 +17,8 @@ import { calendarDate } from "../src/domain/calendarDate.ts";
 import type { AdvanceDayRequest } from "../src/types/progression.ts";
 import type { SponsorBlockMutation, SponsorOfferMutation } from "../src/types/sponsor.ts";
 import { SponsorOfferError } from "./sponsors.ts";
+import { DailyInvitationError } from "./daily-invitations.ts";
+import type { DailyInvitationMutation } from "../src/types/daily-invitations.ts";
 
 async function readBody(req: IncomingMessage, limit: number): Promise<unknown> {
   if (req.headers["content-type"] !== "application/json")
@@ -182,18 +184,7 @@ export function connectionServer(
               "Invalid daily progression request. Reload the career and retry.",
           });
         }
-        let result = advanceCareerDay(careers, careerId, request, session);
-        if (result?.kind === "sponsor_offers") {
-          let provider: Provider | undefined;
-          try {
-            const settings = await readSettings(settingsFile);
-            provider = settings.selectedProvider ? providers[settings.selectedProvider] : undefined;
-          } catch {
-            // Provider configuration cannot prevent saved offers from opening.
-          }
-          const approach = await careers.sponsors.ensureApproachText(result.career, result.approachGroupId, provider);
-          if (approach) result = { ...result, approach };
-        }
+        const result = advanceCareerDay(careers, careerId, request, session);
         return send(
           result ? 200 : 404,
           result ?? { message: "Career not found." },
@@ -223,20 +214,42 @@ export function connectionServer(
       if (careers && sponsorOffersMatch && req.method === "GET") {
         const career = careers.get(sponsorOffersMatch[1]);
         if (!career) return send(404, { message: "Career not found." });
+        let sponsorProvider: Provider | undefined;
+        try {
+          const settings = await readSettings(settingsFile);
+          sponsorProvider = settings.selectedProvider ? providers[settings.selectedProvider] : undefined;
+        } catch { /* Saved offers remain available with deterministic text. */ }
         if (sponsorOffersMatch[2]) {
-          const group = await careers.sponsors.ensureApproachText(career, sponsorOffersMatch[2]);
+          const group = await careers.sponsors.ensureApproachText(career, sponsorOffersMatch[2], sponsorProvider);
           return send(group ? 200 : 404, group ?? { message: "Sponsor approach not found." });
         }
-        return send(200, careers.sponsors.pendingApproaches(career.id));
+        const pending = careers.sponsors.pendingApproaches(career.id);
+        const completed = [];
+        for (const group of pending) {
+          const approach = await careers.sponsors.ensureApproachText(career, group.id, sponsorProvider);
+          if (approach) completed.push(approach);
+        }
+        return send(200, completed);
       }
       const sponsorOfferAction = req.url?.match(/^\/api\/careers\/([\w-]+)\/sponsor-offers\/([\w-]+)\/action$/);
       if (careers && sponsorOfferAction && req.method === "POST") {
         const career = careers.get(sponsorOfferAction[1]);
         if (!career) return send(404, { message: "Career not found." });
         const body = await readBody(req, 4096) as SponsorOfferMutation;
-        if (!body || typeof body.requestId !== "string" || !/^[\w-]{20,80}$/.test(body.requestId) || !["accept","refuse","block","pending"].includes(body.action))
+        if (!body || typeof body.requestId !== "string" || !/^[\w-]{20,80}$/.test(body.requestId) || !["prepare","confirm","refuse","block","pending"].includes(body.action) || (body.action === "confirm" && (typeof body.reviewId !== "string" || !/^[\w-]{20,80}$/.test(body.reviewId))))
           throw new ValidationError("Invalid sponsor offer action. Reload and retry.");
         return send(200, careers.sponsors.resolveOffer(career, sponsorOfferAction[2], body));
+      }
+      const sponsorAppearance = req.url?.match(/^\/api\/careers\/([\w-]+)\/sponsor-appearances\/([\w-]+)\/replacement$/);
+      if (careers && sponsorAppearance) {
+        const career = careers.get(sponsorAppearance[1]);
+        if (!career) return send(404, { message: "Career not found." });
+        if (req.method === "GET") return send(200, careers.sponsors.replacementChoices(career, sponsorAppearance[2]));
+        if (req.method === "POST") {
+          const body = await readBody(req, 4096) as { date?: string };
+          if (!calendarDate(body?.date)) throw new ValidationError("Choose a valid replacement date.");
+          return send(200, careers.sponsors.replaceConflict(career, sponsorAppearance[2], body.date));
+        }
       }
       const sponsorBlockMatch = req.url?.match(
         /^\/api\/careers\/([\w-]+)\/sponsors\/(block|unblock)$/,
@@ -264,6 +277,28 @@ export function connectionServer(
             body.requestId,
           ),
         );
+      }
+      const pendingInvitations = req.url?.match(/^\/api\/careers\/([\w-]+)\/daily-invitations\/pending$/);
+      if (careers && pendingInvitations && req.method === "GET") {
+        const career = careers.get(pendingInvitations[1]);
+        if (!career) return send(404, { message: "Career not found." });
+        careers.invitations.ensureCurrent(career);
+        return send(200, careers.invitations.pending(career.id, career.currentDate));
+      }
+      const invitationRoute = req.url?.match(/^\/api\/careers\/([\w-]+)\/daily-invitations\/([\w-]+)\/(presentation|resolve)$/);
+      if (careers && invitationRoute && req.method === "POST") {
+        const career = careers.get(invitationRoute[1]);
+        if (!career) return send(404, { message: "Career not found." });
+        if (invitationRoute[3] === "presentation") {
+          let provider: Provider | undefined;
+          try { const settings = await readSettings(settingsFile); provider = settings.selectedProvider ? providers[settings.selectedProvider] : undefined; } catch { /* Fallback remains available. */ }
+          return send(200, await careers.invitations.presentation(career, invitationRoute[2], provider));
+        }
+        const body = await readBody(req, 4096) as DailyInvitationMutation;
+        if (!body || typeof body.requestId !== "string" || !/^[\w-]{20,80}$/.test(body.requestId) ||
+          !["attend", "refuse_all"].includes(body.action) || (body.action === "attend" && (typeof body.invitationId !== "string" || !/^[\w-]{20,80}$/.test(body.invitationId))))
+          throw new ValidationError("Invalid invitation decision. Reload and retry.");
+        return send(200, careers.invitations.resolve(career, invitationRoute[2], body));
       }
       const careerMatch = req.url?.match(/^\/api\/careers\/([\w-]+)$/);
       if (careers && careerMatch) {
@@ -435,9 +470,11 @@ export function connectionServer(
         return send(400, { message: error.message });
       if (error instanceof SponsorOfferError)
         return send(409, { message: error.message });
+      if (error instanceof DailyInvitationError)
+        return send(error.status, { message: error.message });
       if (
         req.url?.match(
-          /^\/api\/careers\/([\w-]+)\/(advance-day|calendar-settings|sponsors\/block|sponsors\/unblock|sponsor-offers\/[\w-]+\/action)$/,
+          /^\/api\/careers\/([\w-]+)\/(advance-day|calendar-settings|sponsors\/block|sponsors\/unblock|sponsor-offers\/[\w-]+\/action|daily-invitations)/,
         )
       )
         return send(500, {

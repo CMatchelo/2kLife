@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { randomInt, randomUUID } from "node:crypto";
 import type { DatabaseSync } from "node:sqlite";
 import type { CareerStore } from "./careers.ts";
 import type { Career } from "../src/types/career.ts";
@@ -28,6 +28,10 @@ export function migrateProgression(db: DatabaseSync) {
   CREATE TABLE IF NOT EXISTS offday_processing (
     season_id TEXT NOT NULL REFERENCES seasons(id), date TEXT NOT NULL, result TEXT NOT NULL,
     PRIMARY KEY(season_id, date)
+  );
+  CREATE TABLE IF NOT EXISTS offday_event_pairs (
+    season_id TEXT NOT NULL REFERENCES seasons(id), first_date TEXT NOT NULL,
+    guaranteed_date TEXT NOT NULL, PRIMARY KEY(season_id, first_date)
   );
   CREATE TABLE IF NOT EXISTS day_requests (
     career_id TEXT NOT NULL REFERENCES careers(id), request_id TEXT NOT NULL, result TEXT NOT NULL,
@@ -65,7 +69,7 @@ export function migrateProgression(db: DatabaseSync) {
       for (const game of completed)
         db.prepare(
           "INSERT OR IGNORE INTO postgame_processing VALUES (?, ?)",
-        ).run(String(game.id), JSON.stringify({ offers: [] }));
+        ).run(String(game.id), JSON.stringify({ offers: [], settlements: [] }));
     }
     // Repair the previous unqualified CURRENT_DATE queries. They could start a
     // transition from the wall-clock day and overwrite the actual saved date.
@@ -98,7 +102,7 @@ export function migrateProgression(db: DatabaseSync) {
         `INSERT OR IGNORE INTO postgame_processing (game_id, result)
         SELECT g.id, ? FROM games g JOIN seasons s ON s.id = g.season_id
         WHERE s.career_id = ? AND json_extract(g.data, '$.status') = 'completed'`,
-      ).run(JSON.stringify({ offers: [] }), id);
+      ).run(JSON.stringify({ offers: [], settlements: [] }), id);
     }
     db.exec("COMMIT");
   } catch (error) {
@@ -107,17 +111,60 @@ export function migrateProgression(db: DatabaseSync) {
   }
 }
 
-export type OffDayContext = {
-  career: Career;
-  date: string;
-  processingKey: string;
-};
-// Off-day invitations remain a future synchronous extension hook. Sponsor offer
-// selection is owned by SponsorService and commits before any AI writing occurs.
-export function processOffDayInvitations(
-  _context: OffDayContext,
-): OffDayProcessingResult {
-  return { invitationWindow: null };
+function previousCalendarDate(date: string): string {
+  const [year, month, day] = date.split("-").map(Number);
+  if (day > 1) return `${date.slice(0, 8)}${String(day - 1).padStart(2, "0")}`;
+  const previousMonth = month === 1 ? 12 : month - 1;
+  const previousYear = month === 1 ? year - 1 : year;
+  const first = `${String(previousYear).padStart(4, "0")}-${String(previousMonth).padStart(2, "0")}-01`;
+  let last = first;
+  while (nextCalendarDate(last).slice(0, 7) === first.slice(0, 7))
+    last = nextCalendarDate(last);
+  return last;
+}
+
+function saveOffDayEventRolls(db: DatabaseSync, career: Career, date: string) {
+  const seasonId = career.season.id;
+  const saved = db.prepare("SELECT 1 FROM offday_processing WHERE season_id = ? AND date = ?").get(seasonId, date);
+  if (saved) return;
+  const months = new Set(seasonMonths(career.season.year));
+  const confirmed = new Set(career.coverage.filter((item) => item.confirmed).map((item) => item.month));
+  const games = new Set(career.season.games.map((game) => game.date));
+  const isOffDay = (candidate: string) =>
+    months.has(candidate.slice(0, 7)) &&
+    confirmed.has(candidate.slice(0, 7)) &&
+    !games.has(candidate) &&
+    (!career.season.seasonEndDate || candidate < career.season.seasonEndDate);
+  if (!isOffDay(date)) return;
+  let first = date;
+  while (isOffDay(previousCalendarDate(first))) first = previousCalendarDate(first);
+  const dates: string[] = [];
+  for (let cursor = first; isOffDay(cursor); cursor = nextCalendarDate(cursor)) dates.push(cursor);
+  const index = dates.indexOf(date);
+  const pair = dates.slice(index - (index % 2), index - (index % 2) + 2);
+  if (pair.length === 2) {
+    const pairSaved = db.prepare("SELECT guaranteed_date FROM offday_event_pairs WHERE season_id = ? AND first_date = ?").get(seasonId, pair[0]);
+    const guaranteed = pairSaved
+      ? String(pairSaved.guaranteed_date)
+      : pair[randomInt(2)];
+    if (!pairSaved)
+      db.prepare("INSERT INTO offday_event_pairs VALUES (?, ?, ?)").run(seasonId, pair[0], guaranteed);
+    for (const candidate of pair) {
+      const result: OffDayProcessingResult = {
+        invitationWindow: null,
+        eventWindowAvailable: candidate === guaranteed || randomInt(2) === 1,
+        eventWindowRoll: candidate === guaranteed ? "guaranteed" : "50%",
+      };
+      db.prepare("INSERT OR IGNORE INTO offday_processing VALUES (?, ?, ?)").run(seasonId, candidate, JSON.stringify(result));
+    }
+  } else {
+    const result: OffDayProcessingResult = {
+      invitationWindow: null,
+      eventWindowAvailable: randomInt(2) === 1,
+      eventWindowRoll: "50%",
+    };
+    db.prepare("INSERT OR IGNORE INTO offday_processing VALUES (?, ?, ?)").run(seasonId, date, JSON.stringify(result));
+  }
 }
 
 export function advanceCareerDay(
@@ -217,6 +264,12 @@ export function advanceCareerDay(
         return result;
       }
       const games = career.season.games.filter((game) => game.date === date);
+      store.invitations.ensureCurrent(career);
+      const pendingInvitations = store.invitations.pending(careerId, date);
+      if (pendingInvitations) {
+        const result = remember({ kind: "off_day_invitations", career, invitationWindow: pendingInvitations.eventWindowId ? { id: pendingInvitations.eventWindowId, date } : null, group: pendingInvitations });
+        db.exec("COMMIT"); transaction = false; return result;
+      }
       const incomplete = games.find((game) => game.status !== "completed");
       if (incomplete) {
         const result = remember({
@@ -267,6 +320,7 @@ export function advanceCareerDay(
           .get(id)!;
       }
       const offers: SponsorProcessingResult["offers"] = [];
+      const settlements: SponsorProcessingResult["settlements"] = [];
       for (const game of games) {
         const saved = db
           .prepare("SELECT result FROM postgame_processing WHERE game_id = ?")
@@ -278,9 +332,9 @@ export function advanceCareerDay(
               // The persisted pregame boundary decides whether this performance
               // belongs to the period. Final eligibility includes interview and
               // follower changes and is evaluated before the offer check.
-              store.sponsors.processContractMatch(career, game);
+              const completedSettlements = store.sponsors.processContractMatch(career, game, processingKey);
               store.sponsors.processPostgame(career, game, processingKey);
-              return { offers: store.sponsors.processOfferCheck(career, game, processingKey) };
+              return { settlements: completedSettlements, offers: store.sponsors.processOfferCheck(career, game, processingKey) };
             })();
         if (!saved) {
           db.prepare("INSERT INTO postgame_processing VALUES (?, ?)").run(
@@ -294,6 +348,17 @@ export function advanceCareerDay(
           transaction = true;
         }
         offers.push(...result.offers);
+        settlements.push(...(result.settlements ?? []));
+      }
+      if (settlements.length && transition.phase !== "settlements_resolved" && transition.phase !== "offers" && transition.phase !== "offers_resolved") {
+        if (transition.phase === "settlements" && request.resumeTransitionId === transition.id) {
+          db.prepare("UPDATE day_transitions SET phase = 'settlements_resolved' WHERE id = ?").run(transition.id);
+          transition = { ...transition, phase: "settlements_resolved" };
+        } else {
+          db.prepare("UPDATE day_transitions SET phase = 'settlements' WHERE id = ?").run(transition.id);
+          const result = remember({ kind: "sponsor_settlements", career, transitionId: String(transition.id), settlements, approachGroupId: offers[0]?.approachGroupId ?? null });
+          db.exec("COMMIT"); transaction = false; return result;
+        }
       }
       if (offers.length && transition.phase !== "offers_resolved") {
         if (
@@ -421,30 +486,20 @@ export function advanceCareerDay(
           date.slice(0, 7),
         );
       }
+      saveOffDayEventRolls(db, career, date);
       const saved = db
         .prepare(
           "SELECT result FROM offday_processing WHERE season_id = ? AND date = ?",
         )
         .get(career.season.id, date);
-      const invitations: OffDayProcessingResult = saved
-        ? JSON.parse(String(saved.result))
-        : processOffDayInvitations({
-            career,
-            date,
-            processingKey: `offday:${career.season.id}:${date}`,
-          });
-      if (!saved)
-        db.prepare("INSERT INTO offday_processing VALUES (?, ?, ?)").run(
-          career.season.id,
-          date,
-          JSON.stringify(invitations),
-        );
-      result = invitations.invitationWindow
-        ? {
-            kind: "off_day_invitations",
-            career,
-            invitationWindow: invitations.invitationWindow,
-          }
+      if (!saved) throw new Error("Confirmed off day has no saved event roll.");
+      const invitations: OffDayProcessingResult = JSON.parse(String(saved.result));
+      const eventWindow = invitations.eventWindowAvailable
+        ? (invitations.invitationWindow ?? { id: `event-window:${career.season.id}:${date}`, date })
+        : null;
+      const group = store.invitations.ensureForDate(career, date, eventWindow?.id ?? null);
+      result = group
+        ? { kind: "off_day_invitations", career, invitationWindow: eventWindow, group }
         : { kind: "advanced_date", career, date };
     }
     db.prepare("UPDATE day_transitions SET phase = 'done' WHERE id = ?").run(

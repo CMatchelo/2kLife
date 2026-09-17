@@ -11,18 +11,28 @@ export default function PlayerInfo({ career }: { career: Career }) {
   const draft = player.draft.undrafted
     ? `Undrafted · ${player.draft.year}`
     : `${player.draft.year} · Round ${player.draft.round}, pick ${player.draft.pick} · ${teamName(career.teams, player.draft.teamId)}`;
+  const number = new Intl.NumberFormat("en-US");
+  const latestFollowerChange = player.socialMedia.history.at(-1);
+  const latestFollowers = latestFollowerChange?.change ?? 0;
+  const identity = player.identity.careerScores;
+  const identityTotal = identity.star + identity.team + identity.fan;
+  const identityPercentage = (score: number) =>
+    identityTotal ? `${((score / identityTotal) * 100).toFixed(1)}%` : "0.0%";
   const details = [
-    [
-      "Position",
-      `${player.position}${player.secondaryPosition ? ` / ${player.secondaryPosition}` : ""}`,
-    ],
-    ["Age", String(age)],
-    ["Height", `${player.heightCm} cm`],
-    ["Weight", `${player.weightKg} kg`],
-    ["Jersey", player.jerseyNumber ? `#${player.jerseyNumber}` : "Not set"],
-    ["Current team", teamName(career.teams, player.currentTeamId)],
-    ["Current season", career.season.year],
-    ["Latest game", player.currentGameDate ?? "No completed game"],
+    { label: "Position", value: `${player.position}${player.secondaryPosition ? ` / ${player.secondaryPosition}` : ""}` },
+    { label: "Age", value: String(age) },
+    { label: "Height and weight", value: `${player.heightCm} cm · ${player.weightKg} kg` },
+    {
+      label: "Followers",
+      value: <><span className="block">{number.format(player.socialMedia.currentFollowers)}</span><span className={`block text-xs font-semibold ${latestFollowers > 0 ? "text-sky-300" : latestFollowers < 0 ? "text-red-300" : "text-muted"}`}>{latestFollowers > 0 ? "+" : ""}{number.format(latestFollowers)} from last {latestFollowerChange?.gameId ? "match" : "activity"}</span></>,
+    },
+    { label: "Jersey", value: player.jerseyNumber ? `#${player.jerseyNumber}` : "Not set" },
+    { label: "Current team", value: teamName(career.teams, player.currentTeamId) },
+    { label: "Current season", value: career.season.year },
+    {
+      label: "Personality traits",
+      value: <span className="grid grid-cols-3 gap-2 text-xs"><span><b className="block text-sm">{identityPercentage(identity.star)}</b>Star</span><span><b className="block text-sm">{identityPercentage(identity.team)}</b>Team</span><span><b className="block text-sm">{identityPercentage(identity.fan)}</b>Fan</span></span>,
+    },
   ];
 
   return (
@@ -40,7 +50,7 @@ export default function PlayerInfo({ career }: { career: Career }) {
         className="mt-3 block h-1 w-14 rounded-full bg-gold"
         aria-hidden="true"
       />
-      <div className="mt-2 flex flex-wrap items-end justify-between gap-3 border-b border-divider pb-5">
+      <div className="mt-2 flex flex-wrap items-end justify-between gap-3 pb-5">
         <div>
           <h3 className="text-3xl font-black">{player.name}</h3>
           <p className="mt-1 font-semibold text-court-blue">
@@ -55,7 +65,7 @@ export default function PlayerInfo({ career }: { career: Career }) {
         </span>
       </div>
       <dl className="mt-5 grid gap-px overflow-hidden rounded-xl bg-transparent sm:grid-cols-2 lg:grid-cols-4">
-        {details.map(([label, value]) => (
+        {details.map(({ label, value }) => (
           <div
             key={label}
             className="border border-slate-600 bg-transparent p-4"

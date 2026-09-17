@@ -52,7 +52,8 @@ export function followerChange(followers: number, score: number): number {
   return clamp(audience + change, 0, LIMIT) - audience;
 }
 export function recalculateFollowers(social: SocialMedia, games: Game[], savedGameId: string): SocialMedia {
-  const tracked = new Set([...(social.trackedGameIds ?? social.history.map(item => item.gameId)), savedGameId]);
+  const eventHistory = social.history.filter((item) => !item.gameId);
+  const tracked = new Set([...(social.trackedGameIds ?? social.history.flatMap(item => item.gameId ? [item.gameId] : [])), savedGameId]);
   const ordered = games.filter(eligible).sort((a, b) => a.date.localeCompare(b.date) || a.id.localeCompare(b.id));
   const startingFollowers = clamp(Math.round(social.startingFollowers), 0, LIMIT);
   let followers = startingFollowers;
@@ -67,5 +68,6 @@ export function recalculateFollowers(social: SocialMedia, games: Game[], savedGa
     history.push({ id: social.history.find(item => item.gameId === game.id)?.id ?? `followers-${game.id}`, gameId: game.id, date: game.date, change, performanceScore: score,
       reason: score > 0 ? 'Positive overall performance relative to pregame career expectations.' : score < 0 ? 'Negative overall performance relative to pregame career expectations.' : 'Overall performance matched pregame career expectations.' });
   }
-  return { startingFollowers, currentFollowers: followers, trackedGameIds: [...tracked], history };
+  followers += eventHistory.reduce((sum, item) => sum + item.change, 0);
+  return { startingFollowers, currentFollowers: followers, trackedGameIds: [...tracked], history: [...history, ...eventHistory].sort((a, b) => a.date.localeCompare(b.date) || a.id.localeCompare(b.id)) };
 }
