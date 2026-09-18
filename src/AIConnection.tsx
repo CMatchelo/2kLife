@@ -189,7 +189,7 @@ export default function AIConnection({
         aria-describedby="connect-description"
         className="ai-dialog rounded-2xl border border-divider bg-cream text-ink"
       >
-        <div className="flex items-center justify-between gap-4 border-b border-divider bg-gold p-5">
+        <div className="flex items-center justify-between gap-4 border-b border-divider bg-court-blue p-5 text-white">
           <h2 id="connect-title" className="text-2xl font-bold">
             Connect AI
           </h2>
@@ -249,6 +249,74 @@ export default function AIConnection({
                 ? new Date(status.lastSuccessfulTest).toLocaleString()
                 : "Never"}
               . A previous test does not prove current connectivity.
+            </p>
+          </div>
+          <div className="border-y border-divider py-4">
+            <h3 className="mb-2 font-bold">Test connection</h3>
+            <p className="mb-3 text-sm">
+              {view === "codex"
+                ? "Test connection makes a small AI request and consumes Codex usage."
+                : "Test connection makes a minimal text request. It uses your Claude subscription allowance, or incurs a small API charge when an API key is set."}{" "}
+              No test runs automatically.
+            </p>
+            <div className="flex flex-wrap gap-3">
+              <button
+                className="ai-secondary"
+                disabled={busy}
+                onClick={refresh}
+              >
+                Check configuration
+              </button>
+              <button
+                className="ai-secondary"
+                disabled={busy || selected === view || !snapshot}
+                onClick={() =>
+                  operate(async () => {
+                    await request(`${view}/select`, "POST");
+                    setSnapshot((previous) =>
+                      previous
+                        ? { ...previous, selectedProvider: view }
+                        : previous,
+                    );
+                    setNotice(
+                      `${names[view]} selected. Selecting does not verify the connection.`,
+                    );
+                  })
+                }
+              >
+                Use {names[view]}
+              </button>
+              <button
+                className="ai-primary"
+                disabled={busy || !status?.configured}
+                onClick={() =>
+                  operate(async () => {
+                    const result = await request<ProviderStatus>(
+                      `${view}/test`,
+                      "POST",
+                    );
+                    setSnapshot((previous) =>
+                      previous
+                        ? {
+                            ...previous,
+                            providers: {
+                              ...previous.providers,
+                              [view]: result,
+                            },
+                          }
+                        : previous,
+                    );
+                    setNotice(result.message);
+                  })
+                }
+              >
+                {busy ? "Please wait…" : "Test connection"}
+              </button>
+            </div>
+            <p className="mt-3 text-sm text-muted">
+              Both providers can stay configured. Only the active provider will
+              be used for future AI features; no automatic fallback. Testing
+              checks the provider shown above.
             </p>
           </div>
           {view === "codex" ? (
@@ -367,73 +435,6 @@ export default function AIConnection({
               </ol>
             </div>
           )}
-          <div className="border-t border-divider pt-4">
-            <p className="mb-3 text-sm">
-              {view === "codex"
-                ? "Test connection makes a small AI request and consumes Codex usage."
-                : "Test connection makes a minimal text request. It uses your Claude subscription allowance, or incurs a small API charge when an API key is set."}{" "}
-              No test runs automatically.
-            </p>
-            <div className="flex flex-wrap gap-3">
-              <button
-                className="ai-secondary"
-                disabled={busy}
-                onClick={refresh}
-              >
-                Check configuration
-              </button>
-              <button
-                className="ai-secondary"
-                disabled={busy || selected === view || !snapshot}
-                onClick={() =>
-                  operate(async () => {
-                    await request(`${view}/select`, "POST");
-                    setSnapshot((previous) =>
-                      previous
-                        ? { ...previous, selectedProvider: view }
-                        : previous,
-                    );
-                    setNotice(
-                      `${names[view]} selected. Selecting does not verify the connection.`,
-                    );
-                  })
-                }
-              >
-                Use {names[view]}
-              </button>
-              <button
-                className="ai-primary"
-                disabled={busy || !status?.configured}
-                onClick={() =>
-                  operate(async () => {
-                    const result = await request<ProviderStatus>(
-                      `${view}/test`,
-                      "POST",
-                    );
-                    setSnapshot((previous) =>
-                      previous
-                        ? {
-                            ...previous,
-                            providers: {
-                              ...previous.providers,
-                              [view]: result,
-                            },
-                          }
-                        : previous,
-                    );
-                    setNotice(result.message);
-                  })
-                }
-              >
-                {busy ? "Please wait…" : "Test connection"}
-              </button>
-            </div>
-            <p className="mt-3 text-sm text-muted">
-              Both providers can stay configured. Only the active provider will
-              be used for future AI features; no automatic fallback. Testing
-              checks the provider shown above.
-            </p>
-          </div>
           <p role="status" aria-live="polite" className="text-sm">
             {notice}
           </p>

@@ -14,10 +14,10 @@ export default function SeasonProgress({ current }: { current: Career }) {
     ["PPG", stats.averages.points],
     ["APG", stats.averages.assists],
     ["RPG", stats.averages.rebounds],
-    ["Steals / game", stats.averages.steals],
-    ["Blocks / game", stats.averages.blocks],
-    ["Turnovers / game", stats.averages.turnovers],
-    ["Fouls / game", stats.averages.personalFouls],
+    ["Steals", stats.averages.steals],
+    ["Blocks", stats.averages.blocks],
+    ["Turnovers", stats.averages.turnovers],
+    ["Fouls", stats.averages.personalFouls],
     ["FG%", stats.fieldGoalPercentage],
     ["3PT%", stats.threePointPercentage],
     ["FT%", stats.freeThrowPercentage],
@@ -49,17 +49,21 @@ export default function SeasonProgress({ current }: { current: Career }) {
           played
         </p>
       </div>
-      <dl className="mt-5 grid gap-px overflow-hidden rounded-xl bg-transparent sm:grid-cols-2 lg:grid-cols-5">
+      <dl className="mt-5 grid grid-cols-3 gap-px overflow-hidden rounded-xl bg-transparent lg:grid-cols-5">
         {statsDetails.map(([label, value]) => (
           <div
             key={label}
-            className="border border-slate-600 bg-transparent p-4"
+            className="min-w-0 border border-slate-600 bg-transparent p-2 sm:p-4"
           >
-            <dt className="text-xs font-bold uppercase tracking-wide text-muted">
+            <dt className="break-words text-[10px] font-bold uppercase tracking-wide text-muted sm:text-xs">
               {label}
             </dt>
             <dd className="mt-1 font-bold">
-              {hasGames ? (label.endsWith("%") ? percentage(value) : number.format(value ?? 0)) : "—"}
+              {hasGames
+                ? label.endsWith("%")
+                  ? percentage(value)
+                  : number.format(value ?? 0)
+                : "—"}
             </dd>
           </div>
         ))}

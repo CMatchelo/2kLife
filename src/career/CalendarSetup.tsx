@@ -17,7 +17,6 @@ import {
 import ScheduleView from "./ScheduleView";
 import GameEditor from "./GameEditor";
 import { api } from "./api";
-import TeamManager from "./TeamManager";
 
 type SelectedImage = ImportImage & {
   id: string;
@@ -424,8 +423,8 @@ export default function CalendarSetup({
               Import review · {draft.unresolved.length} unresolved
             </h3>
             <p className="mt-2 text-sm">
-              Accept, correct, or discard each entry before starting your career.
-              Nothing here is yet a valid scheduled game.
+              Accept, correct, or discard each entry before starting your
+              career. Nothing here is yet a valid scheduled game.
             </p>
             {acceptableCount > 0 && (
               <button
@@ -506,12 +505,6 @@ export default function CalendarSetup({
             </ul>
           </section>
         )}
-        <TeamManager
-          teams={draft.teams}
-          onChange={(teams) =>
-            onChange({ ...draft, teams, teamsConfirmed: false })
-          }
-        />
         <ScheduleView
           games={draft.games}
           teams={draft.teams}
@@ -524,46 +517,33 @@ export default function CalendarSetup({
         />
         <section className="career-card">
           <h3 className="text-xl font-bold">Calendar coverage</h3>
-          <p className="my-3 text-sm">
-            Confirm a month only after checking its whole schedule, including
-            any blank days. Imported months remain unconfirmed until you review
-            them. Unconfirmed empty dates are unknown, not off days.
-          </p>
-          <div className="grid gap-3 sm:grid-cols-3">
-            {months.map((value) => {
-              const coverage = draft.coverage.find((c) => c.month === value);
-              return (
-                <label key={value} className="flex items-start gap-2 text-sm">
-                  <input
-                    type="checkbox"
-                    checked={coverage?.confirmed ?? false}
-                    onChange={(event) =>
-                      onChange({
-                        ...draft,
-                        coverage: [
-                          ...draft.coverage.filter((c) => c.month !== value),
-                          {
-                            month: value,
-                            source: coverage?.source ?? "user",
-                            confirmed: event.target.checked,
-                          },
-                        ],
-                      })
-                    }
-                  />
-                  <span>
-                    {value}
-                    <small className="block text-muted">
-                      {coverage?.source === "imported"
-                        ? "Seen in import"
-                        : "User review"}{" "}
-                      · {coverage?.confirmed ? "Confirmed" : "Unconfirmed"}
-                    </small>
-                  </span>
-                </label>
-              );
-            })}
-          </div>
+          <label className="mt-4 flex items-start gap-3">
+            <input
+              type="checkbox"
+              checked={months.every((value) =>
+                draft.coverage.some(
+                  (coverage) => coverage.month === value && coverage.confirmed,
+                ),
+              )}
+              onChange={(event) =>
+                onChange({
+                  ...draft,
+                  coverage: months.map((value) => ({
+                    month: value,
+                    source:
+                      draft.coverage.find(
+                        (coverage) => coverage.month === value,
+                      )?.source ?? "user",
+                    confirmed: event.target.checked,
+                  })),
+                })
+              }
+            />
+            <span>
+              I confirm that I reviewed the entire calendar and that all games
+              and dates are correct.
+            </span>
+          </label>
         </section>
       </fieldset>
     </div>

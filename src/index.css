@@ -1,12 +1,12 @@
 @import "tailwindcss";
 
 @theme {
-  --color-cream: #fff8de;
-  --color-butter: #fff0ba;
+  --color-cream: #182633;
+  --color-butter: #101b27;
   --color-gold: #f2d675;
-  --color-divider: #d8bd65;
+  --color-divider: #3a5064;
   --color-ink: #242015;
-  --color-muted: #6b5b35;
+  --color-muted: #94a3b8;
   --color-court-blue: #17408b;
   --color-court-red: #c9082a;
   --color-night: #091119;
@@ -19,7 +19,7 @@
     @apply cursor-pointer rounded-lg bg-court-blue px-4 py-2 font-semibold text-white disabled:cursor-wait disabled:opacity-50;
   }
   .ai-secondary {
-    @apply cursor-pointer rounded-lg border border-divider bg-cream px-3 py-2 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-50;
+    @apply cursor-pointer rounded-lg border border-divider bg-cream px-3 py-2 text-sm font-semibold text-slate-100 disabled:cursor-not-allowed disabled:opacity-50;
   }
   .career-nav-button {
     @apply cursor-pointer rounded-lg border border-court-blue bg-court-blue px-3 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50;
@@ -31,7 +31,7 @@
     @apply text-court-blue underline underline-offset-2;
   }
   .career-card {
-    @apply min-w-0 rounded-2xl border border-divider bg-butter p-5 text-ink md:p-7;
+    @apply min-w-0 rounded-2xl border border-divider bg-butter p-5 text-slate-100 md:p-7;
   }
   .dashboard-card {
     @apply border-slate-700 text-slate-100 shadow-xl;
@@ -46,20 +46,24 @@
   .dashboard-card .text-court-red {
     @apply text-red-300;
   }
-  .dashboard-card .bg-cream,
+  .dashboard-card .bg-cream {
+    @apply text-slate-100;
+  }
   .dashboard-card .bg-gold {
     @apply text-ink;
   }
-  .dashboard-card .bg-cream .text-muted,
+  .dashboard-card .bg-cream .text-muted {
+    @apply text-slate-400;
+  }
   .dashboard-card .bg-gold .text-muted {
-    @apply text-muted;
+    color: #6b5b35;
   }
   .career-field {
     @apply flex min-w-0 flex-col gap-2 text-sm font-semibold;
   }
   .career-field input,
   .career-field select {
-    @apply min-w-0 w-full rounded-lg border border-divider bg-cream px-3 py-2 text-base font-normal text-ink;
+    @apply min-w-0 w-full rounded-lg border border-divider bg-cream px-3 py-2 text-base font-normal text-slate-100;
   }
   .career-field input[type="file"] {
     @apply text-sm;
@@ -87,10 +91,34 @@
   }
   button:focus-visible,
   a:focus-visible,
-  input:focus-visible {
-    outline: 3px solid var(--color-court-blue);
+  input:focus-visible,
+  select:focus-visible,
+  textarea:focus-visible,
+  summary:focus-visible {
+    outline: 3px solid #6ea8fe;
     outline-offset: 3px;
   }
+}
+
+/* Keep the deep team colors on filled controls, with lighter variants for text. */
+.text-court-blue {
+  color: #6ea8fe;
+}
+.text-court-red {
+  color: #ff667d;
+}
+
+/* Cream and butter are dark surfaces; explicit legacy text helpers must remain readable. */
+.bg-cream.text-ink,
+.bg-butter.text-ink,
+.bg-cream .text-ink,
+.bg-butter .text-ink {
+  color: #f1f5f9;
+}
+.bg-cream .text-muted,
+.bg-butter .text-muted,
+.career-card .text-muted {
+  color: #94a3b8;
 }
 
 @layer base {

@@ -211,8 +211,60 @@ function PeopleTable({
   if (!people.length)
     return <p className="mt-5 rounded-lg bg-cream p-4 text-sm">{empty}</p>;
   return (
-    <div className="mt-5 overflow-x-auto">
-      <table className="w-full min-w-[35rem] text-left text-sm">
+    <div className="mt-5 min-w-0">
+      <div className="space-y-3 sm:hidden">
+        {people.map((person) => (
+          <article
+            key={person.id}
+            className="rounded-lg border border-divider/70 bg-cream p-3 text-sm"
+          >
+            <dl className="grid min-w-0 grid-cols-[minmax(0,0.8fr)_minmax(0,1.35fr)_auto] gap-3">
+              <div className="min-w-0">
+                <dt className="text-xs font-bold uppercase tracking-wide text-muted">
+                  {role === "player" ? "Player" : "Teammate"}
+                </dt>
+                <dd className="mt-1 break-words font-semibold">
+                  {person.name}
+                </dd>
+              </div>
+              <div className="min-w-0">
+                <dt className="text-xs font-bold uppercase tracking-wide text-muted">
+                  Team
+                </dt>
+                <dd className="mt-1 break-words">
+                  {teamName(teams, person.teamId)}{" "}
+                  <span className="text-muted">({person.teamId})</span>
+                </dd>
+              </div>
+              <div>
+                <dt className="text-xs font-bold uppercase tracking-wide text-muted">
+                  Relationship
+                </dt>
+                <dd className="mt-1 font-bold">{person.affinity}</dd>
+              </div>
+            </dl>
+            <div className="mt-3 flex flex-wrap gap-2 border-t border-divider/70 pt-3">
+              <button
+                type="button"
+                className="ai-secondary"
+                disabled={saving}
+                onClick={() => onEdit(person)}
+              >
+                Edit
+              </button>
+              <button
+                type="button"
+                className="ai-secondary text-court-red"
+                disabled={saving}
+                onClick={() => onRemove(person)}
+              >
+                Remove
+              </button>
+            </div>
+          </article>
+        ))}
+      </div>
+      <table className="hidden w-full text-left text-sm sm:table">
         <thead>
           <tr className="border-b border-divider">
             <th className="p-2">{role === "player" ? "Player" : "Teammate"}</th>
@@ -380,6 +432,10 @@ export default function BasketballNetworkSettings({
       <h2 id="basketball-network-title" className="text-2xl font-bold">
         Basketball Network
       </h2>
+      <span
+        className="mt-3 block h-1 w-14 rounded-full bg-gold"
+        aria-hidden="true"
+      />
       <p className="mt-2 text-muted">
         Choose the teams and players who are closest to your career. They will
         be used in future events, relationships, contract discussions, and trade
@@ -401,7 +457,7 @@ export default function BasketballNetworkSettings({
       {!loading && (
         <div className="mt-6 space-y-6">
           <section
-            className="rounded-xl border border-divider p-4"
+            className="min-w-0 rounded-xl border border-divider p-4"
             aria-labelledby="network-teams-title"
           >
             <div className="flex flex-wrap items-start justify-between gap-2">
@@ -421,13 +477,13 @@ export default function BasketballNetworkSettings({
               )}
             </div>
             <form
-              className="mt-4 flex flex-wrap items-end gap-3"
+              className="mt-4 flex min-w-0 flex-wrap items-end gap-3"
               onSubmit={async (event) => {
                 event.preventDefault();
                 if (await mutate("teams", { teamId })) setTeamId("");
               }}
             >
-              <label className="career-field min-w-56 flex-1">
+              <label className="career-field w-full sm:min-w-56 sm:flex-1">
                 <span>NBA team</span>
                 <select
                   value={teamId}
@@ -449,18 +505,75 @@ export default function BasketballNetworkSettings({
                 </select>
               </label>
               <button
-                className="ai-primary"
+                className="ai-primary w-full sm:w-auto"
                 disabled={saving || teamLimit || !teamId}
               >
                 {saving ? "Saving…" : "Add team"}
               </button>
             </form>
-            <div className="mt-5 overflow-x-auto">
-              <table className="w-full min-w-[30rem] text-left text-sm">
+            <div className="mt-5 min-w-0">
+              <div className="space-y-3 sm:hidden">
+                {network.teams.map((team) => {
+                  const logo = teamLogo(team.teamId);
+                  return (
+                    <article
+                      key={team.teamId}
+                      className="rounded-lg border border-divider/70 bg-cream p-3 text-sm"
+                    >
+                      <dl className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] gap-3">
+                        <div className="min-w-0">
+                          <dt className="text-xs font-bold uppercase tracking-wide text-muted">
+                            Team
+                          </dt>
+                          <dd className="mt-1 flex min-w-0 items-center gap-2 font-semibold">
+                            {logo && (
+                              <img
+                                src={logo}
+                                alt=""
+                                className="h-7 w-7 shrink-0 object-contain"
+                              />
+                            )}
+                            <span className="min-w-0 break-words">
+                              {teamName(displayTeams, team.teamId)}{" "}
+                              <span className="text-muted">
+                                ({team.teamId})
+                              </span>
+                            </span>
+                          </dd>
+                        </div>
+                        <div>
+                          <dt className="text-xs font-bold uppercase tracking-wide text-muted">
+                            Relationship
+                          </dt>
+                          <dd className="mt-1 font-bold">{team.affinity}</dd>
+                        </div>
+                      </dl>
+                      {team.selected && (
+                        <div className="mt-3 border-t border-divider/70 pt-3">
+                          <button
+                            type="button"
+                            className="ai-secondary text-court-red"
+                            disabled={saving}
+                            onClick={() =>
+                              void mutate(
+                                `teams/${team.teamId}`,
+                                undefined,
+                                "DELETE",
+                              )
+                            }
+                          >
+                            Remove
+                          </button>
+                        </div>
+                      )}
+                    </article>
+                  );
+                })}
+              </div>
+              <table className="hidden w-full text-left text-sm sm:table">
                 <thead>
                   <tr className="border-b border-divider">
                     <th className="p-2">Team</th>
-                    <th className="p-2">Status</th>
                     <th className="p-2">Relationship</th>
                     <th className="p-2 text-right">Action</th>
                   </tr>
@@ -490,14 +603,6 @@ export default function BasketballNetworkSettings({
                             </span>
                           </span>
                         </td>
-                        <td className="p-2">
-                          {[
-                            team.current ? "Current team" : "",
-                            team.selected ? "Selected" : "",
-                          ]
-                            .filter(Boolean)
-                            .join(" · ")}
-                        </td>
                         <td className="p-2 font-bold">{team.affinity}</td>
                         <td className="p-2 text-right">
                           {team.selected && (
@@ -524,9 +629,9 @@ export default function BasketballNetworkSettings({
               </table>
             </div>
           </section>
-          <div className="grid gap-6 lg:grid-cols-2">
+          <div className="grid min-w-0 gap-6 lg:grid-cols-2">
             <section
-              className="rounded-xl border border-divider p-4"
+              className="min-w-0 rounded-xl border border-divider p-4"
               aria-labelledby="network-players-title"
             >
               <div className="flex flex-wrap items-start justify-between gap-2">
@@ -615,7 +720,7 @@ export default function BasketballNetworkSettings({
               />
             </section>
             <section
-              className="rounded-xl border border-divider p-4"
+              className="min-w-0 rounded-xl border border-divider p-4"
               aria-labelledby="network-teammates-title"
             >
               <div className="flex flex-wrap items-start justify-between gap-2">

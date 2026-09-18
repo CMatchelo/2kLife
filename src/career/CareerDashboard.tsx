@@ -17,6 +17,7 @@ import { api } from "./api";
 import { teamName } from "../domain/teams";
 import AIConnection from "../AIConnection";
 import Sponsors from "./Sponsors";
+import SponsorFinances from "./SponsorFinances";
 import SponsorApproachModal from "./SponsorApproachModal";
 import type {
   SponsorActiveContract,
@@ -210,16 +211,20 @@ function SponsorSettlementModal({
   );
 }
 
+export type CareerView =
+  | "progress"
+  | "info"
+  | "sponsors"
+  | "finances"
+  | "config";
+
 export default function CareerDashboard({
   career,
-  onHome,
+  view,
 }: {
   career: Career;
-  onHome: () => void;
+  view: CareerView;
 }) {
-  const [view, setView] = useState<"progress" | "info" | "sponsors" | "config">(
-    "progress",
-  );
   const [current, setCurrent] = useState(career);
   const [month, setMonth] = useState(
     current.currentDate?.slice(0, 7) ??
@@ -496,48 +501,7 @@ export default function CareerDashboard({
             {teamName(current.teams, p.currentTeamId)}
           </p>
         </div>
-        <button
-          className="ai-secondary self-start"
-          disabled={dayLoading || calendarSaving}
-          onClick={onHome}
-        >
-          All careers
-        </button>
       </div>
-      <nav aria-label="Career views" className="flex flex-wrap gap-3">
-        <button
-          type="button"
-          className="career-nav-button"
-          aria-pressed={view === "progress"}
-          onClick={() => setView("progress")}
-        >
-          Season progress
-        </button>
-        <button
-          type="button"
-          className="career-nav-button"
-          aria-pressed={view === "info"}
-          onClick={() => setView("info")}
-        >
-          Player infos
-        </button>
-        <button
-          type="button"
-          className="career-nav-button"
-          aria-pressed={view === "sponsors"}
-          onClick={() => setView("sponsors")}
-        >
-          Sponsors
-        </button>
-        <button
-          type="button"
-          className="career-nav-button"
-          aria-pressed={view === "config"}
-          onClick={() => setView("config")}
-        >
-          Settings
-        </button>
-      </nav>
       {view === "progress" ? (
         <SeasonProgress current={current} />
       ) : view === "info" ? (
@@ -548,18 +512,28 @@ export default function CareerDashboard({
         </div>
       ) : view === "sponsors" ? (
         <Sponsors career={current} />
+      ) : view === "finances" ? (
+        <SponsorFinances career={current} />
       ) : (
         <div className="space-y-8">
           <BasketballNetworkSettings career={current} />
           <section className="career-card dashboard-card">
             <h2 className="text-2xl font-bold">AI configuration</h2>
+            <span
+              className="mt-3 block h-1 w-14 rounded-full bg-gold"
+              aria-hidden="true"
+            />
             <p className="mt-2 text-muted">
               Choose and check the AI provider used for career interviews.
             </p>
             <AIConnection />
           </section>
           <section className="career-card dashboard-card">
-            <h2 className="mb-5 text-2xl font-bold">Calendar settings</h2>
+            <h2 className="text-2xl font-bold">Calendar settings</h2>
+            <span
+              className="mt-3 mb-5 block h-1 w-14 rounded-full bg-gold"
+              aria-hidden="true"
+            />
             <CalendarSettings
               career={current}
               month={month}
@@ -570,96 +544,113 @@ export default function CareerDashboard({
         </div>
       )}
       {view === "progress" && (
-        <section className="career-card dashboard-card">
-          <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <h2 className="text-2xl font-black uppercase tracking-wide">
-                Season schedule
-              </h2>
-              <span
-                className="mt-3 block h-1 w-14 rounded-full bg-gold"
-                aria-hidden="true"
-              />
-            </div>
-            <div className="flex flex-wrap items-center gap-3">
-              {!adding && (
+        <div className="space-y-8">
+          <section className="career-card dashboard-card">
+            <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h2 className="text-2xl font-black uppercase tracking-wide">
+                  Season schedule
+                </h2>
+                <span
+                  className="mt-3 block h-1 w-14 rounded-full bg-gold"
+                  aria-hidden="true"
+                />
+              </div>
+              <div className="flex flex-wrap items-center gap-3">
+                {!adding && (
+                  <button
+                    type="button"
+                    className="ai-primary"
+                    disabled={dayLoading || calendarSaving}
+                    onClick={() => setAdding(true)}
+                  >
+                    Add game
+                  </button>
+                )}
                 <button
                   type="button"
                   className="ai-primary"
-                  disabled={dayLoading || calendarSaving}
-                  onClick={() => setAdding(true)}
-                >
-                  Add game
-                </button>
-              )}
-              <button
-                type="button"
-                className="ai-primary"
-                disabled={
-                  dayLoading ||
-                  calendarSaving ||
-                  !!editing ||
-                  !!interviewGame ||
-                  adding ||
-                  !!invitationGroup
-                }
-                onClick={() => void nextDay()}
-              >
-                {dayLoading ? "Processing…" : "Next day"}
-              </button>
-            </div>
-          </div>
-          {adding && (
-            <div className="mb-5">
-              <p className="mb-3 text-sm text-muted">
-                Add a fixture you missed during setup. It is saved to this
-                career right away.
-              </p>
-              <GameEditor
-                initial={{
-                  date: `${month}-01`,
-                  teamId: p.currentTeamId,
-                  location: "home",
-                  category: "regularSeason",
-                  countsTowardRegularSeason: true,
-                }}
-                teams={current.teams}
-                year={current.season.year}
-                onCancel={() => setAdding(false)}
-                onSave={async (fields) => {
-                  try {
-                    const updated = await api<Career>(
-                      `careers/${current.id}/games`,
-                      fields,
-                    );
-                    setCurrent(updated);
-                    setMonth(fields.date.slice(0, 7));
-                    setAdding(false);
-                    return null;
-                  } catch (error) {
-                    return error instanceof Error
-                      ? error.message
-                      : "The game could not be added.";
+                  disabled={
+                    dayLoading ||
+                    calendarSaving ||
+                    !!editing ||
+                    !!interviewGame ||
+                    adding ||
+                    !!invitationGroup
                   }
-                }}
-              />
+                  onClick={() => void nextDay()}
+                >
+                  {dayLoading ? "Processing…" : "Next day"}
+                </button>
+              </div>
             </div>
+            {adding && (
+              <div className="mb-5">
+                <p className="mb-3 text-sm text-muted">
+                  Add a fixture you missed during setup. It is saved to this
+                  career right away.
+                </p>
+                <GameEditor
+                  initial={{
+                    date: `${month}-01`,
+                    teamId: p.currentTeamId,
+                    location: "home",
+                    category: "regularSeason",
+                    countsTowardRegularSeason: true,
+                  }}
+                  teams={current.teams}
+                  year={current.season.year}
+                  onCancel={() => setAdding(false)}
+                  onSave={async (fields) => {
+                    try {
+                      const updated = await api<Career>(
+                        `careers/${current.id}/games`,
+                        fields,
+                      );
+                      setCurrent(updated);
+                      setMonth(fields.date.slice(0, 7));
+                      setAdding(false);
+                      return null;
+                    } catch (error) {
+                      return error instanceof Error
+                        ? error.message
+                        : "The game could not be added.";
+                    }
+                  }}
+                />
+              </div>
+            )}
+            <ScheduleView
+              games={current.season.games}
+              teams={current.teams}
+              year={current.season.year}
+              month={month}
+              currentDate={current.currentDate}
+              onMonth={setMonth}
+              sponsorContracts={sponsorContracts}
+              onEdit={
+                dayLoading || calendarSaving || interviewGame
+                  ? undefined
+                  : setEditing
+              }
+            />
+          </section>
+          {!current.season.seasonEndDate && (
+            <section className="career-card dashboard-card">
+              <h2 className="text-2xl font-bold">Calendar settings</h2>
+              <span
+                className="mt-3 mb-5 block h-1 w-14 rounded-full bg-gold"
+                aria-hidden="true"
+              />
+              <CalendarSettings
+                career={current}
+                month={month}
+                disabled={dayLoading || calendarSaving || adding}
+                onSave={saveCalendar}
+              />
+            </section>
           )}
-          <ScheduleView
-            games={current.season.games}
-            teams={current.teams}
-            year={current.season.year}
-            month={month}
-            currentDate={current.currentDate}
-            onMonth={setMonth}
-            sponsorContracts={sponsorContracts}
-            onEdit={
-              dayLoading || calendarSaving || interviewGame
-                ? undefined
-                : setEditing
-            }
-          />
-        </section>
+        </div>
       )}
       {editing && (
         <MatchEditor

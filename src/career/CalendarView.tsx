@@ -77,15 +77,26 @@ export default function CalendarView({
           const game = visible.find((g) => g.date === date);
           const logo = game ? teamLogo(game.opponentId) : null;
           const events = sponsorEvents.filter((event) => event.date === date);
-          const displayedEvents = events.length > 4 ? events.slice(0, 3) : events.slice(0, 4);
+          const displayedEvents =
+            events.length > 4 ? events.slice(0, 3) : events.slice(0, 4);
           const hasOverflow = events.length > 4;
+          const mobileSponsorGrid =
+            displayedEvents.length === 1
+              ? "grid-cols-1 grid-rows-1"
+              : displayedEvents.length === 2
+                ? "grid-cols-2 grid-rows-1"
+                : "grid-cols-2 grid-rows-2";
           const sponsorDescription = events.length
             ? ` Sponsor events: ${events.map((event) => event.brandName).join(", ")}.`
             : "";
           return (
             <div
               key={date}
-              title={events.length ? `${events.map((event) => event.brandName).join(", ")} sponsor event${events.length === 1 ? "" : "s"}` : undefined}
+              title={
+                events.length
+                  ? `${events.map((event) => event.brandName).join(", ")} sponsor event${events.length === 1 ? "" : "s"}`
+                  : undefined
+              }
               className={`relative min-h-12 py-0! min-w-0 overflow-hidden rounded-md border bg-[#2a3947] p-1 md:min-h-14 md:p-2 ${date === currentDate ? "border-gold" : "border-slate-600"}`}
             >
               {game && (
@@ -119,18 +130,18 @@ export default function CalendarView({
                   />
                 </>
               )}
-              <span className="pointer-events-none absolute left-1 top-1 z-10 text-lg font-extrabold text-slate-200 md:left-2 md:top-2">
+              <span className="pointer-events-none absolute left-1 top-1 z-20 rounded-sm bg-slate-950/70 px-1 text-[10px] font-extrabold leading-4 text-slate-100 md:left-2 md:top-2 md:bg-transparent md:p-0 md:text-lg md:leading-normal md:text-slate-200">
                 {i + 1}
               </span>
               {events.length > 0 && (
                 <div
-                  className="pointer-events-none absolute inset-y-1 right-1 z-10 grid w-[46%] grid-cols-2 grid-rows-2 gap-0.5 md:inset-y-1.5 md:right-1.5 md:gap-1"
+                  className={`pointer-events-none absolute inset-0 z-10 grid gap-0.5 md:inset-y-1.5 md:right-1.5 md:left-auto md:w-[46%] md:grid-cols-2 md:grid-rows-2 md:gap-1 ${mobileSponsorGrid}`}
                   aria-hidden="true"
                 >
                   {displayedEvents.map((event) => (
                     <span
                       key={event.id}
-                      className="flex min-h-0 min-w-0 items-center justify-center overflow-hidden rounded-sm bg-slate-950/65 p-0.5"
+                      className="flex min-h-0 min-w-0 items-center justify-center overflow-hidden rounded-sm bg-slate-950/80 p-0.5"
                       title={`${event.brandName} sponsor event`}
                     >
                       <img
