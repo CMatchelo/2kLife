@@ -149,7 +149,7 @@ export default function NewCareer({
           <li
             key={label}
             aria-current={step === index ? "step" : undefined}
-            className={`rounded-xl border p-3 text-sm ${step === index ? "border-court-blue bg-court-blue text-white" : "border-divider bg-butter"}`}
+            className={`rounded-xl border p-3 text-sm ${step === index ? "border-court-blue bg-court-blue text-white" : "border-divider bg-transparent"}`}
           >
             <span className="block text-xs opacity-80">STEP {index + 1}</span>
             <strong>{label}</strong>

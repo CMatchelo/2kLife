@@ -2,7 +2,6 @@ import { randomInt, randomUUID } from "node:crypto";
 import type { DatabaseSync } from "node:sqlite";
 import type { CareerStore } from "./careers.ts";
 import type { Career } from "../src/types/career.ts";
-import type { Game } from "../src/types/game.ts";
 import type {
   AdvanceDayRequest,
   AdvanceDayResult,
@@ -125,10 +124,14 @@ function previousCalendarDate(date: string): string {
 
 function saveOffDayEventRolls(db: DatabaseSync, career: Career, date: string) {
   const seasonId = career.season.id;
-  const saved = db.prepare("SELECT 1 FROM offday_processing WHERE season_id = ? AND date = ?").get(seasonId, date);
+  const saved = db
+    .prepare("SELECT 1 FROM offday_processing WHERE season_id = ? AND date = ?")
+    .get(seasonId, date);
   if (saved) return;
   const months = new Set(seasonMonths(career.season.year));
-  const confirmed = new Set(career.coverage.filter((item) => item.confirmed).map((item) => item.month));
+  const confirmed = new Set(
+    career.coverage.filter((item) => item.confirmed).map((item) => item.month),
+  );
   const games = new Set(career.season.games.map((game) => game.date));
   const isOffDay = (candidate: string) =>
     months.has(candidate.slice(0, 7)) &&
@@ -137,25 +140,37 @@ function saveOffDayEventRolls(db: DatabaseSync, career: Career, date: string) {
     (!career.season.seasonEndDate || candidate < career.season.seasonEndDate);
   if (!isOffDay(date)) return;
   let first = date;
-  while (isOffDay(previousCalendarDate(first))) first = previousCalendarDate(first);
+  while (isOffDay(previousCalendarDate(first)))
+    first = previousCalendarDate(first);
   const dates: string[] = [];
-  for (let cursor = first; isOffDay(cursor); cursor = nextCalendarDate(cursor)) dates.push(cursor);
+  for (let cursor = first; isOffDay(cursor); cursor = nextCalendarDate(cursor))
+    dates.push(cursor);
   const index = dates.indexOf(date);
   const pair = dates.slice(index - (index % 2), index - (index % 2) + 2);
   if (pair.length === 2) {
-    const pairSaved = db.prepare("SELECT guaranteed_date FROM offday_event_pairs WHERE season_id = ? AND first_date = ?").get(seasonId, pair[0]);
+    const pairSaved = db
+      .prepare(
+        "SELECT guaranteed_date FROM offday_event_pairs WHERE season_id = ? AND first_date = ?",
+      )
+      .get(seasonId, pair[0]);
     const guaranteed = pairSaved
       ? String(pairSaved.guaranteed_date)
       : pair[randomInt(2)];
     if (!pairSaved)
-      db.prepare("INSERT INTO offday_event_pairs VALUES (?, ?, ?)").run(seasonId, pair[0], guaranteed);
+      db.prepare("INSERT INTO offday_event_pairs VALUES (?, ?, ?)").run(
+        seasonId,
+        pair[0],
+        guaranteed,
+      );
     for (const candidate of pair) {
       const result: OffDayProcessingResult = {
         invitationWindow: null,
         eventWindowAvailable: candidate === guaranteed || randomInt(2) === 1,
         eventWindowRoll: candidate === guaranteed ? "guaranteed" : "50%",
       };
-      db.prepare("INSERT OR IGNORE INTO offday_processing VALUES (?, ?, ?)").run(seasonId, candidate, JSON.stringify(result));
+      db.prepare(
+        "INSERT OR IGNORE INTO offday_processing VALUES (?, ?, ?)",
+      ).run(seasonId, candidate, JSON.stringify(result));
     }
   } else {
     const result: OffDayProcessingResult = {
@@ -163,7 +178,11 @@ function saveOffDayEventRolls(db: DatabaseSync, career: Career, date: string) {
       eventWindowAvailable: randomInt(2) === 1,
       eventWindowRoll: "50%",
     };
-    db.prepare("INSERT OR IGNORE INTO offday_processing VALUES (?, ?, ?)").run(seasonId, date, JSON.stringify(result));
+    db.prepare("INSERT OR IGNORE INTO offday_processing VALUES (?, ?, ?)").run(
+      seasonId,
+      date,
+      JSON.stringify(result),
+    );
   }
 }
 
@@ -267,8 +286,17 @@ export function advanceCareerDay(
       store.invitations.ensureCurrent(career);
       const pendingInvitations = store.invitations.pending(careerId, date);
       if (pendingInvitations) {
-        const result = remember({ kind: "off_day_invitations", career, invitationWindow: pendingInvitations.eventWindowId ? { id: pendingInvitations.eventWindowId, date } : null, group: pendingInvitations });
-        db.exec("COMMIT"); transaction = false; return result;
+        const result = remember({
+          kind: "off_day_invitations",
+          career,
+          invitationWindow: pendingInvitations.eventWindowId
+            ? { id: pendingInvitations.eventWindowId, date }
+            : null,
+          group: pendingInvitations,
+        });
+        db.exec("COMMIT");
+        transaction = false;
+        return result;
       }
       const incomplete = games.find((game) => game.status !== "completed");
       if (incomplete) {
@@ -332,9 +360,20 @@ export function advanceCareerDay(
               // The persisted pregame boundary decides whether this performance
               // belongs to the period. Final eligibility includes interview and
               // follower changes and is evaluated before the offer check.
-              const completedSettlements = store.sponsors.processContractMatch(career, game, processingKey);
+              const completedSettlements = store.sponsors.processContractMatch(
+                career,
+                game,
+                processingKey,
+              );
               store.sponsors.processPostgame(career, game, processingKey);
-              return { settlements: completedSettlements, offers: store.sponsors.processOfferCheck(career, game, processingKey) };
+              return {
+                settlements: completedSettlements,
+                offers: store.sponsors.processOfferCheck(
+                  career,
+                  game,
+                  processingKey,
+                ),
+              };
             })();
         if (!saved) {
           db.prepare("INSERT INTO postgame_processing VALUES (?, ?)").run(
@@ -350,14 +389,34 @@ export function advanceCareerDay(
         offers.push(...result.offers);
         settlements.push(...(result.settlements ?? []));
       }
-      if (settlements.length && transition.phase !== "settlements_resolved" && transition.phase !== "offers" && transition.phase !== "offers_resolved") {
-        if (transition.phase === "settlements" && request.resumeTransitionId === transition.id) {
-          db.prepare("UPDATE day_transitions SET phase = 'settlements_resolved' WHERE id = ?").run(transition.id);
+      if (
+        settlements.length &&
+        transition.phase !== "settlements_resolved" &&
+        transition.phase !== "offers" &&
+        transition.phase !== "offers_resolved"
+      ) {
+        if (
+          transition.phase === "settlements" &&
+          request.resumeTransitionId === transition.id
+        ) {
+          db.prepare(
+            "UPDATE day_transitions SET phase = 'settlements_resolved' WHERE id = ?",
+          ).run(transition.id);
           transition = { ...transition, phase: "settlements_resolved" };
         } else {
-          db.prepare("UPDATE day_transitions SET phase = 'settlements' WHERE id = ?").run(transition.id);
-          const result = remember({ kind: "sponsor_settlements", career, transitionId: String(transition.id), settlements, approachGroupId: offers[0]?.approachGroupId ?? null });
-          db.exec("COMMIT"); transaction = false; return result;
+          db.prepare(
+            "UPDATE day_transitions SET phase = 'settlements' WHERE id = ?",
+          ).run(transition.id);
+          const result = remember({
+            kind: "sponsor_settlements",
+            career,
+            transitionId: String(transition.id),
+            settlements,
+            approachGroupId: offers[0]?.approachGroupId ?? null,
+          });
+          db.exec("COMMIT");
+          transaction = false;
+          return result;
         }
       }
       if (offers.length && transition.phase !== "offers_resolved") {
@@ -493,13 +552,27 @@ export function advanceCareerDay(
         )
         .get(career.season.id, date);
       if (!saved) throw new Error("Confirmed off day has no saved event roll.");
-      const invitations: OffDayProcessingResult = JSON.parse(String(saved.result));
+      const invitations: OffDayProcessingResult = JSON.parse(
+        String(saved.result),
+      );
       const eventWindow = invitations.eventWindowAvailable
-        ? (invitations.invitationWindow ?? { id: `event-window:${career.season.id}:${date}`, date })
+        ? (invitations.invitationWindow ?? {
+            id: `event-window:${career.season.id}:${date}`,
+            date,
+          })
         : null;
-      const group = store.invitations.ensureForDate(career, date, eventWindow?.id ?? null);
+      const group = store.invitations.ensureForDate(
+        career,
+        date,
+        eventWindow?.id ?? null,
+      );
       result = group
-        ? { kind: "off_day_invitations", career, invitationWindow: eventWindow, group }
+        ? {
+            kind: "off_day_invitations",
+            career,
+            invitationWindow: eventWindow,
+            group,
+          }
         : { kind: "advanced_date", career, date };
     }
     db.prepare("UPDATE day_transitions SET phase = 'done' WHERE id = ?").run(
@@ -509,8 +582,9 @@ export function advanceCareerDay(
     db.exec("COMMIT");
     transaction = false;
     return result;
-  } catch {
+  } catch (error) {
     if (transaction) db.exec("ROLLBACK");
+    console.error("Daily progression failed:", error);
     return failure(
       "processing_failed",
       "Daily progression could not finish. Your saved match and completed stages are preserved. Retry Next day.",

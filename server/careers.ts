@@ -12,6 +12,9 @@ import { DatabaseSync } from "node:sqlite";
 import { migrateProgression } from "./progression.ts";
 import { SponsorService } from "./sponsors.ts";
 import { DailyInvitationService } from "./daily-invitations.ts";
+import { BasketballNetworkService } from "./basketball-network.ts";
+import { SignatureShoeService } from "./signature-shoes.ts";
+import { modernTeams } from "../src/domain/teams.ts";
 import { calendarDate } from "../src/domain/calendarDate.ts";
 import { seasonMonths } from "../src/domain/career.ts";
 import { randomUUID } from "node:crypto";
@@ -87,6 +90,8 @@ export class CareerStore {
   db: DatabaseSync;
   sponsors: SponsorService;
   invitations: DailyInvitationService;
+  basketballNetwork: BasketballNetworkService;
+  signatureShoes: SignatureShoeService;
   constructor(file: string) {
     this.db = new DatabaseSync(file);
     this.db.exec(`PRAGMA foreign_keys = ON; PRAGMA journal_mode = WAL;
@@ -104,7 +109,9 @@ export class CareerStore {
     INSERT OR IGNORE INTO interview_evaluations (game_id, career_id, interview_id)
       SELECT g.id, s.career_id, g.id FROM games g JOIN seasons s ON s.id = g.season_id WHERE json_extract(g.data, '$.status') = 'completed';`);
     migrateProgression(this.db);
+    this.basketballNetwork = new BasketballNetworkService(this.db);
     this.sponsors = new SponsorService(this.db);
+    this.signatureShoes = new SignatureShoeService(this.db);
     this.invitations = new DailyInvitationService(this);
     for (const row of this.db.prepare("SELECT id FROM careers").all()) {
       const career = this.get(String(row.id));
@@ -239,6 +246,10 @@ export class CareerStore {
       this.db.exec("ROLLBACK");
       throw error;
     }
+    this.basketballNetwork.ensureCurrentTeamAffinity(
+      id,
+      draft.player.currentTeamId,
+    );
     const created = this.get(id)!;
     this.sponsors.reevaluate(created, `career:${id}:created`);
     return this.get(id)!;
@@ -530,6 +541,8 @@ export class CareerStore {
       this.db
         .prepare("UPDATE seasons SET data = ? WHERE id = ?")
         .run(JSON.stringify(season), career.season.id);
+      if (game.status === "scheduled" && updated.status === "completed")
+        this.signatureShoes.processCompletedGame(career, updated);
       const playerRow = this.db
         .prepare("SELECT data FROM players WHERE career_id = ?")
         .get(careerId)!;
@@ -552,6 +565,63 @@ export class CareerStore {
       this.sponsors.recalculateAffected(savedCareer, gameId);
       if (game.status === "completed")
         this.sponsors.reevaluate(savedCareer, `correction:${gameId}`);
+      this.db.exec("COMMIT");
+    } catch (error) {
+      this.db.exec("ROLLBACK");
+      throw error;
+    }
+    return this.get(careerId);
+  }
+  changeCurrentTeam(careerId: string, raw: unknown): Career | null {
+    const career = this.get(careerId);
+    if (!career) return null;
+    const teamId = (raw as { teamId?: unknown } | null)?.teamId;
+    this.basketballNetwork.requireTeam(teamId);
+    if (teamId === career.profile.currentTeamId) return career;
+    const formerTeamId = career.profile.currentTeamId;
+    this.db.exec("BEGIN IMMEDIATE");
+    try {
+      const playerRow = this.db
+        .prepare("SELECT data FROM players WHERE career_id=?")
+        .get(careerId)!;
+      const profile: MyProfile = JSON.parse(String(playerRow.data));
+      profile.currentTeamId = teamId;
+      this.db
+        .prepare("UPDATE players SET data=? WHERE career_id=?")
+        .run(JSON.stringify(profile), careerId);
+      if (!career.teams.some((team) => team.id === teamId)) {
+        const team = modernTeams.find((item) => item.id === teamId)!;
+        this.db
+          .prepare("UPDATE careers SET teams=? WHERE id=?")
+          .run(JSON.stringify([...career.teams, team]), careerId);
+      }
+      const currentStint = this.db
+        .prepare(
+          "SELECT rowid, data FROM team_history WHERE career_id=? ORDER BY rowid DESC LIMIT 1",
+        )
+        .get(careerId);
+      if (currentStint) {
+        const stint = JSON.parse(String(currentStint.data));
+        if (stint.endDate === null) {
+          stint.endDate = career.currentDate;
+          this.db
+            .prepare("UPDATE team_history SET data=? WHERE rowid=?")
+            .run(JSON.stringify(stint), currentStint.rowid);
+        }
+      }
+      this.db.prepare("INSERT INTO team_history VALUES (?, ?)").run(
+        careerId,
+        JSON.stringify({
+          teamId,
+          startDate: career.currentDate,
+          endDate: null,
+        }),
+      );
+      this.basketballNetwork.processCurrentTeamChange(
+        careerId,
+        formerTeamId,
+        teamId,
+      );
       this.db.exec("COMMIT");
     } catch (error) {
       this.db.exec("ROLLBACK");
@@ -582,13 +652,23 @@ export class CareerStore {
           "DELETE FROM sponsor_milestone_progress WHERE period_id IN (SELECT id FROM sponsor_eligibility_periods WHERE career_id = ?)",
         )
         .run(id);
-      this.db.prepare("DELETE FROM sponsor_appearance_history WHERE contract_entry_id IN (SELECT id FROM sponsor_contract_appearances WHERE career_id=?)").run(id);
+      this.db
+        .prepare(
+          "DELETE FROM sponsor_appearance_history WHERE contract_entry_id IN (SELECT id FROM sponsor_contract_appearances WHERE career_id=?)",
+        )
+        .run(id);
       for (const table of [
+        "career_network_affinity_mutations",
+        "career_network_players",
+        "career_network_teams",
         "daily_invitation_mutations",
         "daily_event_results",
         "daily_invitations",
         "daily_decision_groups",
         "financial_transactions",
+        "signature_shoe_launch_requests",
+        "signature_shoe_game_sales",
+        "signature_shoes",
         "sponsor_renewal_evaluations",
         "sponsor_professionalism_blocks",
         "sponsor_attendance_failures",
