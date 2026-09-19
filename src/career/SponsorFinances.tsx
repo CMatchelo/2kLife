@@ -46,16 +46,10 @@ export default function SponsorFinances({ career }: { career: Career }) {
         className="career-card dashboard-card"
         aria-labelledby="career-finances-title"
       >
-        <h2
-          id="career-finances-title"
-          className="screen-title"
-        >
+        <h2 id="career-finances-title" className="screen-title">
           Finances
         </h2>
-        <span
-          className="screen-accent"
-          aria-hidden="true"
-        />
+        <span className="screen-accent" aria-hidden="true" />
         {loading && (
           <p className="mt-5" role="status">
             Loading finances…

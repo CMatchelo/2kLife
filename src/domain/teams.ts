@@ -72,9 +72,24 @@ export const modernTeams: Team[] = [
   name,
   source: "modern",
   conference: ([
-    "ATL", "BOS", "BKN", "CHA", "CHI", "CLE", "DET", "IND", "MIA",
-    "MIL", "NYK", "ORL", "PHI", "TOR", "WAS",
-  ].includes(id) ? "east" : "west") as "east" | "west",
+    "ATL",
+    "BOS",
+    "BKN",
+    "CHA",
+    "CHI",
+    "CLE",
+    "DET",
+    "IND",
+    "MIA",
+    "MIL",
+    "NYK",
+    "ORL",
+    "PHI",
+    "TOR",
+    "WAS",
+  ].includes(id)
+    ? "east"
+    : "west") as "east" | "west",
 }));
 
 export const teamConference = (teams: Team[], id: string) =>
