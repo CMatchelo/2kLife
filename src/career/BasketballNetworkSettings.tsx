@@ -432,14 +432,14 @@ export default function BasketballNetworkSettings({
       <h2 id="basketball-network-title" className="text-2xl font-bold">
         Basketball Network
       </h2>
-      <span
-        className="mt-3 block h-1 w-14 rounded-full bg-gold"
-        aria-hidden="true"
-      />
-      <p className="mt-2 text-muted">
+      <p className="supporting-detail mt-2">
         Choose the teams and players who are closest to your career. They will
         be used in future events, relationships, contract discussions, and trade
         stories.
+      </p>
+      <p className="supporting-detail mt-2">
+        For now, this section has no gameplay effect. In the future, these
+        relationships will influence trades and contract negotiations.
       </p>
       {loading && (
         <p className="mt-5" role="status">

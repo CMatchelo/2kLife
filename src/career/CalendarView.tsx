@@ -22,7 +22,9 @@ export default function CalendarView({
   onEdit,
 }: CalendarViewProps) {
   const visible = games
-    .filter((game) => game.date.startsWith(month))
+    .filter(
+      (game) => game.status !== "notNeeded" && game.date.startsWith(month),
+    )
     .sort((a, b) => a.date.localeCompare(b.date));
   const [y, m] = month.split("-").map(Number);
   const days = new Date(Date.UTC(y, m, 0)).getUTCDate();

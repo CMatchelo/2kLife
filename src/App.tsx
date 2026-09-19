@@ -293,7 +293,11 @@ function App() {
           )}
         </div>
       </header>
-      <main className="mx-auto max-w-6xl px-6 py-16 md:py-24">
+      <main
+        className={`mx-auto max-w-6xl px-6 ${
+          career ? "py-10 md:py-12" : "py-16 md:py-24"
+        }`}
+      >
         {creating ? (
           <NewCareer
             onCancel={() => setCreating(false)}

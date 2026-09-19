@@ -58,6 +58,21 @@
   .dashboard-card .bg-gold .text-muted {
     color: #6b5b35;
   }
+  .screen-title {
+    @apply text-2xl font-black uppercase tracking-wide;
+  }
+  .screen-accent {
+    @apply mt-3 block h-1 w-14 rounded-full bg-gold;
+  }
+  .section-title {
+    @apply text-xl font-bold tracking-tight;
+  }
+  .nested-panel {
+    @apply rounded-xl border border-divider bg-cream shadow-none;
+  }
+  .supporting-detail {
+    @apply text-sm leading-relaxed text-muted;
+  }
   .career-field {
     @apply flex min-w-0 flex-col gap-2 text-sm font-semibold;
   }
@@ -184,4 +199,145 @@
 }
 .daily-invitation-dialog::backdrop {
   background: rgb(0 0 0 / 70%);
+}
+
+.postseason-bracket-scroll {
+  overflow-x: auto;
+  padding: 0.5rem 0.25rem 1.25rem;
+}
+.postseason-bracket {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(15rem, 1fr));
+  gap: 3.25rem;
+  min-width: 52rem;
+}
+.postseason-bracket-round {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+}
+.postseason-round-title {
+  margin-bottom: 1rem;
+  text-align: center;
+  color: var(--color-gold);
+  font-size: 0.75rem;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.postseason-round-matchups {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  justify-content: space-around;
+  gap: 1.5rem;
+}
+.postseason-bracket-matchup {
+  position: relative;
+}
+.postseason-bracket-round:not(:last-child) .postseason-bracket-matchup::after {
+  position: absolute;
+  top: 50%;
+  right: -3.25rem;
+  width: 3.25rem;
+  border-top: 2px solid rgb(148 163 184 / 45%);
+  content: "";
+}
+.postseason-bracket-round:not(:first-child)
+  .postseason-bracket-matchup::before {
+  position: absolute;
+  top: 50%;
+  left: -1.65rem;
+  width: 1.65rem;
+  border-top: 2px solid rgb(148 163 184 / 45%);
+  content: "";
+}
+.postseason-series-card {
+  position: relative;
+  z-index: 1;
+  border: 1px solid var(--color-divider);
+  border-radius: 0.85rem;
+  background: linear-gradient(145deg, rgb(18 29 39 / 98%), rgb(9 17 25 / 98%));
+  padding: 0.65rem;
+  box-shadow: 0 0.75rem 1.75rem rgb(0 0 0 / 22%);
+}
+.postseason-series-card.is-player-series {
+  border-color: var(--color-gold);
+  box-shadow:
+    0 0 0 1px rgb(245 190 63 / 25%),
+    0 0.75rem 1.75rem rgb(0 0 0 / 25%);
+}
+.postseason-series-card.is-complete::after {
+  position: absolute;
+  top: -0.55rem;
+  right: 0.65rem;
+  border-radius: 999px;
+  background: #166534;
+  padding: 0.15rem 0.5rem;
+  color: white;
+  content: "Final";
+  font-size: 0.65rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.postseason-result-field {
+  display: flex;
+  height: 2.5rem;
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid #94a3b8;
+  border-radius: 0.5rem;
+  background: white;
+  box-shadow: 0 1px 3px rgb(0 0 0 / 30%);
+  transition:
+    border-color 150ms,
+    box-shadow 150ms;
+}
+.postseason-result-field:focus-within {
+  border-color: var(--color-gold);
+  box-shadow: 0 0 0 3px rgb(245 190 63 / 25%);
+}
+.postseason-result-field > span {
+  display: grid;
+  min-width: 1.6rem;
+  place-items: center;
+  background: #e2e8f0;
+  color: #334155;
+  font-size: 0.65rem;
+  font-weight: 900;
+}
+.postseason-result-field > input {
+  width: 100%;
+  min-width: 0;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: white !important;
+  padding: 0.25rem !important;
+  color: #0f172a !important;
+  text-align: center;
+  font-size: 1rem;
+  font-weight: 900;
+  outline: none !important;
+}
+.postseason-finals {
+  border: 1px solid rgb(245 190 63 / 55%);
+  border-radius: 1.25rem;
+  background:
+    radial-gradient(circle at 50% 0%, rgb(245 190 63 / 16%), transparent 55%),
+    rgb(9 17 25 / 60%);
+  padding: 2rem;
+  text-align: center;
+}
+.postseason-finals-trophy {
+  display: grid;
+  width: 3.25rem;
+  height: 3.25rem;
+  margin: 0 auto 0.75rem;
+  place-items: center;
+  border: 1px solid rgb(245 190 63 / 65%);
+  border-radius: 999px;
+  background: rgb(245 190 63 / 12%);
+  color: var(--color-gold);
+  font-size: 1.5rem;
 }

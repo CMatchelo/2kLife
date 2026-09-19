@@ -132,12 +132,18 @@ function saveOffDayEventRolls(db: DatabaseSync, career: Career, date: string) {
   const confirmed = new Set(
     career.coverage.filter((item) => item.confirmed).map((item) => item.month),
   );
-  const games = new Set(career.season.games.map((game) => game.date));
+  const games = new Set(
+    career.season.games
+      .filter((game) => game.status !== "notNeeded")
+      .map((game) => game.date),
+  );
   const isOffDay = (candidate: string) =>
     months.has(candidate.slice(0, 7)) &&
     confirmed.has(candidate.slice(0, 7)) &&
     !games.has(candidate) &&
-    (!career.season.seasonEndDate || candidate < career.season.seasonEndDate);
+    (career.season.phase === "postseason" ||
+      !career.season.seasonEndDate ||
+      candidate < career.season.seasonEndDate);
   if (!isOffDay(date)) return;
   let first = date;
   while (isOffDay(previousCalendarDate(first)))
@@ -222,6 +228,26 @@ export function advanceCareerDay(
     db.exec("BEGIN IMMEDIATE");
     transaction = true;
     career = store.get(careerId)!;
+    if (career.season.phase === "completed") {
+      const result = remember({
+        kind: "season_completed",
+        career,
+        message:
+          "This season is complete. Starting the next season is not available yet.",
+      });
+      db.exec("COMMIT");
+      transaction = false;
+      return result;
+    }
+    if (
+      career.season.phase === "postseason" &&
+      career.season.postseason?.pendingSchedule
+    ) {
+      const result = remember({ kind: "postseason_schedule_required", career });
+      db.exec("COMMIT");
+      transaction = false;
+      return result;
+    }
     const previous = db
       .prepare(
         "SELECT result FROM day_requests WHERE career_id = ? AND request_id = ?",
@@ -233,18 +259,37 @@ export function advanceCareerDay(
       const outcome = saved.outcome;
       if (outcome.kind === "incomplete_game" || outcome.kind === "game_day") {
         const gameId = outcome.game.id;
-        outcome.game =
-          career.season.games.find((game) => game.id === gameId) ??
-          outcome.game;
+        const currentGame = career.season.games.find(
+          (game) => game.id === gameId,
+        );
+        if (currentGame?.status === "notNeeded") {
+          // A best-of-seven fixture can be retired after this request first
+          // opened it. Discard the obsolete replay and continue the same
+          // idempotent request against the live series state.
+          db.prepare(
+            "DELETE FROM day_requests WHERE career_id = ? AND request_id = ?",
+          ).run(careerId, request.requestId);
+        } else {
+          outcome.game = currentGame ?? outcome.game;
+          db.exec("COMMIT");
+          transaction = false;
+          return saved.date === career.currentDate
+            ? { ...outcome, career }
+            : failure(
+                "stale_date",
+                "This request was already completed. The current date has been refreshed; click Next day to continue.",
+              );
+        }
+      } else {
+        db.exec("COMMIT");
+        transaction = false;
+        return saved.date === career.currentDate
+          ? { ...outcome, career }
+          : failure(
+              "stale_date",
+              "This request was already completed. The current date has been refreshed; click Next day to continue.",
+            );
       }
-      db.exec("COMMIT");
-      transaction = false;
-      return saved.date === career.currentDate
-        ? { ...outcome, career }
-        : failure(
-            "stale_date",
-            "This request was already completed. The current date has been refreshed; click Next day to continue.",
-          );
     }
     let transition = db
       .prepare(
@@ -270,19 +315,19 @@ export function advanceCareerDay(
         );
       }
       const end = career.season.seasonEndDate;
-      if (end && date >= end) {
+      if (career.season.phase === "regularSeason" && end && date >= end) {
         const result = remember({
-          kind: "season_end",
+          kind: "standings_required",
           career,
           seasonEndDate: end,
-          message:
-            "Season-end boundary reached. Advancing to another season is not available.",
         });
         db.exec("COMMIT");
         transaction = false;
         return result;
       }
-      const games = career.season.games.filter((game) => game.date === date);
+      const games = career.season.games.filter(
+        (game) => game.date === date && game.status !== "notNeeded",
+      );
       store.invitations.ensureCurrent(career);
       const pendingInvitations = store.invitations.pending(careerId, date);
       if (pendingInvitations) {
@@ -298,7 +343,7 @@ export function advanceCareerDay(
         transaction = false;
         return result;
       }
-      const incomplete = games.find((game) => game.status !== "completed");
+      const incomplete = games.find((game) => game.status === "scheduled");
       if (incomplete) {
         const result = remember({
           kind: "incomplete_game",
@@ -449,12 +494,15 @@ export function advanceCareerDay(
       db.exec("BEGIN IMMEDIATE");
       transaction = true;
       const next = String(transition.to_date);
-      if (end && next >= end) {
+      if (career.season.phase === "regularSeason" && end && next >= end) {
+        db.prepare(
+          'UPDATE career_progression SET "current_date" = ? WHERE career_id = ? AND career_progression.current_date = ?',
+        ).run(end, careerId, date);
+        career = store.get(careerId)!;
         const result = remember({
-          kind: "season_end",
+          kind: "standings_required",
           career,
           seasonEndDate: end,
-          message: `The next date reaches the season-end boundary (${end}). Advancing to another season is not available.`,
         });
         db.exec("COMMIT");
         transaction = false;
@@ -517,10 +565,17 @@ export function advanceCareerDay(
     const date = career.currentDate!;
     const game =
       career.season.games.find(
-        (game) => game.date === date && game.status !== "completed",
-      ) ?? career.season.games.find((game) => game.date === date);
+        (game) => game.date === date && game.status === "scheduled",
+      ) ??
+      career.season.games.find(
+        (game) => game.date === date && game.status !== "notNeeded",
+      );
     let result: AdvanceDayResult;
-    if (career.season.seasonEndDate && date >= career.season.seasonEndDate) {
+    if (
+      career.season.phase === "regularSeason" &&
+      career.season.seasonEndDate &&
+      date >= career.season.seasonEndDate
+    ) {
       result = {
         kind: "season_end",
         career,

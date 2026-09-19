@@ -25,16 +25,9 @@ export default function SignatureShoesBoard({
       className="career-card dashboard-card"
       aria-labelledby="signature-shoes-title"
     >
-      <h2
-        id="signature-shoes-title"
-        className="text-2xl font-black uppercase tracking-wide"
-      >
+      <h2 id="signature-shoes-title" className="section-title">
         Signature Shoes
       </h2>
-      <span
-        className="mt-3 block h-1 w-14 rounded-full bg-gold"
-        aria-hidden="true"
-      />
       <p className="mt-2 text-sm text-muted">
         Footwear sponsor appearances unlock up to two shoes for each contract.
       </p>

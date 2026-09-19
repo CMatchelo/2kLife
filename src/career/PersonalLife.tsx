@@ -12,18 +12,11 @@ export default function PersonalLife({
       aria-labelledby="personal-life-title"
     >
       <div>
-        <h2
-          id="personal-life-title"
-          className="text-2xl font-black uppercase tracking-wide"
-        >
+        <h2 id="personal-life-title" className="section-title">
           Personal Life
         </h2>
-        <span
-          className="mt-3 block h-1 w-14 rounded-full bg-gold"
-          aria-hidden="true"
-        />
       </div>
-      <p className="text-sm text-muted">
+      <p className="supporting-detail">
         Combined followers across all social platforms
       </p>
       <div className="flex flex-wrap items-baseline gap-3" aria-live="polite">
@@ -44,9 +37,34 @@ export default function PersonalLife({
           {latest.date} · {latest.reason}
         </p>
       ) : (
-        <p className="text-sm text-muted">
-          No follower changes yet.
-        </p>
+        <p className="text-sm text-muted">No follower changes yet.</p>
+      )}
+      {socialMedia.history.length > 1 && (
+        <details className="nested-panel p-3 text-sm">
+          <summary className="cursor-pointer font-semibold text-gold">
+            View follower history
+          </summary>
+          <ol className="mt-3 space-y-2 border-t border-divider pt-3">
+            {[...socialMedia.history].reverse().map((entry, index) => (
+              <li
+                key={`${entry.date}-${entry.reason}-${index}`}
+                className="flex justify-between gap-4"
+              >
+                <span className="text-muted">
+                  {entry.date} · {entry.reason}
+                </span>
+                <strong
+                  className={
+                    entry.change >= 0 ? "text-court-blue" : "text-court-red"
+                  }
+                >
+                  {entry.change > 0 ? "+" : ""}
+                  {format.format(entry.change)}
+                </strong>
+              </li>
+            ))}
+          </ol>
+        </details>
       )}
     </section>
   );

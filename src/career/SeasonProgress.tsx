@@ -31,18 +31,17 @@ export default function SeasonProgress({ current }: { current: Career }) {
       <div className="flex flex-wrap items-end justify-between gap-3 pb-5">
         <div>
           <p className="text-sm font-bold uppercase tracking-[0.2em] text-court-red">
-            {current.season.year} regular season
+            {current.season.year}{" "}
+            {current.season.phase === "postseason"
+              ? "postseason"
+              : current.season.phase === "completed"
+                ? "completed season"
+                : "regular season"}
           </p>
-          <h2
-            id="season-progress-title"
-            className="mt-1 text-2xl font-black uppercase tracking-wide"
-          >
+          <h2 id="season-progress-title" className="screen-title mt-1">
             {hasGames ? "Season averages" : "Your season is ready to begin"}
           </h2>
-          <span
-            className="mt-3 block h-1 w-14 rounded-full bg-gold"
-            aria-hidden="true"
-          />
+          <span className="screen-accent" aria-hidden="true" />
         </div>
         <p className="rounded-full bg-court-blue px-4 py-2 text-sm font-bold text-white">
           {stats.gamesPlayed} {stats.gamesPlayed === 1 ? "game" : "games"}{" "}

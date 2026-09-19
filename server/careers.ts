@@ -18,6 +18,7 @@ import { modernTeams } from "../src/domain/teams.ts";
 import { calendarDate } from "../src/domain/calendarDate.ts";
 import { seasonMonths } from "../src/domain/career.ts";
 import { randomUUID } from "node:crypto";
+import { migratePostseason, PostseasonService } from "./postseason.ts";
 import type {
   Career,
   CareerDraft,
@@ -92,6 +93,7 @@ export class CareerStore {
   invitations: DailyInvitationService;
   basketballNetwork: BasketballNetworkService;
   signatureShoes: SignatureShoeService;
+  postseason: PostseasonService;
   constructor(file: string) {
     this.db = new DatabaseSync(file);
     this.db.exec(`PRAGMA foreign_keys = ON; PRAGMA journal_mode = WAL;
@@ -109,10 +111,12 @@ export class CareerStore {
     INSERT OR IGNORE INTO interview_evaluations (game_id, career_id, interview_id)
       SELECT g.id, s.career_id, g.id FROM games g JOIN seasons s ON s.id = g.season_id WHERE json_extract(g.data, '$.status') = 'completed';`);
     migrateProgression(this.db);
+    migratePostseason(this.db);
     this.basketballNetwork = new BasketballNetworkService(this.db);
     this.sponsors = new SponsorService(this.db);
     this.signatureShoes = new SignatureShoeService(this.db);
     this.invitations = new DailyInvitationService(this);
+    this.postseason = new PostseasonService(this.db, (id) => this.get(id));
     for (const row of this.db.prepare("SELECT id FROM careers").all()) {
       const career = this.get(String(row.id));
       if (
@@ -172,6 +176,7 @@ export class CareerStore {
       year,
       era: draft.season.era.trim(),
       status: "active",
+      phase: "regularSeason",
       games: [],
       matchRecords: emptyMatchRecords(),
       recordTrackedGameIds: [],
@@ -216,7 +221,7 @@ export class CareerStore {
         }),
       );
       const insertGame = this.db.prepare(
-        "INSERT INTO games VALUES (?, ?, ?, ?, ?)",
+        "INSERT INTO games (id, season_id, date, team_id, data) VALUES (?, ?, ?, ?, ?)",
       );
       for (const fields of draft.games) {
         const game = scheduledGame(fields, randomUUID());
@@ -265,6 +270,10 @@ export class CareerStore {
       .get(id)!;
     const profile: MyProfile = JSON.parse(String(player.data));
     const season: Season = JSON.parse(String(seasonRow.data));
+    season.phase ??=
+      season.status === "completed" ? "completed" : "regularSeason";
+    season.finalStandings = this.postseason?.standings(season.id) ?? [];
+    season.postseason = this.postseason?.state(id, season.id) ?? null;
     season.games = this.db
       .prepare("SELECT data FROM games WHERE season_id = ? ORDER BY date")
       .all(String(seasonRow.id))
@@ -459,7 +468,9 @@ export class CareerStore {
     this.db.exec("BEGIN IMMEDIATE");
     try {
       this.db
-        .prepare("INSERT INTO games VALUES (?, ?, ?, ?, ?)")
+        .prepare(
+          "INSERT INTO games (id, season_id, date, team_id, data) VALUES (?, ?, ?, ?, ?)",
+        )
         .run(
           game.id,
           String(seasonRow.id),
@@ -500,7 +511,18 @@ export class CareerStore {
         error instanceof Error ? error.message : "Invalid match details.",
       );
     }
-    const updated = { ...scheduledGame(game, game.id), ...details };
+    const updated = {
+      ...scheduledGame(game, game.id),
+      ...(game.playInGameId ? { playInGameId: game.playInGameId } : {}),
+      ...(game.postseasonSeriesId
+        ? {
+            postseasonSeriesId: game.postseasonSeriesId,
+            seriesGameNumber: game.seriesGameNumber,
+            playoffRound: game.playoffRound,
+          }
+        : {}),
+      ...details,
+    };
     const seasonRow = this.db
       .prepare("SELECT data FROM seasons WHERE id = ? AND career_id = ?")
       .get(career.season.id, careerId)!;
@@ -541,6 +563,11 @@ export class CareerStore {
       this.db
         .prepare("UPDATE seasons SET data = ? WHERE id = ?")
         .run(JSON.stringify(season), career.season.id);
+      if (
+        updated.status === "completed" &&
+        (updated.category === "playIn" || updated.category === "playoffs")
+      )
+        this.postseason.reconcileCompletedGame(careerId, updated);
       if (game.status === "scheduled" && updated.status === "completed")
         this.signatureShoes.processCompletedGame(career, updated);
       const playerRow = this.db

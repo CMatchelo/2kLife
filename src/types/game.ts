@@ -1,6 +1,7 @@
 import type { BoxScore } from "./stats.ts";
 
 export type GameCategory = "regularSeason" | "playoffs" | "playIn" | "nbaCup";
+export type GameStatus = "scheduled" | "completed" | "notNeeded";
 export type Game = {
   id: string;
   date: string;
@@ -9,7 +10,11 @@ export type Game = {
   location: "home" | "away";
   category: GameCategory;
   countsTowardRegularSeason: boolean;
-  status: "scheduled" | "completed";
+  status: GameStatus;
+  playInGameId?: string;
+  postseasonSeriesId?: string;
+  seriesGameNumber?: number;
+  playoffRound?: import("./postseason.ts").PlayoffRound;
   teamScore?: number;
   opponentScore?: number;
   played?: boolean;

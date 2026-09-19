@@ -25,6 +25,8 @@ import type { DailyInvitationMutation } from "../src/types/daily-invitations.ts"
 import { BasketballNetworkError } from "./basketball-network.ts";
 import { SignatureShoeError } from "./signature-shoes.ts";
 import type { SignatureShoeLaunchMutation } from "../src/types/signature-shoe.ts";
+import { PostseasonError } from "./postseason.ts";
+import type { PostseasonScheduleInput } from "../src/types/postseason.ts";
 
 async function readBody(req: IncomingMessage, limit: number): Promise<unknown> {
   if (req.headers["content-type"] !== "application/json")
@@ -543,6 +545,72 @@ export function connectionServer(
         );
       }
       const careerMatch = req.url?.match(/^\/api\/careers\/([\w-]+)$/);
+      const standingsRoute = req.url?.match(
+        /^\/api\/careers\/([\w-]+)\/postseason\/standings$/,
+      );
+      if (careers && standingsRoute && req.method === "POST")
+        return send(
+          200,
+          careers.postseason.confirmStandings(
+            standingsRoute[1],
+            await readBody(req, 256 * 1024),
+          ),
+        );
+      const scheduleRoute = req.url?.match(
+        /^\/api\/careers\/([\w-]+)\/postseason\/schedule$/,
+      );
+      if (careers && scheduleRoute && req.method === "POST")
+        return send(
+          200,
+          careers.postseason.schedule(
+            scheduleRoute[1],
+            (await readBody(req, 64 * 1024)) as PostseasonScheduleInput,
+          ),
+        );
+      const playInRoute = req.url?.match(
+        /^\/api\/careers\/([\w-]+)\/postseason\/play-in\/([\w-]+)$/,
+      );
+      if (careers && playInRoute && req.method === "POST") {
+        const body = (await readBody(req, 4096)) as {
+          firstTeamScore: number;
+          secondTeamScore: number;
+        };
+        return send(
+          200,
+          careers.postseason.scorePlayIn(
+            playInRoute[1],
+            playInRoute[2],
+            body.firstTeamScore,
+            body.secondTeamScore,
+          ),
+        );
+      }
+      const seriesRoute = req.url?.match(
+        /^\/api\/careers\/([\w-]+)\/postseason\/series\/([\w-]+)$/,
+      );
+      if (careers && seriesRoute && req.method === "POST") {
+        const body = (await readBody(req, 4096)) as {
+          firstTeamWins: number;
+          secondTeamWins: number;
+        };
+        return send(
+          200,
+          careers.postseason.scoreSeries(
+            seriesRoute[1],
+            seriesRoute[2],
+            body.firstTeamWins,
+            body.secondTeamWins,
+          ),
+        );
+      }
+      const completeSeasonRoute = req.url?.match(
+        /^\/api\/careers\/([\w-]+)\/postseason\/complete$/,
+      );
+      if (careers && completeSeasonRoute && req.method === "POST")
+        return send(
+          200,
+          careers.postseason.completeSeason(completeSeasonRoute[1]),
+        );
       if (careers && careerMatch) {
         if (req.method === "GET") {
           const career = careers.get(careerMatch[1]);
@@ -718,6 +786,8 @@ export function connectionServer(
         return send(error.status, { message: error.message });
       if (error instanceof SignatureShoeError)
         return send(400, { message: error.message });
+      if (error instanceof PostseasonError)
+        return send(error.status, { message: error.message });
       if (
         req.url?.match(
           /^\/api\/careers\/([\w-]+)\/(advance-day|calendar-settings|current-team|basketball-network|sponsors\/block|sponsors\/unblock|sponsor-offers\/[\w-]+\/action|daily-invitations)/,

@@ -10,12 +10,13 @@ interface ListViewProps {
 }
 
 export default function ListView({ games, teams, onEdit }: ListViewProps) {
+  const activeGames = games.filter((game) => game.status !== "notNeeded");
   const label = (game: Game) =>
     `${game.location === "home" ? "Home" : "Away"} · ${teamName(teams, game.opponentId)} · ${categoryNames[game.category]}`;
 
   return (
     <ul className="space-y-2">
-      {[...games]
+      {[...activeGames]
         .sort((a, b) => a.date.localeCompare(b.date))
         .map((game) => {
           const logo = teamLogo(game.opponentId);
@@ -59,7 +60,7 @@ export default function ListView({ games, teams, onEdit }: ListViewProps) {
             </li>
           );
         })}
-      {!games.length && (
+      {!activeGames.length && (
         <li className="text-muted">
           No scheduled games yet. You can start with a partial or empty
           calendar.
