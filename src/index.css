@@ -1,0 +1,49 @@
+@import "tailwindcss";
+
+@theme {
+  --color-cream: #FFF8DE;
+  --color-butter: #FFF0BA;
+  --color-gold: #F2D675;
+  --color-divider: #D8BD65;
+  --color-ink: #242015;
+  --color-muted: #6B5B35;
+  --color-court-blue: #17408B;
+  --color-court-red: #C9082A;
+  --font-sans: "Segoe UI", system-ui, sans-serif;
+}
+
+@layer components {
+  .ai-primary { @apply cursor-pointer rounded-lg bg-court-blue px-4 py-2 font-semibold text-white disabled:cursor-wait disabled:opacity-50; }
+  .ai-secondary { @apply cursor-pointer rounded-lg border border-divider bg-cream px-3 py-2 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-50; }
+  .ai-link { @apply text-court-blue underline underline-offset-2; }
+  .career-card { @apply min-w-0 rounded-2xl border border-divider bg-butter p-5 md:p-7; }
+  .career-field { @apply flex min-w-0 flex-col gap-2 text-sm font-semibold; }
+  .career-field input, .career-field select { @apply min-w-0 w-full rounded-lg border border-divider bg-cream px-3 py-2 text-base font-normal text-ink; }
+  .career-field input[type=file] { @apply text-sm; }
+  .schedule-game { @apply mt-1 block w-full min-w-0 rounded-md border p-1 text-left text-[10px] leading-snug md:p-2 md:text-xs; }
+  .schedule-game.home { @apply border-court-blue/30 bg-court-blue/10; }
+  .schedule-game.away { @apply border-court-red/30 bg-court-red/10; }
+  .schedule-game:not(:disabled) { @apply cursor-pointer hover:underline; }
+  .ai-dialog { margin: auto; width: min(44rem, calc(100% - 2rem)); max-height: 90dvh; padding: 0; }
+  .ai-dialog::backdrop { background: rgb(36 32 21 / 55%); }
+  button:focus-visible, a:focus-visible, input:focus-visible { outline: 3px solid var(--color-court-blue); outline-offset: 3px; }
+}
+
+@layer base {
+  body { @apply m-0 min-w-80 bg-cream font-sans text-ink antialiased; }
+  ::selection { @apply bg-court-blue text-cream; }
+}
+
+/* Portaled to the document body so dashboard spacing cannot move the dialog. */
+.interview-dialog {
+  position: fixed;
+  inset: 0;
+  margin: auto;
+  width: min(48rem, calc(100vw - 2rem));
+  max-height: calc(100dvh - 2rem);
+  overflow-y: auto;
+  padding: 0;
+  border: 1px solid var(--color-divider);
+  background: linear-gradient(rgb(0 0 0 / 65%), rgb(0 0 0 / 80%)), url('/pressBackground.jpg') center / cover no-repeat;
+}
+.interview-dialog::backdrop { background: rgb(0 0 0 / 60%); }
