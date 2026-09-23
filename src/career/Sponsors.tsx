@@ -14,6 +14,9 @@ import type {
 } from "../types/sponsor";
 import { api } from "./api";
 import SponsorApproachModal from "./SponsorApproachModal";
+import SignatureShoesBoard from "./SignatureShoesBoard";
+import SignatureShoeLaunchModal from "./SignatureShoeLaunchModal";
+import type { SignatureShoe } from "../types/signature-shoe";
 
 const brandById = new Map(
   sponsorCatalog.brands.map((brand) => [brand.id, brand]),
@@ -307,24 +310,62 @@ export default function Sponsors({ career }: { career: Career }) {
     requestId: string;
   } | null>(null);
   const [saving, setSaving] = useState(false);
+  const [showAllTransactions, setShowAllTransactions] = useState(false);
   const [approaches, setApproaches] = useState<SponsorApproachGroup[]>([]);
-  const [openApproach, setOpenApproach] = useState<SponsorApproachGroup | null>(null);
-  const [replacement, setReplacement] = useState<{ entryId: string; oldDate: string; choices: string[]; chosen: string; reviewing: boolean } | null>(null);
+  const [openApproach, setOpenApproach] = useState<SponsorApproachGroup | null>(
+    null,
+  );
+  const [replacement, setReplacement] = useState<{
+    entryId: string;
+    oldDate: string;
+    choices: string[];
+    chosen: string;
+    reviewing: boolean;
+  } | null>(null);
+  const [launchingShoe, setLaunchingShoe] = useState<SignatureShoe | null>(
+    null,
+  );
 
   async function reviewReplacement(entryId: string) {
     try {
-      const result = await api<{ oldDate: string; choices: string[] }>(`careers/${careerId}/sponsor-appearances/${entryId}/replacement`);
-      setReplacement({ entryId, oldDate: result.oldDate, choices: result.choices, chosen: result.choices[0] ?? "", reviewing: false });
+      const result = await api<{ oldDate: string; choices: string[] }>(
+        `careers/${careerId}/sponsor-appearances/${entryId}/replacement`,
+      );
+      setReplacement({
+        entryId,
+        oldDate: result.oldDate,
+        choices: result.choices,
+        chosen: result.choices[0] ?? "",
+        reviewing: false,
+      });
       setError("");
-    } catch (cause) { setError(cause instanceof Error ? cause.message : "Could not load replacement dates."); }
+    } catch (cause) {
+      setError(
+        cause instanceof Error
+          ? cause.message
+          : "Could not load replacement dates.",
+      );
+    }
   }
 
   async function confirmReplacement() {
     if (!replacement?.chosen || !replacement.reviewing) return;
     try {
-      setOverview(await api<SponsorsOverview>(`careers/${careerId}/sponsor-appearances/${replacement.entryId}/replacement`, { date: replacement.chosen }));
-      setReplacement(null); setError("");
-    } catch (cause) { setError(cause instanceof Error ? cause.message : "Could not confirm the replacement."); }
+      setOverview(
+        await api<SponsorsOverview>(
+          `careers/${careerId}/sponsor-appearances/${replacement.entryId}/replacement`,
+          { date: replacement.chosen },
+        ),
+      );
+      setReplacement(null);
+      setError("");
+    } catch (cause) {
+      setError(
+        cause instanceof Error
+          ? cause.message
+          : "Could not confirm the replacement.",
+      );
+    }
   }
 
   async function load() {
@@ -400,28 +441,140 @@ export default function Sponsors({ career }: { career: Career }) {
   return (
     <div className="space-y-8">
       {approaches.length > 0 && (
-        <section className="career-card dashboard-card" aria-labelledby="pending-offers-title">
-          <h2 id="pending-offers-title" className="text-2xl font-black uppercase tracking-wide">Sponsor offers</h2>
-          <p className="mt-2 text-muted">Closing an approach does not refuse it. Review it again before its match boundary expires.</p>
+        <section
+          className="career-card dashboard-card"
+          aria-labelledby="pending-offers-title"
+        >
+          <h2
+            id="pending-offers-title"
+            className="text-2xl font-black uppercase tracking-wide"
+          >
+            Sponsor offers
+          </h2>
+          <p className="mt-2 text-muted">
+            Closing an approach does not refuse it. Review it again before its
+            match boundary expires.
+          </p>
           <div className="mt-4 flex flex-wrap gap-3">
-            {approaches.map((approach) => <button key={approach.id} type="button" className="ai-primary" onClick={() => setOpenApproach(approach)}>Review {approach.offers.filter((offer) => offer.status === "pending").length} offer{approach.offers.filter((offer) => offer.status === "pending").length === 1 ? "" : "s"}</button>)}
+            {approaches.map((approach) => (
+              <button
+                key={approach.id}
+                type="button"
+                className="ai-primary"
+                onClick={() => setOpenApproach(approach)}
+              >
+                Review{" "}
+                {
+                  approach.offers.filter((offer) => offer.status === "pending")
+                    .length
+                }{" "}
+                offer
+                {approach.offers.filter((offer) => offer.status === "pending")
+                  .length === 1
+                  ? ""
+                  : "s"}
+              </button>
+            ))}
           </div>
         </section>
       )}
-      <section className="career-card dashboard-card" aria-labelledby="sponsor-finances-title">
-        <h2 id="sponsor-finances-title" className="text-2xl font-black uppercase tracking-wide">Finances</h2>
+      <section
+        className="career-card dashboard-card"
+        aria-labelledby="sponsor-finances-title"
+      >
+        <span
+          className="mb-3 block h-1 w-14 rounded-full bg-gold"
+          aria-hidden="true"
+        />
+        <h2
+          id="sponsor-finances-title"
+          className="text-2xl font-black uppercase tracking-wide"
+        >
+          Finances
+        </h2>
         <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <div><span className="text-sm text-muted">Current balance</span><strong className="block text-xl">{money(overview?.finances.balanceUsdCents ?? 0)}</strong></div>
-          <div><span className="text-sm text-muted">Sponsor earnings</span><strong className="block text-xl">{money(overview?.finances.sponsorEarningsUsdCents ?? 0)}</strong></div>
-          <div><span className="text-sm text-muted">Signing payments</span><strong className="block text-xl">{money(overview?.finances.signingEarningsUsdCents ?? 0)}</strong></div>
-          <div><span className="text-sm text-muted">Match payments</span><strong className="block text-xl">{money(overview?.finances.sponsorMatchEarningsUsdCents ?? 0)}</strong></div>
+          <div>
+            <span className="text-sm text-muted">Current balance</span>
+            <strong className="block text-xl">
+              {money(overview?.finances.balanceUsdCents ?? 0)}
+            </strong>
+          </div>
+          <div>
+            <span className="text-sm text-muted">Sponsor earnings</span>
+            <strong className="block text-xl">
+              {money(overview?.finances.sponsorEarningsUsdCents ?? 0)}
+            </strong>
+          </div>
+          <div>
+            <span className="text-sm text-muted">Signing payments</span>
+            <strong className="block text-xl">
+              {money(overview?.finances.signingEarningsUsdCents ?? 0)}
+            </strong>
+          </div>
+          <div>
+            <span className="text-sm text-muted">Match payments</span>
+            <strong className="block text-xl">
+              {money(overview?.finances.sponsorMatchEarningsUsdCents ?? 0)}
+            </strong>
+          </div>
         </div>
         <h3 className="mt-5 font-bold">Recent transactions</h3>
-        <div className="mt-2 overflow-x-auto"><table className="w-full text-left text-sm"><thead><tr><th className="p-2">Date</th><th className="p-2">Description</th><th className="p-2">Reason</th><th className="p-2 text-right">Amount</th></tr></thead><tbody>
-          {overview?.finances.recentTransactions.map((transaction) => <tr key={transaction.id} className="border-t border-divider/60"><td className="p-2">{transaction.inGameDate}</td><td className="p-2">{transaction.description ?? transaction.originReference}</td><td className="p-2 capitalize">{transaction.reason.replaceAll("_", " ")}</td><td className="p-2 text-right font-bold">{money(transaction.amountUsdCents)}</td></tr>)}
-          {!loading && overview?.finances.recentTransactions.length === 0 && <tr><td colSpan={4} className="p-4 text-center text-muted">No financial transactions recorded.</td></tr>}
-        </tbody></table></div>
+        <div className="mt-2 overflow-x-auto">
+          <table className="w-full text-left text-sm">
+            <thead>
+              <tr>
+                <th className="p-2">Date</th>
+                <th className="p-2">Description</th>
+                <th className="p-2">Reason</th>
+                <th className="p-2 text-right">Amount</th>
+              </tr>
+            </thead>
+            <tbody>
+              {overview?.finances.recentTransactions
+                .slice(0, showAllTransactions ? undefined : 5)
+                .map((transaction) => (
+                  <tr
+                    key={transaction.id}
+                    className="border-t border-divider/60"
+                  >
+                    <td className="p-2">{transaction.inGameDate}</td>
+                    <td className="p-2">
+                      {transaction.description ?? transaction.originReference}
+                    </td>
+                    <td className="p-2 capitalize">
+                      {transaction.reason.replaceAll("_", " ")}
+                    </td>
+                    <td className="p-2 text-right font-bold">
+                      {money(transaction.amountUsdCents)}
+                    </td>
+                  </tr>
+                ))}
+              {!loading &&
+                overview?.finances.recentTransactions.length === 0 && (
+                  <tr>
+                    <td colSpan={4} className="p-4 text-center text-muted">
+                      No financial transactions recorded.
+                    </td>
+                  </tr>
+                )}
+            </tbody>
+          </table>
+        </div>
+        {(overview?.finances.recentTransactions.length ?? 0) > 5 && (
+          <button
+            type="button"
+            className="ai-primary mt-4"
+            aria-expanded={showAllTransactions}
+            onClick={() => setShowAllTransactions((value) => !value)}
+          >
+            {showAllTransactions ? "Show less" : "Show all"}
+          </button>
+        )}
       </section>
+      <SignatureShoesBoard
+        shoes={overview?.signatureShoes ?? []}
+        onLaunch={setLaunchingShoe}
+      />
       <section
         className="career-card dashboard-card"
         aria-labelledby="active-contracts-title"
@@ -468,10 +621,19 @@ export default function Sponsors({ career }: { career: Career }) {
                     <tr className="border-b border-divider/60">
                       <th scope="row" className="p-3">
                         {contract.brandName}
-                        {contract.appearanceSchedule.some((entry) => entry.status === "calendar_conflict") && <span className="mt-1 block text-xs font-bold text-red-700">Calendar conflict — open contract details</span>}
+                        {contract.appearanceSchedule.some(
+                          (entry) => entry.status === "calendar_conflict",
+                        ) && (
+                          <span className="mt-1 block text-xs font-bold text-red-700">
+                            Calendar conflict — open contract details
+                          </span>
+                        )}
                       </th>
                       <td className="p-3">
-                        <Logo brandId={contract.brandId} brandName={contract.brandName} />
+                        <Logo
+                          brandId={contract.brandId}
+                          brandName={contract.brandName}
+                        />
                       </td>
                       <td className="p-3">{labels[contract.category]}</td>
                       <td className="p-3">
@@ -532,19 +694,135 @@ export default function Sponsors({ career }: { career: Career }) {
                               remaining
                             </div>
                             <div className="sm:col-span-2 lg:col-span-4">
-                              <strong className="block">Confirmed appearance dates</strong>
-                              <ol className="mt-1 list-decimal pl-5">{contract.appearanceSchedule.map((entry) => <li key={entry.id} className={entry.status === "calendar_conflict" ? "text-red-700" : ""}>{entry.date}{entry.status === "calendar_conflict" ? ` — calendar conflict (${entry.conflictReason?.replaceAll("_", " ")})` : entry.status === "cancelled" ? " — cancelled (attendance requirement fulfilled)" : entry.status === "attended" ? " — attended" : entry.status === "refused" ? " — refused" : ""}{entry.replacedDate ? ` (replaced ${entry.replacedDate})` : ""}{entry.status === "calendar_conflict" && <button type="button" className="ai-link ml-2" onClick={() => void reviewReplacement(entry.id)}>Choose replacement</button>}</li>)}</ol>
-                              {replacement && contract.appearanceSchedule.some((entry) => entry.id === replacement.entryId) && <div className="mt-3 rounded-lg border-2 border-blue-500 bg-white p-3">
-                                <label className="block font-bold" htmlFor={`replacement-${replacement.entryId}`}>Replacement for {replacement.oldDate}</label>
-                                {replacement.choices.length ? <><select id={`replacement-${replacement.entryId}`} className="mt-2 rounded border p-2 text-ink" value={replacement.chosen} onChange={(event) => setReplacement({ ...replacement, chosen: event.target.value, reviewing: false })}>{replacement.choices.map((date) => <option key={date} value={date}>{date}</option>)}</select><div className="mt-2 flex flex-wrap gap-2">{replacement.reviewing ? <><p className="w-full">Confirm {replacement.oldDate} → {replacement.chosen}. The original date remains in schedule history.</p><button type="button" className="ai-primary" onClick={() => void confirmReplacement()}>Confirm change</button></> : <button type="button" className="ai-primary" onClick={() => setReplacement({ ...replacement, reviewing: true })}>Review change</button>}<button type="button" className="ai-secondary" onClick={() => setReplacement(null)}>Cancel</button></div></> : <p className="mt-2 text-red-700">No confirmed off days remain in this contract period. Confirm more calendar coverage or add future games, then retry.</p>}
-                              </div>}
+                              <strong className="block">
+                                Confirmed appearance dates
+                              </strong>
+                              <ol className="mt-1 list-decimal pl-5">
+                                {contract.appearanceSchedule.map((entry) => (
+                                  <li
+                                    key={entry.id}
+                                    className={
+                                      entry.status === "calendar_conflict"
+                                        ? "text-red-700"
+                                        : ""
+                                    }
+                                  >
+                                    {entry.date}
+                                    {entry.status === "calendar_conflict"
+                                      ? ` — calendar conflict (${entry.conflictReason?.replaceAll("_", " ")})`
+                                      : entry.status === "cancelled"
+                                        ? " — cancelled (attendance requirement fulfilled)"
+                                        : entry.status === "attended"
+                                          ? " — attended"
+                                          : entry.status === "refused"
+                                            ? " — refused"
+                                            : ""}
+                                    {entry.replacedDate
+                                      ? ` (replaced ${entry.replacedDate})`
+                                      : ""}
+                                    {entry.status === "calendar_conflict" && (
+                                      <button
+                                        type="button"
+                                        className="ai-link ml-2"
+                                        onClick={() =>
+                                          void reviewReplacement(entry.id)
+                                        }
+                                      >
+                                        Choose replacement
+                                      </button>
+                                    )}
+                                  </li>
+                                ))}
+                              </ol>
+                              {replacement &&
+                                contract.appearanceSchedule.some(
+                                  (entry) => entry.id === replacement.entryId,
+                                ) && (
+                                  <div className="mt-3 rounded-lg border-2 border-blue-500 bg-white p-3">
+                                    <label
+                                      className="block font-bold"
+                                      htmlFor={`replacement-${replacement.entryId}`}
+                                    >
+                                      Replacement for {replacement.oldDate}
+                                    </label>
+                                    {replacement.choices.length ? (
+                                      <>
+                                        <select
+                                          id={`replacement-${replacement.entryId}`}
+                                          className="mt-2 rounded border p-2 text-ink"
+                                          value={replacement.chosen}
+                                          onChange={(event) =>
+                                            setReplacement({
+                                              ...replacement,
+                                              chosen: event.target.value,
+                                              reviewing: false,
+                                            })
+                                          }
+                                        >
+                                          {replacement.choices.map((date) => (
+                                            <option key={date} value={date}>
+                                              {date}
+                                            </option>
+                                          ))}
+                                        </select>
+                                        <div className="mt-2 flex flex-wrap gap-2">
+                                          {replacement.reviewing ? (
+                                            <>
+                                              <p className="w-full">
+                                                Confirm {replacement.oldDate} →{" "}
+                                                {replacement.chosen}. The
+                                                original date remains in
+                                                schedule history.
+                                              </p>
+                                              <button
+                                                type="button"
+                                                className="ai-primary"
+                                                onClick={() =>
+                                                  void confirmReplacement()
+                                                }
+                                              >
+                                                Confirm change
+                                              </button>
+                                            </>
+                                          ) : (
+                                            <button
+                                              type="button"
+                                              className="ai-primary"
+                                              onClick={() =>
+                                                setReplacement({
+                                                  ...replacement,
+                                                  reviewing: true,
+                                                })
+                                              }
+                                            >
+                                              Review change
+                                            </button>
+                                          )}
+                                          <button
+                                            type="button"
+                                            className="ai-secondary"
+                                            onClick={() => setReplacement(null)}
+                                          >
+                                            Cancel
+                                          </button>
+                                        </div>
+                                      </>
+                                    ) : (
+                                      <p className="mt-2 text-red-700">
+                                        No confirmed off days remain in this
+                                        contract period. Confirm more calendar
+                                        coverage or add future games, then
+                                        retry.
+                                      </p>
+                                    )}
+                                  </div>
+                                )}
                             </div>
                             <div>
                               <strong className="block">
                                 Signing / renewal
                               </strong>
-                              {money(contract.signingPaymentUsdCents)}{" "}
-                              /{" "}
+                              {money(contract.signingPaymentUsdCents)} /{" "}
                               {money(contract.renewalBonusUsdCents)}
                             </div>
                             <div>
@@ -559,8 +837,7 @@ export default function Sponsors({ career }: { career: Career }) {
                                   0,
                                   contract.requiredEvents -
                                     contract.attendedEvents,
-                                ) *
-                                  contract.signingPaymentUsdCents,
+                                ) * contract.signingPaymentUsdCents,
                               )}{" "}
                               · projected:{" "}
                               {money(projectedInstallment(contract))}
@@ -584,20 +861,108 @@ export default function Sponsors({ career }: { career: Career }) {
         </div>
       </section>
 
-      <section className="career-card dashboard-card" aria-labelledby="completed-contracts-title">
-        <h2 id="completed-contracts-title" className="text-2xl font-black uppercase tracking-wide">Completed contracts</h2>
-        <div className="mt-5 space-y-3">{overview?.completedContracts.map((contract) => <details key={contract.id} className="rounded-xl border border-divider bg-cream p-4">
-          <summary className="cursor-pointer font-black">{contract.brandName} · {contract.startDate} to {contract.completionDate} · {contract.settlementStatus}</summary>
-          <dl className="mt-3 grid grid-cols-2 gap-3 text-sm sm:grid-cols-3">
-            <div><dt className="text-muted">Duration</dt><dd className="font-bold">{contract.durationMatches} matches</dd></div>
-            <div><dt className="text-muted">Attendance</dt><dd className={contract.settlement.attendanceFailed ? "font-bold text-red-700" : "font-bold"}>{contract.attendedEvents} of {contract.requiredEvents}</dd></div>
-            <div><dt className="text-muted">Total fixed received</dt><dd className="font-bold">{money(contract.settlement.totalFixedReceivedUsdCents)}</dd></div>
-            <div><dt className="text-muted">Match earnings</dt><dd className="font-bold">{money(contract.perMatchEarningsUsdCents)}</dd></div>
-            <div><dt className="text-muted">Event earnings</dt><dd className="font-bold">{money(contract.eventEarningsUsdCents)}</dd></div>
-            <div><dt className="text-muted">Renewal sequence</dt><dd className="font-bold">{contract.renewalSequence}</dd></div>
-          </dl>
-          <div className="mt-4 border-t border-divider pt-3 text-sm"><p>Original final installment: <strong>{money(contract.settlement.originalFinalInstallmentUsdCents)}</strong></p><p className={contract.settlement.attendancePenaltyUsdCents ? "text-red-700" : ""}>Attendance deduction: <strong>−{money(contract.settlement.attendancePenaltyUsdCents)}</strong></p><p>Final payment: <strong>{money(contract.settlement.finalInstallmentUsdCents)}</strong></p><p>Renewal result: <strong>{contract.settlement.renewalResult.replaceAll("_", " ")}</strong></p></div>
-        </details>)}{!loading && overview?.completedContracts.length === 0 && <p className="text-muted">No completed sponsor contracts yet.</p>}</div>
+      <section
+        className="career-card dashboard-card"
+        aria-labelledby="completed-contracts-title"
+      >
+        <h2
+          id="completed-contracts-title"
+          className="text-2xl font-black uppercase tracking-wide"
+        >
+          Completed contracts
+        </h2>
+        <div className="mt-5 space-y-3">
+          {overview?.completedContracts.map((contract) => (
+            <details
+              key={contract.id}
+              className="rounded-xl border border-divider bg-cream p-4"
+            >
+              <summary className="cursor-pointer font-black">
+                {contract.brandName} · {contract.startDate} to{" "}
+                {contract.completionDate} · {contract.settlementStatus}
+              </summary>
+              <dl className="mt-3 grid grid-cols-2 gap-3 text-sm sm:grid-cols-3">
+                <div>
+                  <dt className="text-muted">Duration</dt>
+                  <dd className="font-bold">
+                    {contract.durationMatches} matches
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-muted">Attendance</dt>
+                  <dd
+                    className={
+                      contract.settlement.attendanceFailed
+                        ? "font-bold text-red-700"
+                        : "font-bold"
+                    }
+                  >
+                    {contract.attendedEvents} of {contract.requiredEvents}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-muted">Total fixed received</dt>
+                  <dd className="font-bold">
+                    {money(contract.settlement.totalFixedReceivedUsdCents)}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-muted">Match earnings</dt>
+                  <dd className="font-bold">
+                    {money(contract.perMatchEarningsUsdCents)}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-muted">Event earnings</dt>
+                  <dd className="font-bold">
+                    {money(contract.eventEarningsUsdCents)}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-muted">Renewal sequence</dt>
+                  <dd className="font-bold">{contract.renewalSequence}</dd>
+                </div>
+              </dl>
+              <div className="mt-4 border-t border-divider pt-3 text-sm">
+                <p>
+                  Original final installment:{" "}
+                  <strong>
+                    {money(
+                      contract.settlement.originalFinalInstallmentUsdCents,
+                    )}
+                  </strong>
+                </p>
+                <p
+                  className={
+                    contract.settlement.attendancePenaltyUsdCents
+                      ? "text-red-700"
+                      : ""
+                  }
+                >
+                  Attendance deduction:{" "}
+                  <strong>
+                    −{money(contract.settlement.attendancePenaltyUsdCents)}
+                  </strong>
+                </p>
+                <p>
+                  Final payment:{" "}
+                  <strong>
+                    {money(contract.settlement.finalInstallmentUsdCents)}
+                  </strong>
+                </p>
+                <p>
+                  Renewal result:{" "}
+                  <strong>
+                    {contract.settlement.renewalResult.replaceAll("_", " ")}
+                  </strong>
+                </p>
+              </div>
+            </details>
+          ))}
+          {!loading && overview?.completedContracts.length === 0 && (
+            <p className="text-muted">No completed sponsor contracts yet.</p>
+          )}
+        </div>
       </section>
 
       <section
@@ -926,7 +1291,16 @@ export default function Sponsors({ career }: { career: Career }) {
                     <p className="mt-2 text-xs text-slate-400">
                       Blocked on {block.blockedAt}
                     </p>
-                    <ul className="mt-2 space-y-1 text-xs text-red-200">{block.failedContracts.map((contract) => <li key={contract.reference}>{contract.date ?? "Unknown date"} · attended {contract.attendedAppearances} of {contract.requiredAppearances} required · {contract.reference}</li>)}</ul>
+                    <ul className="mt-2 space-y-1 text-xs text-red-200">
+                      {block.failedContracts.map((contract) => (
+                        <li key={contract.reference}>
+                          {contract.date ?? "Unknown date"} · attended{" "}
+                          {contract.attendedAppearances} of{" "}
+                          {contract.requiredAppearances} required ·{" "}
+                          {contract.reference}
+                        </li>
+                      ))}
+                    </ul>
                     {block.reason && (
                       <p className="mt-2 text-xs text-red-300">
                         {block.reason}
@@ -953,7 +1327,27 @@ export default function Sponsors({ career }: { career: Career }) {
           onConfirm={() => void mutate()}
         />
       )}
-      {openApproach && <SponsorApproachModal careerId={careerId} initial={openApproach} onChanged={() => void load()} onClose={() => { setOpenApproach(null); void load(); }} />}
+      {openApproach && (
+        <SponsorApproachModal
+          careerId={careerId}
+          initial={openApproach}
+          onChanged={() => void load()}
+          onClose={() => {
+            setOpenApproach(null);
+            void load();
+          }}
+        />
+      )}
+      {launchingShoe && (
+        <SignatureShoeLaunchModal
+          careerId={careerId}
+          shoe={launchingShoe}
+          onLaunched={() => {
+            setLaunchingShoe(null);
+            void load();
+          }}
+        />
+      )}
     </div>
   );
 }

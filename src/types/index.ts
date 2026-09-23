@@ -43,10 +43,31 @@ export type {
 } from "./sponsor.ts";
 export type { MyProfile, Position } from "./profile";
 export type {
+  SignatureShoe,
+  SignatureShoeGameSales,
+  SignatureShoeLaunchMutation,
+  SignatureShoeStatus,
+  SignatureShoeTerms,
+} from "./signature-shoe";
+export type {
+  BasketballNetwork,
+  BasketballNetworkPlayer,
+  BasketballNetworkTeam,
+  NetworkPlayerRole,
+} from "./basketball-network";
+export type {
   DailyInvitationType,
   DailyInvitationStatus,
+  NonSponsorEventCategory,
+  NonSponsorEventType,
+  TeamEventType,
+  PlayerEventType,
+  FanEventType,
+  CharityEventType,
+  DailyEventType,
   SponsorEventType,
   DailyInvitation,
+  NonSponsorDailyInvitation,
   DailyDecisionGroup,
   DailyEventResult,
 } from "./daily-invitations";

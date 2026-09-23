@@ -15,7 +15,7 @@ export type PlayerIdentity = {
 export type IdentityAction = {
   id: string;
   date: string;
-  sourceType: "interview"; // More action types can be added later
+  sourceType: "interview" | "daily_invitation";
   sourceId: string;
   identity: IdentityType;
   points: number; // 1 per interview answer

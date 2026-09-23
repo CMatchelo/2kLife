@@ -106,7 +106,6 @@ function App() {
   const [saves, setSaves] = useState<CareerSummary[]>([]);
   const [error, setError] = useState("");
   const [revision, setRevision] = useState(0);
-  const [dayMenu, setDayMenu] = useState<HTMLDivElement | null>(null);
   const [deleting, setDeleting] = useState<CareerSummary | null>(null);
   useEffect(() => {
     let active = true;
@@ -138,7 +137,6 @@ function App() {
           >
             2k<span className="text-court-red">Life</span>
           </a>
-          <div ref={setDayMenu} />
           {!career && (
             <span className="text-xs font-semibold uppercase tracking-widest text-muted">
               Your career. Your story.
@@ -158,7 +156,6 @@ function App() {
           />
         ) : career ? (
           <CareerDashboard
-            dayMenu={dayMenu}
             key={career.id}
             career={career}
             onHome={() => {

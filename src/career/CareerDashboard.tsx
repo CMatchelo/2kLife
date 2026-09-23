@@ -18,56 +18,204 @@ import { teamName } from "../domain/teams";
 import AIConnection from "../AIConnection";
 import Sponsors from "./Sponsors";
 import SponsorApproachModal from "./SponsorApproachModal";
-import type { SponsorActiveContract, SponsorApproachGroup, SponsorContractSettlement, SponsorsOverview } from "../types/sponsor";
-import DailyInvitationModal, { DailyEventResultModal } from "./DailyInvitationModal";
-import type { DailyDecisionGroup, DailyEventResult } from "../types/daily-invitations";
+import type {
+  SponsorActiveContract,
+  SponsorApproachGroup,
+  SponsorContractSettlement,
+  SponsorsOverview,
+} from "../types/sponsor";
+import DailyInvitationModal, {
+  DailyEventResultModal,
+} from "./DailyInvitationModal";
+import type {
+  DailyDecisionGroup,
+  DailyEventResult,
+} from "../types/daily-invitations";
+import BasketballNetworkSettings from "./BasketballNetworkSettings";
+import SignatureShoeLaunchModal from "./SignatureShoeLaunchModal";
+import type { SignatureShoe } from "../types/signature-shoe";
 
-function SponsorMessageLoading({ error, onRetry }: { error: string; onRetry: () => void }) {
+function SponsorMessageLoading({
+  error,
+  onRetry,
+  onClose,
+}: {
+  error: string;
+  onRetry: () => void;
+  onClose: () => void;
+}) {
   return createPortal(
-    <div className="fixed inset-0 z-50 grid place-items-center bg-black/70 p-4" role="dialog" aria-modal="true" aria-labelledby="sponsor-message-loading-title">
+    <div
+      className="fixed inset-0 z-50 grid place-items-center bg-black/70 p-4"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="sponsor-message-loading-title"
+    >
       <section className="w-[min(620px,94vw)] rounded-2xl border border-slate-600 bg-[#0d161f] p-6 text-slate-100 shadow-2xl sm:p-8">
-        <h2 id="sponsor-message-loading-title" className="text-2xl font-black text-gold">Your agent has sponsor news</h2>
-        <p className="mt-4 leading-relaxed">I’ve received messages from companies interested in a partnership. I’m gathering them now so you can review each proposal and decide what to do. Remember, you can sign with only one company in each commercial category.</p>
-        {!error && <p className="mt-5 animate-pulse text-sm font-semibold text-sky-300" role="status">Preparing sponsor messages…</p>}
-        {error && <div className="mt-5"><p className="text-red-300" role="alert">{error}</p><button type="button" className="ai-primary mt-4" onClick={onRetry}>Retry messages</button></div>}
+        <div className="flex items-start justify-between gap-4">
+          <h2
+            id="sponsor-message-loading-title"
+            className="text-2xl font-black text-gold"
+          >
+            Your agent has sponsor news
+          </h2>
+          <button
+            type="button"
+            className="ai-secondary text-ink"
+            onClick={onClose}
+          >
+            Close
+          </button>
+        </div>
+        <p className="mt-4 leading-relaxed">
+          I’ve received messages from companies interested in a partnership. I’m
+          gathering them now so you can review each proposal and decide what to
+          do. Remember, you can sign with only one company in each commercial
+          category.
+        </p>
+        {!error && (
+          <p
+            className="mt-5 animate-pulse text-sm font-semibold text-sky-300"
+            role="status"
+          >
+            Preparing sponsor messages…
+          </p>
+        )}
+        {error && (
+          <div className="mt-5">
+            <p className="text-red-300" role="alert">
+              {error}
+            </p>
+            <button type="button" className="ai-primary mt-4" onClick={onRetry}>
+              Retry messages
+            </button>
+          </div>
+        )}
       </section>
     </div>,
     document.body,
   );
 }
 
-const sponsorMoney = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" });
-function SponsorSettlementModal({ settlements, onClose }: { settlements: SponsorContractSettlement[]; onClose: () => void }) {
-  return createPortal(<div className="fixed inset-0 z-50 grid place-items-center bg-black/70 p-4" role="dialog" aria-modal="true" aria-labelledby="settlement-title">
-    <section className="max-h-[92vh] w-[min(860px,94vw)] overflow-y-auto rounded-2xl border border-slate-600 bg-[#0d161f] p-6 text-slate-100 shadow-2xl">
-      <h2 id="settlement-title" className="text-2xl font-black text-gold">Sponsor contract settlement</h2>
-      <div className="mt-5 space-y-4">{settlements.map((item) => <article key={item.id} className="rounded-xl border border-slate-600 bg-[#121d27] p-4">
-        <h3 className="text-xl font-black">{item.brandName}</h3><p className="text-sm text-slate-300">Contract completed on {item.expirationDate}</p>
-        <dl className="mt-3 grid grid-cols-2 gap-3 text-sm sm:grid-cols-3">
-          <div><dt className="text-slate-400">Attendance</dt><dd className="font-bold">{item.attendedAppearances} of {item.requiredAppearances}</dd></div>
-          <div><dt className="text-slate-400">Missing</dt><dd className={item.missingAppearances ? "font-bold text-red-300" : "font-bold"}>{item.missingAppearances}</dd></div>
-          <div><dt className="text-slate-400">Original final installment</dt><dd className="font-bold">{sponsorMoney.format(item.originalFinalInstallmentUsdCents / 100)}</dd></div>
-          <div><dt className="text-slate-400">Attendance deduction</dt><dd className={item.attendancePenaltyUsdCents ? "font-bold text-red-300" : "font-bold"}>−{sponsorMoney.format(item.attendancePenaltyUsdCents / 100)}</dd></div>
-          <div><dt className="text-slate-400">Final payment received</dt><dd className="font-bold">{sponsorMoney.format(item.finalInstallmentUsdCents / 100)}</dd></div>
-          <div><dt className="text-slate-400">Total fixed payment</dt><dd className="font-bold">{sponsorMoney.format(item.totalFixedReceivedUsdCents / 100)}</dd></div>
-        </dl>
-        {item.attendanceFailed && <p className="mt-3 text-sm font-semibold text-red-300">Attendance failure #{item.brandFailureCount} with this brand.</p>}
-        {item.permanentBlockTriggered && <p className="mt-2 text-sm font-bold text-red-300">Permanent professionalism block applied.</p>}
-        <p className="mt-2 text-sm"><strong>Renewal:</strong> {item.renewalResult.replaceAll("_", " ")}{item.renewalFailureReason ? ` — ${item.renewalFailureReason.replaceAll("_", " ")}` : ""}</p>
-      </article>)}</div>
-      <button type="button" className="ai-primary mt-5" onClick={onClose}>Continue</button>
-    </section>
-  </div>, document.body);
+const sponsorMoney = new Intl.NumberFormat("en-US", {
+  style: "currency",
+  currency: "USD",
+});
+function SponsorSettlementModal({
+  settlements,
+  onClose,
+}: {
+  settlements: SponsorContractSettlement[];
+  onClose: () => void;
+}) {
+  return createPortal(
+    <div
+      className="fixed inset-0 z-50 grid place-items-center bg-black/70 p-4"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="settlement-title"
+    >
+      <section className="max-h-[92vh] w-[min(860px,94vw)] overflow-y-auto rounded-2xl border border-slate-600 bg-[#0d161f] p-6 text-slate-100 shadow-2xl">
+        <h2 id="settlement-title" className="text-2xl font-black text-gold">
+          Sponsor contract settlement
+        </h2>
+        <div className="mt-5 space-y-4">
+          {settlements.map((item) => (
+            <article
+              key={item.id}
+              className="rounded-xl border border-slate-600 bg-[#121d27] p-4"
+            >
+              <h3 className="text-xl font-black">{item.brandName}</h3>
+              <p className="text-sm text-slate-300">
+                Contract completed on {item.expirationDate}
+              </p>
+              <dl className="mt-3 grid grid-cols-2 gap-3 text-sm sm:grid-cols-3">
+                <div>
+                  <dt className="text-slate-400">Attendance</dt>
+                  <dd className="font-bold">
+                    {item.attendedAppearances} of {item.requiredAppearances}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-slate-400">Missing</dt>
+                  <dd
+                    className={
+                      item.missingAppearances
+                        ? "font-bold text-red-300"
+                        : "font-bold"
+                    }
+                  >
+                    {item.missingAppearances}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-slate-400">Original final installment</dt>
+                  <dd className="font-bold">
+                    {sponsorMoney.format(
+                      item.originalFinalInstallmentUsdCents / 100,
+                    )}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-slate-400">Attendance deduction</dt>
+                  <dd
+                    className={
+                      item.attendancePenaltyUsdCents
+                        ? "font-bold text-red-300"
+                        : "font-bold"
+                    }
+                  >
+                    −{sponsorMoney.format(item.attendancePenaltyUsdCents / 100)}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-slate-400">Final payment received</dt>
+                  <dd className="font-bold">
+                    {sponsorMoney.format(item.finalInstallmentUsdCents / 100)}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-slate-400">Total fixed payment</dt>
+                  <dd className="font-bold">
+                    {sponsorMoney.format(item.totalFixedReceivedUsdCents / 100)}
+                  </dd>
+                </div>
+              </dl>
+              {item.attendanceFailed && (
+                <p className="mt-3 text-sm font-semibold text-red-300">
+                  Attendance failure #{item.brandFailureCount} with this brand.
+                </p>
+              )}
+              {item.permanentBlockTriggered && (
+                <p className="mt-2 text-sm font-bold text-red-300">
+                  Permanent professionalism block applied.
+                </p>
+              )}
+              <p className="mt-2 text-sm">
+                <strong>Renewal:</strong>{" "}
+                {item.renewalResult.replaceAll("_", " ")}
+                {item.renewalFailureReason
+                  ? ` — ${item.renewalFailureReason.replaceAll("_", " ")}`
+                  : ""}
+              </p>
+            </article>
+          ))}
+        </div>
+        <button type="button" className="ai-primary mt-5" onClick={onClose}>
+          Continue
+        </button>
+      </section>
+    </div>,
+    document.body,
+  );
 }
 
 export default function CareerDashboard({
   career,
   onHome,
-  dayMenu,
 }: {
   career: Career;
   onHome: () => void;
-  dayMenu: HTMLDivElement | null;
 }) {
   const [view, setView] = useState<"progress" | "info" | "sponsors" | "config">(
     "progress",
@@ -91,21 +239,62 @@ export default function CareerDashboard({
   const [calendarSaving, setCalendarSaving] = useState(false);
   const [dayError, setDayError] = useState("");
   const [dayMessage, setDayMessage] = useState("");
-  const [sponsorApproach, setSponsorApproach] = useState<{ group: SponsorApproachGroup; transitionId: string } | null>(null);
-  const [sponsorGeneration, setSponsorGeneration] = useState<{ groupId: string; transitionId: string; error: string } | null>(null);
-  const [sponsorSettlements, setSponsorSettlements] = useState<{ items: SponsorContractSettlement[]; transitionId: string } | null>(null);
-  const [invitationGroup, setInvitationGroup] = useState<DailyDecisionGroup | null>(null);
+  const [sponsorApproach, setSponsorApproach] = useState<{
+    group: SponsorApproachGroup;
+    transitionId: string;
+  } | null>(null);
+  const [sponsorGeneration, setSponsorGeneration] = useState<{
+    groupId: string;
+    transitionId: string;
+    error: string;
+  } | null>(null);
+  const dismissedSponsorGenerations = useRef(new Set<string>());
+  const [sponsorSettlements, setSponsorSettlements] = useState<{
+    items: SponsorContractSettlement[];
+    transitionId: string;
+  } | null>(null);
+  const [invitationGroup, setInvitationGroup] =
+    useState<DailyDecisionGroup | null>(null);
   const [eventResult, setEventResult] = useState<DailyEventResult | null>(null);
-  const [sponsorContracts, setSponsorContracts] = useState<SponsorActiveContract[]>([]);
+  const [launchingShoe, setLaunchingShoe] = useState<SignatureShoe | null>(
+    null,
+  );
+  const [sponsorContracts, setSponsorContracts] = useState<
+    SponsorActiveContract[]
+  >([]);
   const dayLock = useRef(false);
   const requestKey = `2klife:advance:${career.id}`;
   const pendingRequest = useRef<AdvanceDayRequest | null>(null);
 
   useEffect(() => {
     let active = true;
-    void api<DailyDecisionGroup | null>(`careers/${career.id}/daily-invitations/pending`).then((group) => { if (active && group) setInvitationGroup(group); }).catch(() => { /* Next day will surface a durable unresolved group. */ });
-    return () => { active = false; };
+    void api<DailyDecisionGroup | null>(
+      `careers/${career.id}/daily-invitations/pending`,
+    )
+      .then((group) => {
+        if (active && group) setInvitationGroup(group);
+      })
+      .catch(() => {
+        /* Next day will surface a durable unresolved group. */
+      });
+    return () => {
+      active = false;
+    };
   }, [career.id]);
+
+  useEffect(() => {
+    let active = true;
+    void api<SignatureShoe[]>(`careers/${career.id}/signature-shoes/pending`)
+      .then((shoes) => {
+        if (active && shoes[0]) setLaunchingShoe(shoes[0]);
+      })
+      .catch(() => {
+        /* Pending launches remain durable and can be opened from Sponsors. */
+      });
+    return () => {
+      active = false;
+    };
+  }, [career.id, current.currentDate]);
 
   useEffect(() => {
     let active = true;
@@ -116,20 +305,30 @@ export default function CareerDashboard({
       .catch(() => {
         if (active) setSponsorContracts([]);
       });
-    return () => { active = false; };
+    return () => {
+      active = false;
+    };
   }, [current.id, current.currentDate, view]);
 
   async function loadSponsorMessages(groupId: string, transitionId: string) {
+    dismissedSponsorGenerations.current.delete(groupId);
     setSponsorGeneration({ groupId, transitionId, error: "" });
     try {
-      const group = await api<SponsorApproachGroup>(`careers/${current.id}/sponsor-offers/${groupId}`);
+      const group = await api<SponsorApproachGroup>(
+        `careers/${current.id}/sponsor-offers/${groupId}`,
+      );
+      if (dismissedSponsorGenerations.current.has(groupId)) return;
       setSponsorGeneration(null);
       setSponsorApproach({ group, transitionId });
     } catch (cause) {
+      if (dismissedSponsorGenerations.current.has(groupId)) return;
       setSponsorGeneration({
         groupId,
         transitionId,
-        error: cause instanceof Error ? cause.message : "Your agent could not prepare the sponsor messages. Retry.",
+        error:
+          cause instanceof Error
+            ? cause.message
+            : "Your agent could not prepare the sponsor messages. Retry.",
       });
     }
   }
@@ -198,7 +397,10 @@ export default function CareerDashboard({
           void loadSponsorMessages(result.approachGroupId, result.transitionId);
           break;
         case "sponsor_settlements":
-          setSponsorSettlements({ items: result.settlements, transitionId: result.transitionId });
+          setSponsorSettlements({
+            items: result.settlements,
+            transitionId: result.transitionId,
+          });
           break;
         case "off_day_invitations":
           setInvitationGroup(result.group);
@@ -268,33 +470,6 @@ export default function CareerDashboard({
   const p = current.profile;
   return (
     <div className="space-y-8">
-      {dayMenu &&
-        createPortal(
-          <div className="flex flex-wrap items-center gap-3">
-            <span className="text-sm font-semibold">
-              Current date:{" "}
-              <time dateTime={current.currentDate ?? undefined}>
-                {current.currentDate ?? "Schedule needed"}
-              </time>
-            </span>
-            <button
-              type="button"
-              className="ai-primary"
-              disabled={
-                dayLoading ||
-                calendarSaving ||
-                !!editing ||
-                !!interviewGame ||
-                adding
-                || !!invitationGroup
-              }
-              onClick={() => void nextDay()}
-            >
-              {dayLoading ? "Processing…" : "Next day"}
-            </button>
-          </div>,
-          dayMenu,
-        )}
       {(dayLoading || calendarSaving) && (
         <p role="status">
           {dayLoading ? "Processing the day…" : "Saving calendar settings…"}
@@ -360,7 +535,7 @@ export default function CareerDashboard({
           aria-pressed={view === "config"}
           onClick={() => setView("config")}
         >
-          Config
+          Settings
         </button>
       </nav>
       {view === "progress" ? (
@@ -375,6 +550,7 @@ export default function CareerDashboard({
         <Sponsors career={current} />
       ) : (
         <div className="space-y-8">
+          <BasketballNetworkSettings career={current} />
           <section className="career-card dashboard-card">
             <h2 className="text-2xl font-bold">AI configuration</h2>
             <p className="mt-2 text-muted">
@@ -405,16 +581,33 @@ export default function CareerDashboard({
                 aria-hidden="true"
               />
             </div>
-            {!adding && (
+            <div className="flex flex-wrap items-center gap-3">
+              {!adding && (
+                <button
+                  type="button"
+                  className="ai-primary"
+                  disabled={dayLoading || calendarSaving}
+                  onClick={() => setAdding(true)}
+                >
+                  Add game
+                </button>
+              )}
               <button
                 type="button"
                 className="ai-primary"
-                disabled={dayLoading || calendarSaving}
-                onClick={() => setAdding(true)}
+                disabled={
+                  dayLoading ||
+                  calendarSaving ||
+                  !!editing ||
+                  !!interviewGame ||
+                  adding ||
+                  !!invitationGroup
+                }
+                onClick={() => void nextDay()}
               >
-                Add game
+                {dayLoading ? "Processing…" : "Next day"}
               </button>
-            )}
+            </div>
           </div>
           {adding && (
             <div className="mb-5">
@@ -509,22 +702,62 @@ export default function CareerDashboard({
           }}
         />
       )}
-      {sponsorSettlements && <SponsorSettlementModal settlements={sponsorSettlements.items} onClose={() => { const transitionId = sponsorSettlements.transitionId; setSponsorSettlements(null); void nextDay(transitionId); }} />}
+      {sponsorSettlements && (
+        <SponsorSettlementModal
+          settlements={sponsorSettlements.items}
+          onClose={() => {
+            const transitionId = sponsorSettlements.transitionId;
+            setSponsorSettlements(null);
+            void nextDay(transitionId);
+          }}
+        />
+      )}
       {sponsorGeneration && (
         <SponsorMessageLoading
           error={sponsorGeneration.error}
-          onRetry={() => void loadSponsorMessages(sponsorGeneration.groupId, sponsorGeneration.transitionId)}
+          onRetry={() =>
+            void loadSponsorMessages(
+              sponsorGeneration.groupId,
+              sponsorGeneration.transitionId,
+            )
+          }
+          onClose={() => {
+            const transitionId = sponsorGeneration.transitionId;
+            dismissedSponsorGenerations.current.add(sponsorGeneration.groupId);
+            setSponsorGeneration(null);
+            void nextDay(transitionId);
+          }}
         />
       )}
       {invitationGroup && (
-        <DailyInvitationModal careerId={current.id} initial={invitationGroup} onResolved={(resolution) => {
-          setCurrent(resolution.career);
-          setInvitationGroup(null);
-          if (resolution.result) setEventResult(resolution.result);
-          else setDayMessage("All invitations for today were refused.");
-        }} />
+        <DailyInvitationModal
+          careerId={current.id}
+          initial={invitationGroup}
+          onResolved={(resolution) => {
+            setCurrent(resolution.career);
+            setInvitationGroup(null);
+            if (resolution.result) setEventResult(resolution.result);
+            else setDayMessage("All invitations for today were refused.");
+          }}
+        />
       )}
-      {eventResult && <DailyEventResultModal result={eventResult} onClose={() => setEventResult(null)} />}
+      {eventResult && (
+        <DailyEventResultModal
+          result={eventResult}
+          onClose={() => {
+            if (eventResult.unlockedShoe)
+              setLaunchingShoe(eventResult.unlockedShoe);
+            setEventResult(null);
+          }}
+        />
+      )}
+      {launchingShoe && !invitationGroup && !eventResult && (
+        <SignatureShoeLaunchModal
+          careerId={current.id}
+          shoe={launchingShoe}
+          onLaunched={() => setLaunchingShoe(null)}
+        />
+      )}
       <p className="text-sm text-muted">Saved locally.</p>
     </div>
   );
