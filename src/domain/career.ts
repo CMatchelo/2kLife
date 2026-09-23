@@ -1,6 +1,8 @@
 import type { CareerDraft, ScheduleFields, Team } from "../types/career.ts";
+import type { NewSeasonDraft } from "../types/career.ts";
 import type { Game, GameCategory } from "../types/game.ts";
 import type { BoxScore, StatsSummary } from "../types/stats.ts";
+import { calendarDate } from "./calendarDate.ts";
 
 export const categories: GameCategory[] = [
   "regularSeason",
@@ -26,13 +28,21 @@ export function normalizeSeason(value: string): string | null {
     return null;
   return `${match[1]}-${match[2]}`;
 }
+export function nextSeasonYear(value: string): string | null {
+  const normalized = normalizeSeason(value);
+  if (!normalized) return null;
+  const start = Number(normalized.slice(0, 4)) + 1;
+  if (start > 2199) return null;
+  return `${start}-${String((start + 1) % 100).padStart(2, "0")}`;
+}
+export function compareSeasonYears(left: string, right: string): number {
+  const a = normalizeSeason(left);
+  const b = normalizeSeason(right);
+  if (!a || !b) throw new Error("Invalid season year.");
+  return Number(a.slice(0, 4)) - Number(b.slice(0, 4));
+}
 export function validDate(value: unknown): value is string {
-  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value))
-    return false;
-  const date = new Date(`${value}T12:00:00Z`);
-  return (
-    Number.isFinite(date.getTime()) && date.toISOString().slice(0, 10) === value
-  );
+  return calendarDate(value);
 }
 export function seasonMonths(year: string): string[] {
   const normalized = normalizeSeason(year);
@@ -227,4 +237,78 @@ export function emptyStats(): StatsSummary {
     threePointPercentage: null,
     freeThrowPercentage: null,
   };
+}
+
+export function validateNewSeasonDraft(
+  draft: NewSeasonDraft,
+  teams: Team[],
+  sourceYear: string,
+  existingYears: string[],
+): string[] {
+  const errors: string[] = [];
+  const year = normalizeSeason(draft.seasonYear);
+  if (!year) errors.push("Enter a consecutive season such as 2027–28.");
+  else {
+    if (existingYears.some((item) => normalizeSeason(item) === year))
+      errors.push("That season year already exists in this career.");
+    if (compareSeasonYears(year, sourceYear) <= 0)
+      errors.push("The new season must be later than the completed season.");
+  }
+  if (!Number.isInteger(draft.age) || draft.age < 1 || draft.age > 100)
+    errors.push("Player age must be an integer from 1 to 100.");
+  if (!teams.some((team) => team.id === draft.currentTeamId))
+    errors.push("Choose a valid current team.");
+  const months = year ? seasonMonths(year) : [];
+  if (
+    !validDate(draft.startDate) ||
+    !months.includes(draft.startDate.slice(0, 7))
+  )
+    errors.push("Choose a valid starting date in the selected season.");
+  if (
+    !validDate(draft.regularSeasonEndDate) ||
+    !months.includes(draft.regularSeasonEndDate.slice(0, 7))
+  )
+    errors.push(
+      "Choose a valid regular-season end date in the selected season.",
+    );
+  if (
+    validDate(draft.startDate) &&
+    validDate(draft.regularSeasonEndDate) &&
+    draft.regularSeasonEndDate <= draft.startDate
+  )
+    errors.push("The regular-season end date must be after the starting date.");
+  if (!draft.games.length)
+    errors.push("Add the first scheduled game before starting the season.");
+  if (draft.games.length > 500)
+    errors.push("A season may contain at most 500 games.");
+  if (draft.unresolved.length)
+    errors.push("Correct or discard every import-review entry.");
+  const ids = new Set<string>();
+  const fixtures = new Set<string>();
+  for (const game of draft.games) {
+    if (ids.has(game.id)) errors.push("Resolve duplicate draft game IDs.");
+    ids.add(game.id);
+    if (Object.keys(gameWarnings(game, teams, year ?? draft.seasonYear)).length)
+      errors.push(
+        `Correct scheduling fields for ${game.date || "an undated game"}.`,
+      );
+    if (game.status !== "scheduled")
+      errors.push(
+        "New-season calendar games must be unplayed scheduled games.",
+      );
+    const fixture = `${game.date}|${game.teamId}`;
+    if (fixtures.has(fixture))
+      errors.push(`Resolve the duplicate fixture on ${game.date}.`);
+    fixtures.add(fixture);
+  }
+  if (
+    draft.coverage.some(
+      (item) =>
+        !months.includes(item.month) ||
+        !["imported", "user"].includes(item.source) ||
+        typeof item.confirmed !== "boolean",
+    )
+  )
+    errors.push("Correct calendar coverage.");
+  return [...new Set(errors)];
 }

@@ -29,6 +29,7 @@ import type {
 import type { Provider } from "./providers/shared.ts";
 
 type TrackingRow = {
+  brand_id?: string;
   eligible: number;
   active_period_id: string | null;
   last_evaluation_ref: string;
@@ -292,6 +293,13 @@ function eligibilityReasons(
   inputs: SponsorEligibilityInputs,
 ): SponsorIneligibilityReason[] {
   const reasons: SponsorIneligibilityReason[] = [];
+  const remaining = remainingRegularSeasonGames(career);
+  if (remaining < brand.baseContract.durationMatches)
+    reasons.push({
+      code: "insufficient_regular_season_games",
+      required: brand.baseContract.durationMatches,
+      remaining,
+    });
   const followers = career.profile.socialMedia.currentFollowers;
   const required = sponsorCatalog.tiers[brand.tier].minimumFollowers;
   if (followers < required)
@@ -326,6 +334,16 @@ function eligibilityReasons(
   if (days > 0)
     reasons.push({ code: "day_cooldown", calendarDaysRemaining: days });
   return reasons;
+}
+
+export function remainingRegularSeasonGames(career: Career) {
+  return career.season.games.filter(
+    (game) =>
+      game.status === "scheduled" &&
+      game.countsTowardRegularSeason &&
+      game.category !== "playIn" &&
+      game.category !== "playoffs",
+  ).length;
 }
 
 function qualifyingAppearance(
@@ -763,7 +781,33 @@ export class SponsorService {
           reference,
         );
     }
+    this.expireInsufficientInitialOffers(career);
     return this.getStates(career, inputs);
+  }
+
+  private expireInsufficientInitialOffers(career: Career) {
+    const remaining = remainingRegularSeasonGames(career);
+    const pending = this.db
+      .prepare(
+        "SELECT * FROM sponsor_offers WHERE career_id=? AND status='pending'",
+      )
+      .all(career.id);
+    for (const row of pending) {
+      const offer = this.offerFromRow(row as Record<string, unknown>);
+      if (
+        offer.offerKind === "renewal" ||
+        remaining >= offer.terms.durationMatches
+      )
+        continue;
+      this.db
+        .prepare(
+          "UPDATE sponsor_offers SET status='expired', resolution_reason='insufficient_regular_season_games', resolved_at=? WHERE id=? AND status='pending'",
+        )
+        .run(now(), offer.id);
+      this.db
+        .prepare("DELETE FROM sponsor_signing_reviews WHERE offer_id=?")
+        .run(offer.id);
+    }
   }
 
   capturePregame(
@@ -1289,7 +1333,10 @@ export class SponsorService {
         .get(career.id, processingReference)
     )
       return [];
-    const states = this.getStates(career);
+    const states = this.reevaluate(
+      career,
+      `${processingReference}:offer_eligibility`,
+    );
     const pending = new Set(
       this.db
         .prepare(
@@ -1421,6 +1468,10 @@ export class SponsorService {
         .run(groupId, career.id, game.id, processingReference, now());
     const boundary = this.completedMatchBoundary(career.id);
     for (const { brand, state, end, dates } of schedulable) {
+      if (
+        remainingRegularSeasonGames(career) < brand.baseContract.durationMatches
+      )
+        continue;
       const id = randomUUID();
       const completedMilestones = [
         ...state.permanentMilestones
@@ -1741,6 +1792,8 @@ export class SponsorService {
     offerId: string,
     mutation: SponsorOfferMutation,
   ) {
+    if (mutation.action === "prepare" || mutation.action === "confirm")
+      this.reevaluate(career, `offer:${offerId}:signing_eligibility`);
     this.db.exec("BEGIN IMMEDIATE");
     try {
       const prior = this.db
@@ -2905,5 +2958,36 @@ export class SponsorService {
       this.db.exec("ROLLBACK");
       throw error;
     }
+  }
+
+  beginNewSeason(careerId: string, reference: string) {
+    const tracking = this.db
+      .prepare("SELECT * FROM sponsor_tracking WHERE career_id=?")
+      .all(careerId) as TrackingRow[];
+    for (const row of tracking) {
+      if (row.active_period_id)
+        this.endPeriod(
+          careerId,
+          String(row.brand_id),
+          row,
+          reference,
+          "new_season",
+        );
+    }
+    this.db
+      .prepare(
+        "UPDATE sponsor_tracking SET eligible=0,active_period_id=NULL,reasons=?,last_evaluation_ref=? WHERE career_id=?",
+      )
+      .run(JSON.stringify([{ code: "new_season" }]), reference, careerId);
+    this.db
+      .prepare(
+        "UPDATE sponsor_offers SET status='expired',resolution_reason='season_completed',resolved_at=? WHERE career_id=? AND status='pending'",
+      )
+      .run(now(), careerId);
+    this.db
+      .prepare(
+        "DELETE FROM sponsor_signing_reviews WHERE offer_id IN (SELECT id FROM sponsor_offers WHERE career_id=? AND status='expired' AND resolution_reason='season_completed')",
+      )
+      .run(careerId);
   }
 }

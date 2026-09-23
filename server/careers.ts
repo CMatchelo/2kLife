@@ -23,6 +23,9 @@ import type {
   Career,
   CareerDraft,
   CareerSummary,
+  NewSeasonDraft,
+  NewSeasonDraftMutation,
+  NewSeasonMutation,
   ScheduleFields,
 } from "../src/types/career.ts";
 import type { MyProfile } from "../src/types/profile.ts";
@@ -31,8 +34,10 @@ import {
   emptyStats,
   gameWarnings,
   normalizeSeason,
+  nextSeasonYear,
   scheduledGame,
   validateCareer,
+  validateNewSeasonDraft,
 } from "../src/domain/career.ts";
 
 export class ValidationError extends Error {}
@@ -102,7 +107,19 @@ export class CareerStore {
       CREATE TABLE IF NOT EXISTS seasons (id TEXT PRIMARY KEY, career_id TEXT NOT NULL REFERENCES careers(id), data TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS games (id TEXT PRIMARY KEY, season_id TEXT NOT NULL REFERENCES seasons(id), date TEXT NOT NULL, team_id TEXT NOT NULL, data TEXT NOT NULL, UNIQUE(season_id, date, team_id));
       CREATE TABLE IF NOT EXISTS team_history (career_id TEXT NOT NULL REFERENCES careers(id), data TEXT NOT NULL);
-      CREATE TABLE IF NOT EXISTS coverage (season_id TEXT NOT NULL REFERENCES seasons(id), month TEXT NOT NULL, data TEXT NOT NULL, PRIMARY KEY(season_id, month));`);
+      CREATE TABLE IF NOT EXISTS coverage (season_id TEXT NOT NULL REFERENCES seasons(id), month TEXT NOT NULL, data TEXT NOT NULL, PRIMARY KEY(season_id, month));
+      CREATE TABLE IF NOT EXISTS new_season_drafts (
+        career_id TEXT PRIMARY KEY REFERENCES careers(id), source_season_id TEXT NOT NULL REFERENCES seasons(id),
+        data TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS new_season_mutations (
+        career_id TEXT NOT NULL REFERENCES careers(id), request_id TEXT NOT NULL, kind TEXT NOT NULL,
+        result TEXT NOT NULL, created_at TEXT NOT NULL, PRIMARY KEY(career_id, request_id)
+      );
+      CREATE UNIQUE INDEX IF NOT EXISTS seasons_one_active_per_career
+        ON seasons(career_id) WHERE json_extract(data, '$.status') = 'active';
+      CREATE UNIQUE INDEX IF NOT EXISTS seasons_unique_year_per_career
+        ON seasons(career_id, json_extract(data, '$.year'));`);
     this.db.exec(`CREATE TABLE IF NOT EXISTS interview_evaluations (
       game_id TEXT PRIMARY KEY REFERENCES games(id), career_id TEXT NOT NULL REFERENCES careers(id),
       session_id TEXT, context TEXT, content TEXT, answer_order TEXT, selected INTEGER, interview_id TEXT UNIQUE NOT NULL
@@ -144,6 +161,7 @@ export class CareerStore {
       id: randomUUID(),
       name: draft.player.name.trim(),
       startingAge: { age: draft.player.age, seasonYear: year },
+      currentAge: draft.player.age,
       position: draft.player.position,
       secondaryPosition: draft.player.secondaryPosition || undefined,
       currentTeamId: draft.player.currentTeamId,
@@ -177,6 +195,16 @@ export class CareerStore {
       era: draft.season.era.trim(),
       status: "active",
       phase: "regularSeason",
+      startDate: draft.games.map((game) => game.date).sort()[0],
+      nbaCupCountsTowardRegularSeason: true,
+      playerSnapshot: {
+        age: draft.player.age,
+        teamId: draft.player.currentTeamId,
+        position: draft.player.position,
+        ...(draft.player.secondaryPosition
+          ? { secondaryPosition: draft.player.secondaryPosition }
+          : {}),
+      },
       games: [],
       matchRecords: emptyMatchRecords(),
       recordTrackedGameIds: [],
@@ -265,35 +293,44 @@ export class CareerStore {
     const player = this.db
       .prepare("SELECT data FROM players WHERE career_id = ?")
       .get(id)!;
-    const seasonRow = this.db
-      .prepare("SELECT id, data FROM seasons WHERE career_id = ?")
-      .get(id)!;
     const profile: MyProfile = JSON.parse(String(player.data));
-    const season: Season = JSON.parse(String(seasonRow.data));
-    season.phase ??=
-      season.status === "completed" ? "completed" : "regularSeason";
-    season.finalStandings = this.postseason?.standings(season.id) ?? [];
-    season.postseason = this.postseason?.state(id, season.id) ?? null;
-    season.games = this.db
-      .prepare("SELECT data FROM games WHERE season_id = ? ORDER BY date")
-      .all(String(seasonRow.id))
-      .map((g) => JSON.parse(String(g.data)));
-    season.matchRecords ??= emptyMatchRecords();
+    const seasonRows = this.db
+      .prepare("SELECT id, data FROM seasons WHERE career_id = ?")
+      .all(id);
+    const seasons = seasonRows
+      .map((seasonRow) => {
+        const season: Season = JSON.parse(String(seasonRow.data));
+        season.phase ??=
+          season.status === "completed" ? "completed" : "regularSeason";
+        season.finalStandings = this.postseason?.standings(season.id) ?? [];
+        season.postseason = this.postseason?.state(id, season.id) ?? null;
+        season.games = this.db
+          .prepare(
+            "SELECT data FROM games WHERE season_id = ? ORDER BY date, rowid",
+          )
+          .all(String(seasonRow.id))
+          .map((g) => JSON.parse(String(g.data)));
+        season.matchRecords ??= emptyMatchRecords();
+        this.calculateSeasonStats(season);
+        return season;
+      })
+      .sort((a, b) => a.year.localeCompare(b.year));
+    const active = seasons.filter((item) => item.status === "active");
+    if (active.length > 1)
+      throw new Error("Career storage contains more than one active season.");
+    const season = active[0] ?? seasons.at(-1);
+    if (!season) throw new Error("Career storage has no season.");
+    profile.currentAge ??=
+      season.playerSnapshot?.age ?? profile.startingAge.age;
     profile.matchRecords = combineMatchRecords(
-      this.db
-        .prepare("SELECT data FROM seasons WHERE career_id = ?")
-        .all(id)
-        .map(
-          (row) =>
-            (JSON.parse(String(row.data)) as Season).matchRecords ??
-            emptyMatchRecords(),
-        ),
+      seasons.map((item) => item.matchRecords ?? emptyMatchRecords()),
     );
-    const completed = season.games.filter((g) => g.status === "completed");
+    const allGames = seasons.flatMap((item) => item.games);
     for (const category of ["regularSeason", "playoffs"] as const) {
       const summary = emptyStats();
-      const games = completed.filter(
+      const games = allGames.filter(
         (g) =>
+          g.status === "completed" &&
           g.played === true &&
           (category === "regularSeason"
             ? g.countsTowardRegularSeason
@@ -325,7 +362,6 @@ export class CareerStore {
         ? (summary.totals.freeThrowsMade / summary.totals.freeThrowsAttempted) *
           100
         : null;
-      season[category].stats = summary;
       profile.careerStats[category] = summary;
     }
     profile.interviews = this.db
@@ -347,7 +383,11 @@ export class CareerStore {
         } as Interview;
       })
       .sort((a, b) => a.date.localeCompare(b.date));
-    profile.currentGameDate = completed.at(-1)?.date ?? null;
+    profile.currentGameDate =
+      allGames
+        .filter((game) => game.status === "completed")
+        .sort((a, b) => a.date.localeCompare(b.date))
+        .at(-1)?.date ?? null;
     profile.teamStory = this.db
       .prepare("SELECT data FROM team_history WHERE career_id = ?")
       .all(id)
@@ -367,6 +407,9 @@ export class CareerStore {
       createdAt: String(row.created_at),
       profile,
       season,
+      hasActiveSeason: active.length === 1,
+      seasons,
+      newSeasonDraft: this.readNewSeasonDraft(id),
       teams: JSON.parse(String(row.teams)),
       coverage: this.db
         .prepare("SELECT data FROM coverage WHERE season_id = ? ORDER BY month")
@@ -374,9 +417,409 @@ export class CareerStore {
         .map((c) => JSON.parse(String(c.data))),
     };
   }
+  private calculateSeasonStats(season: Season) {
+    const completed = season.games.filter(
+      (game) => game.status === "completed",
+    );
+    for (const category of ["regularSeason", "playoffs"] as const) {
+      const summary = emptyStats();
+      const games = completed.filter(
+        (game) =>
+          game.played === true &&
+          (category === "regularSeason"
+            ? game.countsTowardRegularSeason
+            : game.category === "playoffs"),
+      );
+      summary.gamesPlayed = games.length;
+      for (const game of games)
+        if (game.stats)
+          for (const key of Object.keys(
+            summary.totals,
+          ) as (keyof typeof summary.totals)[])
+            summary.totals[key] += game.stats[key];
+      for (const key of Object.keys(
+        summary.totals,
+      ) as (keyof typeof summary.totals)[])
+        summary.averages[key] = games.length
+          ? summary.totals[key] / games.length
+          : 0;
+      summary.fieldGoalPercentage = summary.totals.fieldGoalsAttempted
+        ? (summary.totals.fieldGoalsMade / summary.totals.fieldGoalsAttempted) *
+          100
+        : null;
+      summary.threePointPercentage = summary.totals.threePointersAttempted
+        ? (summary.totals.threePointersMade /
+            summary.totals.threePointersAttempted) *
+          100
+        : null;
+      summary.freeThrowPercentage = summary.totals.freeThrowsAttempted
+        ? (summary.totals.freeThrowsMade / summary.totals.freeThrowsAttempted) *
+          100
+        : null;
+      season[category].stats = summary;
+    }
+  }
+  private readNewSeasonDraft(careerId: string): NewSeasonDraft | null {
+    const row = this.db
+      .prepare("SELECT data FROM new_season_drafts WHERE career_id=?")
+      .get(careerId);
+    return row ? (JSON.parse(String(row.data)) as NewSeasonDraft) : null;
+  }
+  newSeasonDraft(careerId: string): NewSeasonDraft {
+    const saved = this.readNewSeasonDraft(careerId);
+    if (saved) return saved;
+    const career = this.get(careerId);
+    if (!career) throw new ValidationError("Career not found.");
+    if (career.hasActiveSeason)
+      throw new ValidationError(
+        "Finish the active season before starting another one.",
+      );
+    if (career.season.status !== "completed")
+      throw new ValidationError("The previous season is not complete.");
+    const year = nextSeasonYear(career.season.year);
+    if (!year)
+      throw new ValidationError("A later supported season is not available.");
+    const startYear = Number(year.slice(0, 4));
+    const draft: NewSeasonDraft = {
+      sourceSeasonId: career.season.id,
+      seasonYear: year,
+      age:
+        (career.season.playerSnapshot?.age ??
+          career.profile.currentAge ??
+          career.profile.startingAge.age) + 1,
+      currentTeamId: career.profile.currentTeamId,
+      startDate: `${startYear}-07-01`,
+      regularSeasonEndDate: `${startYear + 1}-04-15`,
+      nbaCupCountsTowardRegularSeason:
+        career.season.nbaCupCountsTowardRegularSeason ?? true,
+      games: [],
+      unresolved: [],
+      coverage: [],
+      step: 1,
+    };
+    const timestamp = new Date().toISOString();
+    this.db
+      .prepare("INSERT INTO new_season_drafts VALUES (?,?,?,?,?)")
+      .run(
+        careerId,
+        career.season.id,
+        JSON.stringify(draft),
+        timestamp,
+        timestamp,
+      );
+    return draft;
+  }
+  private validateMutationRequest(raw: unknown): string {
+    const requestId = (raw as { requestId?: unknown } | null)?.requestId;
+    if (typeof requestId !== "string" || !/^[\w-]{20,80}$/.test(requestId))
+      throw new ValidationError("Invalid mutation request ID.");
+    return requestId;
+  }
+  saveNewSeasonDraft(careerId: string, raw: unknown): NewSeasonDraft {
+    const request = raw as NewSeasonDraftMutation;
+    const requestId = this.validateMutationRequest(request);
+    const previous = this.db
+      .prepare(
+        "SELECT kind,result FROM new_season_mutations WHERE career_id=? AND request_id=?",
+      )
+      .get(careerId, requestId);
+    if (previous) {
+      if (previous.kind !== "save")
+        throw new ValidationError(
+          "This request ID was already used for another operation.",
+        );
+      return JSON.parse(String(previous.result));
+    }
+    const career = this.get(careerId);
+    const current = this.readNewSeasonDraft(careerId);
+    if (!career || !current)
+      throw new ValidationError("New Season setup was not found.");
+    if (career.hasActiveSeason || current.sourceSeasonId !== career.season.id)
+      throw new ValidationError("This New Season setup is no longer current.");
+    if (!request.draft || typeof request.draft !== "object")
+      throw new ValidationError("Invalid New Season setup.");
+    const draft = request.draft;
+    if (
+      draft.sourceSeasonId !== current.sourceSeasonId ||
+      !Number.isInteger(draft.step) ||
+      draft.step < 1 ||
+      draft.step > 4 ||
+      !Array.isArray(draft.games) ||
+      !Array.isArray(draft.unresolved) ||
+      !Array.isArray(draft.coverage) ||
+      draft.games.length > 500 ||
+      draft.unresolved.length > 500 ||
+      draft.coverage.length > 24
+    )
+      throw new ValidationError("Invalid or oversized New Season setup.");
+    const timestamp = new Date().toISOString();
+    this.db.exec("BEGIN IMMEDIATE");
+    try {
+      this.db
+        .prepare(
+          "UPDATE new_season_drafts SET data=?,updated_at=? WHERE career_id=?",
+        )
+        .run(JSON.stringify(draft), timestamp, careerId);
+      this.db
+        .prepare("INSERT INTO new_season_mutations VALUES (?,?,?,?,?)")
+        .run(careerId, requestId, "save", JSON.stringify(draft), timestamp);
+      this.db.exec("COMMIT");
+    } catch (error) {
+      this.db.exec("ROLLBACK");
+      throw error;
+    }
+    return draft;
+  }
+  discardNewSeasonDraft(careerId: string, raw: unknown): { discarded: true } {
+    const requestId = this.validateMutationRequest(raw);
+    const previous = this.db
+      .prepare(
+        "SELECT kind,result FROM new_season_mutations WHERE career_id=? AND request_id=?",
+      )
+      .get(careerId, requestId);
+    if (previous) {
+      if (previous.kind !== "discard")
+        throw new ValidationError(
+          "This request ID was already used for another operation.",
+        );
+      return JSON.parse(String(previous.result));
+    }
+    if (!this.db.prepare("SELECT 1 FROM careers WHERE id=?").get(careerId))
+      throw new ValidationError("Career not found.");
+    const result = { discarded: true as const };
+    const timestamp = new Date().toISOString();
+    this.db.exec("BEGIN IMMEDIATE");
+    try {
+      this.db
+        .prepare("DELETE FROM new_season_drafts WHERE career_id=?")
+        .run(careerId);
+      this.db
+        .prepare("INSERT INTO new_season_mutations VALUES (?,?,?,?,?)")
+        .run(careerId, requestId, "discard", JSON.stringify(result), timestamp);
+      this.db.exec("COMMIT");
+    } catch (error) {
+      this.db.exec("ROLLBACK");
+      throw error;
+    }
+    return result;
+  }
+  startNewSeason(careerId: string, raw: unknown): Career {
+    const requestId = this.validateMutationRequest(raw as NewSeasonMutation);
+    const previous = this.db
+      .prepare(
+        "SELECT kind FROM new_season_mutations WHERE career_id=? AND request_id=?",
+      )
+      .get(careerId, requestId);
+    if (previous) {
+      if (previous.kind !== "start")
+        throw new ValidationError(
+          "This request ID was already used for another operation.",
+        );
+      const retried = this.get(careerId);
+      if (!retried) throw new ValidationError("Career not found.");
+      return retried;
+    }
+    const career = this.get(careerId);
+    const draft = this.readNewSeasonDraft(careerId);
+    if (!career || !draft)
+      throw new ValidationError("New Season setup was not found.");
+    if (career.hasActiveSeason)
+      throw new ValidationError("This career already has an active season.");
+    if (
+      career.season.id !== draft.sourceSeasonId ||
+      career.season.status !== "completed"
+    )
+      throw new ValidationError(
+        "The source completed season no longer matches this setup.",
+      );
+    const issues = validateNewSeasonDraft(
+      draft,
+      career.teams,
+      career.season.year,
+      career.seasons.map((season) => season.year),
+    );
+    if (issues.length) throw new ValidationError(issues.join(" "));
+    const seasonId = randomUUID();
+    const year = normalizeSeason(draft.seasonYear)!;
+    const season: Season = {
+      id: seasonId,
+      year,
+      era: career.season.era,
+      status: "active",
+      phase: "regularSeason",
+      startDate: draft.startDate,
+      seasonEndDate: draft.regularSeasonEndDate,
+      nbaCupCountsTowardRegularSeason: draft.nbaCupCountsTowardRegularSeason,
+      playerSnapshot: {
+        age: draft.age,
+        teamId: draft.currentTeamId,
+        position: career.profile.position,
+        ...(career.profile.secondaryPosition
+          ? { secondaryPosition: career.profile.secondaryPosition }
+          : {}),
+      },
+      games: [],
+      matchRecords: emptyMatchRecords(),
+      recordTrackedGameIds: [],
+      regularSeason: {
+        stats: emptyStats(),
+        teamRecords: [],
+        finalDivisionPlace: null,
+        finalConferencePlace: null,
+      },
+      playoffs: { stats: emptyStats(), teamRecords: [], result: null },
+      nbaCupResult: null,
+      awards: [],
+      standingsHistory: [],
+      finalStandings: [],
+      postseason: null,
+    };
+    const timestamp = new Date().toISOString();
+    this.db.exec("BEGIN IMMEDIATE");
+    try {
+      const active = this.db
+        .prepare(
+          "SELECT 1 FROM seasons WHERE career_id=? AND json_extract(data,'$.status')='active'",
+        )
+        .get(careerId);
+      if (active)
+        throw new ValidationError("This career already has an active season.");
+      const duplicate = this.db
+        .prepare(
+          "SELECT 1 FROM seasons WHERE career_id=? AND json_extract(data,'$.year')=?",
+        )
+        .get(careerId, year);
+      if (duplicate)
+        throw new ValidationError(
+          "That season year already exists in this career.",
+        );
+      this.db
+        .prepare("INSERT INTO seasons VALUES (?,?,?)")
+        .run(seasonId, careerId, JSON.stringify(season));
+      const insertGame = this.db.prepare(
+        "INSERT INTO games (id,season_id,date,team_id,data) VALUES (?,?,?,?,?)",
+      );
+      for (const fields of draft.games) {
+        const game = scheduledGame(fields, randomUUID());
+        insertGame.run(
+          game.id,
+          seasonId,
+          game.date,
+          game.teamId,
+          JSON.stringify(game),
+        );
+      }
+      const insertCoverage = this.db.prepare(
+        "INSERT INTO coverage VALUES (?,?,?)",
+      );
+      for (const item of draft.coverage)
+        insertCoverage.run(seasonId, item.month, JSON.stringify(item));
+      const playerRow = this.db
+        .prepare("SELECT data FROM players WHERE career_id=?")
+        .get(careerId)!;
+      const profile: MyProfile = JSON.parse(String(playerRow.data));
+      const formerTeamId = profile.currentTeamId;
+      if (!career.season.playerSnapshot) {
+        const sourceRow = this.db
+          .prepare("SELECT data FROM seasons WHERE id=?")
+          .get(career.season.id)!;
+        const sourceSeason: Season = JSON.parse(String(sourceRow.data));
+        sourceSeason.playerSnapshot = {
+          age: profile.currentAge ?? profile.startingAge.age,
+          teamId: formerTeamId,
+          position: profile.position,
+          ...(profile.secondaryPosition
+            ? { secondaryPosition: profile.secondaryPosition }
+            : {}),
+        };
+        this.db
+          .prepare("UPDATE seasons SET data=? WHERE id=?")
+          .run(JSON.stringify(sourceSeason), sourceSeason.id);
+      }
+      profile.currentAge = draft.age;
+      profile.currentTeamId = draft.currentTeamId;
+      this.db
+        .prepare("UPDATE players SET data=? WHERE career_id=?")
+        .run(JSON.stringify(profile), careerId);
+      if (formerTeamId !== draft.currentTeamId) {
+        const currentStint = this.db
+          .prepare(
+            "SELECT rowid,data FROM team_history WHERE career_id=? ORDER BY rowid DESC LIMIT 1",
+          )
+          .get(careerId);
+        if (currentStint) {
+          const stint = JSON.parse(String(currentStint.data));
+          if (stint.endDate === null) {
+            stint.endDate = draft.startDate;
+            this.db
+              .prepare("UPDATE team_history SET data=? WHERE rowid=?")
+              .run(JSON.stringify(stint), currentStint.rowid);
+          }
+        }
+        this.db
+          .prepare("INSERT INTO team_history VALUES (?,?)")
+          .run(
+            careerId,
+            JSON.stringify({
+              teamId: draft.currentTeamId,
+              startDate: draft.startDate,
+              startSeason: year,
+              endDate: null,
+            }),
+          );
+        this.basketballNetwork.processCurrentTeamChange(
+          careerId,
+          formerTeamId,
+          draft.currentTeamId,
+        );
+      } else {
+        this.basketballNetwork.ensureCurrentTeamAffinity(
+          careerId,
+          draft.currentTeamId,
+        );
+      }
+      this.db
+        .prepare(
+          "UPDATE career_progression SET current_date=? WHERE career_id=?",
+        )
+        .run(draft.startDate, careerId);
+      this.db
+        .prepare("DELETE FROM day_requests WHERE career_id=?")
+        .run(careerId);
+      this.db
+        .prepare("DELETE FROM day_transitions WHERE career_id=?")
+        .run(careerId);
+      this.sponsors.beginNewSeason(careerId, `new-season:${seasonId}`);
+      this.sponsors.reevaluate(
+        this.get(careerId)!,
+        `new-season:${seasonId}:eligibility`,
+      );
+      this.db
+        .prepare("DELETE FROM new_season_drafts WHERE career_id=?")
+        .run(careerId);
+      this.db
+        .prepare("INSERT INTO new_season_mutations VALUES (?,?,?,?,?)")
+        .run(
+          careerId,
+          requestId,
+          "start",
+          JSON.stringify({ seasonId }),
+          timestamp,
+        );
+      this.db.exec("COMMIT");
+    } catch (error) {
+      this.db.exec("ROLLBACK");
+      throw error;
+    }
+    return this.get(careerId)!;
+  }
   updateCalendarSettings(careerId: string, raw: unknown): Career | null {
     const career = this.get(careerId);
     if (!career) return null;
+    if (!career.hasActiveSeason)
+      throw new ValidationError(
+        "Start a new season before changing calendar settings.",
+      );
     if (!raw || typeof raw !== "object")
       throw new ValidationError("Invalid calendar settings.");
     const settings = raw as {
@@ -436,6 +879,8 @@ export class CareerStore {
   addGame(careerId: string, raw: unknown): Career | null {
     const career = this.get(careerId);
     if (!career) return null;
+    if (!career.hasActiveSeason)
+      throw new ValidationError("Start a new season before adding games.");
     if (!raw || typeof raw !== "object")
       throw new ValidationError("Invalid game.");
     const f = raw as ScheduleFields;
@@ -461,9 +906,6 @@ export class CareerStore {
       throw new ValidationError(
         "A game already exists for that team on that date. Edit that fixture or pick another date.",
       );
-    const seasonRow = this.db
-      .prepare("SELECT id FROM seasons WHERE career_id = ?")
-      .get(careerId)!;
     const game = scheduledGame(f, randomUUID());
     this.db.exec("BEGIN IMMEDIATE");
     try {
@@ -473,7 +915,7 @@ export class CareerStore {
         )
         .run(
           game.id,
-          String(seasonRow.id),
+          career.season.id,
           game.date,
           game.teamId,
           JSON.stringify(game),
@@ -503,6 +945,8 @@ export class CareerStore {
     const career = this.get(careerId);
     const game = career?.season.games.find((g) => g.id === gameId);
     if (!career || !game) return null;
+    if (!career.hasActiveSeason)
+      throw new ValidationError("Completed-season games are read-only.");
     let details;
     try {
       details = parseGameDetails(raw);
@@ -659,7 +1103,12 @@ export class CareerStore {
   list(): CareerSummary[] {
     return this.db
       .prepare(
-        "SELECT c.id, c.save_name, p.data as player, s.data as season FROM careers c JOIN players p ON p.career_id = c.id JOIN seasons s ON s.career_id = c.id ORDER BY c.created_at DESC",
+        `SELECT c.id, c.save_name, p.data as player,
+          COALESCE(
+            (SELECT data FROM seasons a WHERE a.career_id=c.id AND json_extract(a.data,'$.status')='active' LIMIT 1),
+            (SELECT data FROM seasons h WHERE h.career_id=c.id ORDER BY json_extract(h.data,'$.year') DESC LIMIT 1)
+          ) AS season
+        FROM careers c JOIN players p ON p.career_id=c.id ORDER BY c.created_at DESC`,
       )
       .all()
       .map((row) => ({
@@ -685,6 +1134,10 @@ export class CareerStore {
         )
         .run(id);
       for (const table of [
+        "new_season_mutations",
+        "new_season_drafts",
+        "season_review_mutations",
+        "season_review_drafts",
         "career_network_affinity_mutations",
         "career_network_players",
         "career_network_teams",

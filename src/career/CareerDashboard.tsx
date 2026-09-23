@@ -224,9 +224,11 @@ export type CareerView =
 export default function CareerDashboard({
   career,
   view,
+  onCareerChange,
 }: {
   career: Career;
   view: CareerView;
+  onCareerChange?: (career: Career) => void;
 }) {
   const [current, setCurrent] = useState(career);
   const [settingsSection, setSettingsSection] = useState<
@@ -685,7 +687,13 @@ export default function CareerDashboard({
             />
           </section>
           {current.season.postseason && (
-            <PostseasonProgress career={current} onSaved={setCurrent} />
+            <PostseasonProgress
+              career={current}
+              onSaved={(updated) => {
+                setCurrent(updated);
+                if (!updated.hasActiveSeason) onCareerChange?.(updated);
+              }}
+            />
           )}
           {!current.season.seasonEndDate && (
             <section className="career-card dashboard-card">

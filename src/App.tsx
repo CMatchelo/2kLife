@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import NewCareer from "./career/NewCareer";
 import CareerDashboard, { type CareerView } from "./career/CareerDashboard";
+import NewSeasonSetup from "./career/NewSeasonSetup";
 import { api } from "./career/api";
 import type { Career, CareerSummary } from "./types/career";
 
@@ -229,7 +230,7 @@ function App() {
           >
             2k<span className="text-court-red">Life</span>
           </a>
-          {career && (
+          {career?.hasActiveSeason && (
             <CareerNavigation view={careerView} onSelect={setCareerView} />
           )}
           {career && (
@@ -276,7 +277,7 @@ function App() {
               Your career. Your story.
             </span>
           )}
-          {career && menuOpen && (
+          {career?.hasActiveSeason && menuOpen && (
             <div
               id="mobile-career-navigation"
               className="w-full border-t border-divider pt-2 md:hidden"
@@ -310,7 +311,27 @@ function App() {
             }}
           />
         ) : career ? (
-          <CareerDashboard key={career.id} career={career} view={careerView} />
+          career.hasActiveSeason ? (
+            <CareerDashboard
+              key={`${career.id}:${career.season.id}`}
+              career={career}
+              view={careerView}
+              onCareerChange={(updated) => {
+                setCareer(updated);
+                setCareerView("progress");
+              }}
+            />
+          ) : (
+            <NewSeasonSetup
+              key={`${career.id}:new-season`}
+              career={career}
+              onStarted={(updated) => {
+                setCareer(updated);
+                setCareerView("progress");
+                setRevision((value) => value + 1);
+              }}
+            />
+          )
         ) : (
           <>
             <p className="mb-4 text-sm font-bold uppercase tracking-[0.2em] text-court-red">

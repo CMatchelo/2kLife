@@ -144,9 +144,12 @@ firstRound→confSemis→confFinals→nbaFinals, single global nbaFinals row) vi
 (`reconcileCompletedGame`); other matchups entered manually (`scorePlayIn`/`scoreSeries`).
 `postseason_schedule_requirements` queues the next matchup needing dates — blocks
 `advanceCareerDay` until resolved. Postseason games get `play_in_game_id`/
-`postseason_series_id`/`series_game_number` on `games`. `completeSeason()` sets
-`season.phase='completed'` — **no offseason/new-season flow exists yet; career is effectively
-done at that point.**
+`postseason_series_id`/`series_game_number` on `games`. A five-step Season Review persists an
+editable per-season draft (`season_review_drafts`, with idempotent mutations in
+`season_review_mutations`) before `completeSeason()` atomically snapshots standings, champions,
+the player result, and optional awards into that season's JSON and sets
+`season.phase='completed'`. The career then opens a resumable New Season setup;
+activation creates a fresh active season and calendar in the same career while preserving history.
 
 ### `server/interviews.ts` — `InterviewService`
 Post-game interview offer/answer flow, session-scoped (abandoned on `pagehide`/reload). Content
@@ -228,6 +231,7 @@ Framework-free core logic, imported by server (and reusable client-side).
 | `basketball-network.ts` | `BasketballNetwork`, `BasketballNetworkTeam/Player`, `NetworkPlayerRole` |
 | `signature-shoe.ts` | `SignatureShoe`, `SignatureShoeLaunchMutation`, `SignatureShoeTerms` |
 | `postseason.ts` | `PlayInGame`, `PlayoffSeries`, `PlayoffRound`, `PostseasonState`, `SeasonStanding`, `PostseasonScheduleInput` |
+| `season-review.ts` | Season award categories/entries, editable `SeasonReviewDraft`, historical `CompletedSeasonReview`, review mutations |
 | `progression.ts` | `AdvanceDayRequest`, `AdvanceDayResult` (discriminated union on `kind`), `AdvanceDayOutcome` |
 | `connection.ts` | `ProviderId` ("codex"|"claude"), `ProviderStatus`, `ConnectionSnapshot` |
 
@@ -260,6 +264,9 @@ Framework-free core logic, imported by server (and reusable client-side).
   dashboards (NBA-style averages, bio info, career/season records, follower history).
 - `career/PostseasonProgress.tsx`, `PostseasonScheduleModal.tsx`, `FinalStandingsModal.tsx`:
   bracket display/entry (uses `.postseason-*` CSS in `index.css`).
+- `career/SeasonReviewModal.tsx`: five-step optional awards wizard and final league summary;
+  completed reviews are historical and read-only. `NewSeasonSetup.tsx` reuses `CalendarSetup`
+  for the next season's screenshot import, manual entry, review, and coverage confirmation.
 - `career/Sponsors.tsx`, `SponsorFinances.tsx`, `SponsorApproachModal.tsx`,
   `SignatureShoesBoard.tsx`, `SignatureShoeLaunchModal.tsx`: sponsor/contract UI, ledger view,
   shoe launch form.

@@ -5,9 +5,11 @@ export default function PlayerInfo({ career }: { career: Career }) {
   const player = career.profile;
   const seasonStart = Number(career.season.year.slice(0, 4));
   const age =
+    career.season.playerSnapshot?.age ??
+    player.currentAge ??
     player.startingAge.age +
-    seasonStart -
-    Number(player.startingAge.seasonYear.slice(0, 4));
+      seasonStart -
+      Number(player.startingAge.seasonYear.slice(0, 4));
   const draft = player.draft.undrafted
     ? `Undrafted · ${player.draft.year}`
     : `${player.draft.year} · Round ${player.draft.round}, pick ${player.draft.pick} · ${teamName(career.teams, player.draft.teamId)}`;

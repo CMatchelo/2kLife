@@ -10,6 +10,7 @@ export interface Provider {
   check(): Promise<Configuration>;
   test(): Promise<void>;
   extract?(images: ImportImage[], context: ImportContext): Promise<unknown>;
+  extractBoxScore?(image: ImportImage): Promise<unknown>;
 }
 export const TEST_PROMPT =
   "Reply with only OK. Do not use tools or read any files.";

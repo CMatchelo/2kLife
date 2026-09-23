@@ -135,6 +135,13 @@ export default function CalendarView({
               <span className="pointer-events-none absolute left-1 top-1 z-20 rounded-sm bg-slate-950/70 px-1 text-[10px] font-extrabold leading-4 text-slate-100 md:left-2 md:top-2 md:bg-transparent md:p-0 md:text-lg md:leading-normal md:text-slate-200">
                 {i + 1}
               </span>
+              {game?.category === "nbaCup" && (
+                <img
+                  src="/nbacup.png"
+                  alt="NBA Cup"
+                  className="pointer-events-none absolute right-1 top-0.5 z-30 h-6 w-6 object-contain drop-shadow-md md:right-2 md:top-1 md:h-9 md:w-9"
+                />
+              )}
               {events.length > 0 && (
                 <div
                   className={`pointer-events-none absolute inset-0 z-10 grid gap-0.5 md:inset-y-1.5 md:right-1.5 md:left-auto md:w-[46%] md:grid-cols-2 md:grid-rows-2 md:gap-1 ${mobileSponsorGrid}`}

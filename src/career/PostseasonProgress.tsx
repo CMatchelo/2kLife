@@ -3,6 +3,7 @@ import type { Career } from "../types/career";
 import type { PlayInGame, PlayoffSeries } from "../types/postseason";
 import { teamLogo, teamName } from "../domain/teams";
 import { api } from "./api";
+import SeasonReviewModal from "./SeasonReviewModal";
 
 const roundName: Record<string, string> = {
   firstRound: "First Round",
@@ -268,7 +269,7 @@ export default function PostseasonProgress({
   onSaved: (career: Career) => void;
 }) {
   const postseason = career.season.postseason;
-  const [error, setError] = useState("");
+  const [reviewOpen, setReviewOpen] = useState(false);
   if (!postseason) return null;
   const playerStanding = career.season.finalStandings?.find(
     (standing) => standing.teamId === career.profile.currentTeamId,
@@ -342,7 +343,7 @@ export default function PostseasonProgress({
           </div>
         )}
       </section>
-      {postseason.canCompleteSeason && (
+      {(postseason.canCompleteSeason || career.season.seasonReview) && (
         <div className="mt-7 rounded-xl border border-gold p-4">
           <h3 className="text-xl font-black">Season summary</h3>
           <p>
@@ -359,31 +360,20 @@ export default function PostseasonProgress({
           </p>
           <button
             className="ai-primary mt-3"
-            onClick={async () => {
-              try {
-                onSaved(
-                  await api<Career>(
-                    `careers/${career.id}/postseason/complete`,
-                    {},
-                  ),
-                );
-              } catch (cause) {
-                setError(
-                  cause instanceof Error
-                    ? cause.message
-                    : "Could not complete season.",
-                );
-              }
-            }}
+            onClick={() => setReviewOpen(true)}
           >
-            Confirm and End Season
+            {career.season.phase === "completed"
+              ? "View Season Review"
+              : "Confirm and End Season"}
           </button>
         </div>
       )}
-      {error && (
-        <p role="alert" className="mt-3 text-red-300">
-          {error}
-        </p>
+      {reviewOpen && (
+        <SeasonReviewModal
+          career={career}
+          onSaved={onSaved}
+          onClose={() => setReviewOpen(false)}
+        />
       )}
     </section>
   );

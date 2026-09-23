@@ -120,6 +120,11 @@ export type SponsorIneligibilityReason =
   | { code: "category_occupied"; category: CommercialCategory }
   | { code: "player_blocked" }
   | { code: "professionalism_blocked" }
+  | {
+      code: "insufficient_regular_season_games";
+      required: number;
+      remaining: number;
+    }
   | { code: "match_cooldown"; completedMatchesRemaining: number }
   | { code: "day_cooldown"; calendarDaysRemaining: number }
   | { code: "administrative_reset"; reason: string };

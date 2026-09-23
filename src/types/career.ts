@@ -60,6 +60,11 @@ export type Career = {
   createdAt: string;
   profile: MyProfile;
   season: Season;
+  /** True only when `season` is the mutable season used by progression. */
+  hasActiveSeason: boolean;
+  /** Every season, including the active one, ordered by season year. */
+  seasons: Season[];
+  newSeasonDraft?: NewSeasonDraft | null;
   teams: Team[];
   coverage: Coverage[];
 };
@@ -87,3 +92,23 @@ export type ImportResult = {
   duplicates: number;
   dates: string[];
 };
+
+export type NewSeasonSetupStep = 1 | 2 | 3 | 4;
+export type NewSeasonDraft = {
+  sourceSeasonId: string;
+  seasonYear: string;
+  age: number;
+  currentTeamId: string;
+  startDate: string;
+  regularSeasonEndDate: string;
+  nbaCupCountsTowardRegularSeason: boolean;
+  games: Game[];
+  unresolved: ImportReview[];
+  coverage: Coverage[];
+  step: NewSeasonSetupStep;
+};
+export type NewSeasonDraftMutation = {
+  requestId: string;
+  draft: NewSeasonDraft;
+};
+export type NewSeasonMutation = { requestId: string };

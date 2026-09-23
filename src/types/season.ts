@@ -7,8 +7,17 @@ import type {
   SeasonPhase,
   SeasonStanding,
 } from "./postseason.ts";
+import type { CompletedSeasonReview } from "./season-review.ts";
 
 export type Season = {
+  playerSnapshot?: {
+    age: number;
+    teamId: string;
+    position: import("./profile.ts").Position;
+    secondaryPosition?: import("./profile.ts").Position;
+  };
+  nbaCupCountsTowardRegularSeason?: boolean;
+  startDate?: string;
   seasonEndDate?: string | null;
   matchRecords?: PlayerMatchRecords;
   recordTrackedGameIds?: string[];
@@ -34,4 +43,5 @@ export type Season = {
   standingsHistory: StandingsSnapshot[];
   finalStandings?: SeasonStanding[];
   postseason?: PostseasonState | null;
+  seasonReview?: CompletedSeasonReview;
 };

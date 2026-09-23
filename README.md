@@ -1,6 +1,6 @@
 # 2kLife
 
-2kLife is a local companion app for a single-player NBA 2K career played through **MyNBA in the Modern Era with Player Lock**. Start a MyNBA save, lock the team to your chosen player, and use either a created player or an existing player or legend.
+2kLife is a local companion app for a single-player NBA 2K career played through **MyNBA in the Modern Era with Player Lock**. Start a MyNBA save, lock to your chosen player, and use either a created player or an existing player or legend.
 
 2kLife adds the career context that happens around the games: interviews, personality development, followers, sponsors, off-day decisions, signature shoes, finances, records, and postseason progression.
 
@@ -16,35 +16,26 @@ This project began as a personal idea and was built and refined with AI assistan
 
 - Create a local career with the player's profile, team, draft information, season, and starting date.
 - Build the NBA 2K calendar manually or import calendar screenshots through the configured AI provider.
-- Review and correct every game extracted from screenshots before saving it.
 - Track home and away games, opponents, game categories, rankings, injuries, starts, final scores, and box scores.
-- Advance through the career one in-game day at a time with the **Next Day** flow.
-- Store all career data locally in SQLite.
 
 ### Statistics and records
 
-- Calculate season and career statistics from saved matches.
-- Keep regular-season and playoff statistics separate.
+- Keep record season and career statistics from saved matches.
 - Track single-game records for each season and across the full career.
 - Display season progress, schedules, results, player information, and records.
 
 ### Interviews and personality
 
-- Evaluate completed games to decide when a postgame interview is appropriate.
-- Generate a grounded interview question and three answers through Codex or Claude.
-- Develop three personality traits through interview choices:
-  - **Star** — ambition and individual excellence
-  - **Team** — collective success and trust
-  - **Fan** — supporters, the city, and entertainment
-- Use previous interviews as context for occasional follow-up questions.
-- Keep deterministic app behavior even when AI-generated flavor text is unavailable.
+- Answer to post-game interviews according to your general and recent perfomances.
+- Develop three personality traits through interview choices
 
 ### Followers and personal life
 
 - Gain or lose followers from match performance.
 - Track follower changes from games and off-day activities.
-- Record relationships with selected players and teammates as affinity values.
-- Record affinity with selected teams and the player's current team.
+- Create relationships with selected players and teammates.
+- Create affinity with teams.
+
 
 In Version 1, affinity is tracked and displayed but does not yet affect trades or NBA contract negotiations.
 
@@ -56,38 +47,36 @@ In Version 1, affinity is tracked and displayed but does not yet affect trades o
 - Schedule sponsor appearances when a contract is signed.
 - Attend or refuse sponsor invitations alongside other off-day opportunities.
 - Process contract expiration, settlement, renewals, cooldowns, and permanent professionalism blocks.
-- Prevent simultaneous sponsorships in the same commercial category.
 - Track all sponsor income and expenses in an append-only financial ledger.
 
 ### Off-day events
 
 - Receive sponsor, team, player, fan, and charity invitations on eligible off days.
 - Choose one invitation when several events compete for the same date, or refuse all.
-- Apply event effects to followers, identity, finances, team affinity, and player relationships.
-- Use AI-generated event descriptions with deterministic fallback copy.
 
 ### Signature shoes
 
-- Unlock up to two signature shoes through attended events for an active footwear sponsor.
-- Name each shoe and optionally upload an image of the shoe created inside NBA 2K.
-- Calculate sales after completed matches using brand tier, followers, recent performance, launch boosts, and controlled variation.
+- Lauch your own shoe and profit from its sales.
+- Name each shoe and upload an image of the shoe created inside NBA 2K.
 - Track units sold, revenue, launch status, and player royalties.
-- Credit royalties to the financial ledger after every eligible match.
+- Win royalties after every eligible match.
 
 ### Postseason
 
 - Enter and order final Eastern and Western Conference standings.
 - Complete the NBA Play-In Tournament and full playoff bracket.
-- Add the player's possible Play-In and playoff games to the calendar.
-- Derive the player's series results from completed matches while manually resolving other teams' matchups.
-- Track conference champions, the NBA champion, and the player's final postseason result.
+- Track the whole post-season, from the play-in to the NBA champion
 
 ## Planned features
 
+These are ideas still to be implemented on this companion. Feel free to help or give more ideas
+
 - Make player relationships and team affinity affect future career events.
+- Use your network to arrange the creation of a super team.
 - Add trade discussions and trade negotiations.
 - Add NBA player-contract and free-agency negotiations.
-- Add the full transition from a completed season into the next season.
+- Active finaltial live, with houses, cars, and luxury itens to spend money on
+- Use data from previous seasons in AI generated interviews
 
 ## Technology
 
@@ -101,7 +90,7 @@ In Version 1, affinity is tracked and displayed but does not yet affect trades o
 - oxlint
 - Optional Codex CLI or Claude integration for AI-generated content and screenshot extraction
 
-The frontend and backend both run only on the local machine. The project is designed as a personal desktop-style web app and should not be exposed publicly.
+The frontend and backend both run on local machine.
 
 ## Requirements
 

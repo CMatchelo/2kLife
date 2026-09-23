@@ -9,6 +9,7 @@ import {
 } from "../domain/gameDetails";
 import { teamName } from "../domain/teams";
 import { api } from "./api";
+import type { ConnectionSnapshot } from "../types/connection";
 export default function MatchEditor({
   game,
   career,
@@ -24,15 +25,17 @@ export default function MatchEditor({
   const lock = useRef(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [statImage, setStatImage] = useState<File | null>(null);
+  const [extracting, setExtracting] = useState(false);
   const [fields, setFields] = useState<GameDetails>(() => ({
     status: game.status,
     teamScore: game.teamScore,
     opponentScore: game.opponentScore,
     currentPosition: game.currentPosition,
     opponentPosition: game.opponentPosition,
-    played: game.played,
-    injured: game.injured,
-    starter: game.starter,
+    played: game.status === "scheduled" ? true : game.played,
+    injured: game.status === "scheduled" ? false : game.injured,
+    starter: game.status === "scheduled" ? true : game.starter,
     stats: game.stats,
   }));
   useEffect(() => {
@@ -84,7 +87,7 @@ export default function MatchEditor({
           {teamName(career.teams, game.teamId)} vs{" "}
           {teamName(career.teams, game.opponentId)}
         </p>
-        <fieldset disabled={saving} className="space-y-4">
+        <fieldset disabled={saving || extracting} className="space-y-4">
           {/* Temporary shortcut for testing records and postgame interviews. */}
           <div className="flex flex-wrap gap-3">
             <button
@@ -432,21 +435,96 @@ export default function MatchEditor({
                   Record your points, shooting, assists, rebounds, and other
                   player stats. Adding a box score sets Played to Yes.
                 </p>
-                <button
-                  type="button"
-                  className="ai-secondary"
-                  onClick={() =>
-                    setFields({
-                      ...fields,
-                      played: true,
-                      stats: Object.fromEntries(
-                        Object.keys(statLabels).map((key) => [key, 0]),
-                      ) as BoxScore,
-                    })
-                  }
-                >
-                  Add my box score
-                </button>
+                <div className="flex flex-wrap items-end gap-3">
+                  <button
+                    type="button"
+                    className="ai-secondary"
+                    onClick={() =>
+                      setFields({
+                        ...fields,
+                        played: true,
+                        stats: Object.fromEntries(
+                          Object.keys(statLabels).map((key) => [key, 0]),
+                        ) as BoxScore,
+                      })
+                    }
+                  >
+                    Add my box score
+                  </button>
+                  <label className="career-field min-w-56">
+                    <span>Box score screenshot</span>
+                    <input
+                      type="file"
+                      accept="image/png,image/jpeg,image/webp"
+                      onChange={(event) => {
+                        setError("");
+                        setStatImage(event.target.files?.[0] ?? null);
+                      }}
+                    />
+                  </label>
+                  <button
+                    type="button"
+                    className="ai-secondary"
+                    disabled={!statImage || extracting}
+                    onClick={async () => {
+                      if (!statImage) return;
+                      setError("");
+                      setExtracting(true);
+                      try {
+                        if (
+                          !["image/png", "image/jpeg", "image/webp"].includes(
+                            statImage.type,
+                          ) ||
+                          statImage.size > 4 * 1024 * 1024
+                        )
+                          throw new Error(
+                            "Use a PNG, JPEG, or WebP image up to 4 MiB.",
+                          );
+                        const dataUrl = await new Promise<string>(
+                          (resolve, reject) => {
+                            const reader = new FileReader();
+                            reader.onload = () =>
+                              resolve(String(reader.result));
+                            reader.onerror = () =>
+                              reject(new Error("Image could not be read."));
+                            reader.readAsDataURL(statImage);
+                          },
+                        );
+                        const connection =
+                          await api<ConnectionSnapshot>("ai/status");
+                        if (
+                          !connection.selectedProvider ||
+                          !connection.importReady
+                        )
+                          throw new Error(
+                            "Connect and test an AI provider before filling stats from an image.",
+                          );
+                        const stats = await api<BoxScore>("ai/box-score", {
+                          provider: connection.selectedProvider,
+                          image: {
+                            mediaType: statImage.type,
+                            data: dataUrl.split(",")[1],
+                          },
+                        });
+                        setFields((current) => ({
+                          ...current,
+                          played: true,
+                          stats,
+                        }));
+                      } catch (cause) {
+                        setError(
+                          cause instanceof Error
+                            ? cause.message
+                            : "Could not read stats from this image.",
+                        );
+                      } finally {
+                        setExtracting(false);
+                      }
+                    }}
+                  >
+                    {extracting ? "Reading image…" : "Fill using image"}
+                  </button>
+                </div>
               </>
             )}
           </section>

@@ -12,6 +12,8 @@ import type { IncomingMessage } from "node:http";
 import { CareerStore, ValidationError } from "./careers.ts";
 import { parseImportRequest } from "./import-request.ts";
 import { normalizeImport } from "../src/domain/import.ts";
+import { parseBoxScoreImportRequest } from "./box-score-import-request.ts";
+import { normalizeExtractedBoxScore } from "../src/domain/boxScoreImport.ts";
 import { advanceCareerDay } from "./progression.ts";
 import { calendarDate } from "../src/domain/calendarDate.ts";
 import type { AdvanceDayRequest } from "../src/types/progression.ts";
@@ -27,6 +29,10 @@ import { SignatureShoeError } from "./signature-shoes.ts";
 import type { SignatureShoeLaunchMutation } from "../src/types/signature-shoe.ts";
 import { PostseasonError } from "./postseason.ts";
 import type { PostseasonScheduleInput } from "../src/types/postseason.ts";
+import type {
+  CompleteSeasonReviewMutation,
+  SaveSeasonReviewDraftMutation,
+} from "../src/types/season-review.ts";
 
 async function readBody(req: IncomingMessage, limit: number): Promise<unknown> {
   if (req.headers["content-type"] !== "application/json")
@@ -253,6 +259,32 @@ export function connectionServer(
           return send(
             201,
             careers.create(await readBody(req, 2 * 1024 * 1024)),
+          );
+      }
+      const newSeasonRoute = req.url?.match(
+        /^\/api\/careers\/([\w-]+)\/new-season(?:\/(draft|discard|start))?$/,
+      );
+      if (careers && newSeasonRoute) {
+        const [, careerId, action] = newSeasonRoute;
+        if (req.method === "GET" && !action)
+          return send(200, careers.newSeasonDraft(careerId));
+        if (req.method === "POST" && action === "draft")
+          return send(
+            200,
+            careers.saveNewSeasonDraft(
+              careerId,
+              await readBody(req, 2 * 1024 * 1024),
+            ),
+          );
+        if (req.method === "POST" && action === "discard")
+          return send(
+            200,
+            careers.discardNewSeasonDraft(careerId, await readBody(req, 4096)),
+          );
+        if (req.method === "POST" && action === "start")
+          return send(
+            200,
+            careers.startNewSeason(careerId, await readBody(req, 4096)),
           );
       }
       const currentTeamRoute = req.url?.match(
@@ -609,7 +641,26 @@ export function connectionServer(
       if (careers && completeSeasonRoute && req.method === "POST")
         return send(
           200,
-          careers.postseason.completeSeason(completeSeasonRoute[1]),
+          careers.postseason.completeSeason(
+            completeSeasonRoute[1],
+            (await readBody(req, 64 * 1024)) as CompleteSeasonReviewMutation,
+          ),
+        );
+      const seasonReviewRoute = req.url?.match(
+        /^\/api\/careers\/([\w-]+)\/postseason\/season-review$/,
+      );
+      if (careers && seasonReviewRoute && req.method === "GET")
+        return send(200, careers.postseason.seasonReview(seasonReviewRoute[1]));
+      const seasonReviewDraftRoute = req.url?.match(
+        /^\/api\/careers\/([\w-]+)\/postseason\/season-review\/draft$/,
+      );
+      if (careers && seasonReviewDraftRoute && req.method === "POST")
+        return send(
+          200,
+          careers.postseason.saveSeasonReviewDraft(
+            seasonReviewDraftRoute[1],
+            (await readBody(req, 64 * 1024)) as SaveSeasonReviewDraftMutation,
+          ),
         );
       if (careers && careerMatch) {
         if (req.method === "GET") {
@@ -664,6 +715,51 @@ export function connectionServer(
         );
       }
       const settings = await readSettings(settingsFile);
+      if (req.url === "/api/ai/box-score" && req.method === "POST") {
+        const body = await readBody(req, 6 * 1024 * 1024);
+        const { provider: requestedProvider, image } =
+          parseBoxScoreImportRequest(body);
+        const id = settings.selectedProvider;
+        if (
+          !id ||
+          requestedProvider !== id ||
+          !verified[id] ||
+          Date.now() - verified[id]! > 300000
+        )
+          return send(409, {
+            message:
+              "Connect and explicitly test the selected AI provider before filling stats from an image.",
+          });
+        try {
+          const provider = providers[id];
+          const config = await provider.check();
+          if (!config.configured || !provider.extractBoxScore) {
+            delete verified[id];
+            return send(409, {
+              message:
+                "AI is unavailable. Connect AI or enter the stats manually.",
+            });
+          }
+          try {
+            const raw = await provider.extractBoxScore(image);
+            return send(200, normalizeExtractedBoxScore(raw));
+          } catch (error) {
+            if (
+              error instanceof Error &&
+              /AI|box-score|rebounds|shots|points/i.test(error.message)
+            )
+              return send(422, {
+                message: `${error.message} Try the screenshot again or enter the stats manually.`,
+              });
+            throw error;
+          }
+        } catch (error) {
+          delete verified[id];
+          return send(502, {
+            message: `${safeError(error)} Your match is unchanged; you can retry or enter stats manually.`,
+          });
+        }
+      }
       if (req.url === "/api/ai/import" && req.method === "POST") {
         const body = await readBody(req, 18 * 1024 * 1024);
         const { context, images } = parseImportRequest(body);

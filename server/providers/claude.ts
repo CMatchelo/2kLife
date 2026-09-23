@@ -16,6 +16,10 @@ import {
   dailySponsorEventsPrompt,
   dailySponsorEventsSchema,
 } from "../../src/domain/dailySponsorEvents.ts";
+import {
+  boxScoreExtractionPrompt,
+  boxScoreExtractionSchema,
+} from "../../src/domain/boxScoreImport.ts";
 
 export type RunClaude = (args: string[], cwd?: string) => Promise<string>;
 
@@ -113,6 +117,85 @@ export function claudeProvider(
 ): Provider {
   const hasKey = () => !!env.ANTHROPIC_API_KEY?.trim();
   return {
+    async extractBoxScore(image) {
+      if (hasKey()) {
+        const reply = await makeClient(env.ANTHROPIC_API_KEY!).messages.create(
+          {
+            model: env.ANTHROPIC_MODEL?.trim() || "claude-haiku-4-5-20251001",
+            max_tokens: 1200,
+            tools: [
+              {
+                name: "extract_box_score",
+                description: "Return the highlighted player's game statistics.",
+                input_schema:
+                  boxScoreExtractionSchema as unknown as Anthropic.Tool.InputSchema,
+              },
+            ],
+            tool_choice: { type: "tool", name: "extract_box_score" },
+            messages: [
+              {
+                role: "user",
+                content: [
+                  {
+                    type: "image",
+                    source: {
+                      type: "base64",
+                      media_type: image.mediaType,
+                      data: image.data,
+                    },
+                  },
+                  { type: "text", text: boxScoreExtractionPrompt() },
+                ],
+              },
+            ],
+          },
+          { timeout: 120000 },
+        );
+        const block = reply.content.find(
+          (item) =>
+            item.type === "tool_use" && item.name === "extract_box_score",
+        );
+        if (!block || block.type !== "tool_use")
+          throw new Error("No structured box score returned.");
+        return block.input;
+      }
+      const directory = await mkdtemp(join(tmpdir(), "2klife-box-score-"));
+      try {
+        const name = `image.${image.mediaType.split("/")[1]}`;
+        await writeFile(
+          join(directory, name),
+          Buffer.from(image.data, "base64"),
+          { mode: 0o600 },
+        );
+        const prompt = `${boxScoreExtractionPrompt([name])}\nUse the Read tool to open the screenshot, then use the Write tool to save only the JSON object to result.json.`;
+        const output = await run(
+          [
+            "-p",
+            prompt,
+            "--output-format",
+            "json",
+            "--add-dir",
+            directory,
+            "--allowedTools",
+            "Read Write",
+            "--permission-mode",
+            "acceptEdits",
+          ],
+          directory,
+        );
+        const spoken = parseCliResult(output);
+        const written = await readFile(
+          join(directory, "result.json"),
+          "utf8",
+        ).catch(() => "");
+        const json = firstJsonObject(written) ?? firstJsonObject(spoken);
+        if (!json)
+          throw new Error("Claude CLI did not return a JSON box score.");
+        return JSON.parse(json);
+      } finally {
+        await rm(directory, { recursive: true, force: true });
+      }
+    },
     async dailySponsorEvents(context) {
       if (hasKey()) {
         const reply = await makeClient(env.ANTHROPIC_API_KEY!).messages.create(

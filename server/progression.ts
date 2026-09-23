@@ -228,6 +228,16 @@ export function advanceCareerDay(
     db.exec("BEGIN IMMEDIATE");
     transaction = true;
     career = store.get(careerId)!;
+    if (!career.hasActiveSeason) {
+      const result = remember({
+        kind: "season_completed",
+        career,
+        message: "This season is complete. Start the next season to continue.",
+      });
+      db.exec("COMMIT");
+      transaction = false;
+      return result;
+    }
     if (career.season.phase === "completed") {
       const result = remember({
         kind: "season_completed",

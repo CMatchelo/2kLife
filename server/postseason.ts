@@ -21,6 +21,19 @@ import {
 } from "../src/domain/postseason.ts";
 import { calendarDate } from "../src/domain/calendarDate.ts";
 import { seasonMonths } from "../src/domain/career.ts";
+import {
+  normalizeSeasonAwards,
+  parseSeasonReviewDraftAwards,
+} from "../src/domain/seasonReview.ts";
+import type {
+  CompleteSeasonReviewMutation,
+  CompletedSeasonReview,
+  SaveSeasonReviewDraftMutation,
+  SeasonAwards,
+  SeasonReviewDraft,
+  SeasonReviewResponse,
+  SeasonReviewStep,
+} from "../src/types/season-review.ts";
 
 export class PostseasonError extends Error {
   status: number;
@@ -80,6 +93,19 @@ export function migratePostseason(db: DatabaseSync) {
     CREATE INDEX IF NOT EXISTS play_in_bracket ON play_in_games(bracket_id,conference);
     CREATE INDEX IF NOT EXISTS playoff_series_bracket ON playoff_series(bracket_id,round);
     CREATE INDEX IF NOT EXISTS postseason_pending_schedule ON postseason_schedule_requirements(career_id,season_id,status);
+    CREATE TABLE IF NOT EXISTS season_review_drafts (
+      season_id TEXT PRIMARY KEY REFERENCES seasons(id) ON DELETE CASCADE,
+      career_id TEXT NOT NULL REFERENCES careers(id) ON DELETE CASCADE,
+      awards TEXT NOT NULL, current_step INTEGER NOT NULL CHECK(current_step BETWEEN 1 AND 5),
+      created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS season_review_mutations (
+      career_id TEXT NOT NULL REFERENCES careers(id) ON DELETE CASCADE,
+      request_id TEXT NOT NULL, season_id TEXT NOT NULL REFERENCES seasons(id) ON DELETE CASCADE,
+      kind TEXT NOT NULL CHECK(kind IN ('saveDraft','complete')), result TEXT NOT NULL,
+      completed_at TEXT NOT NULL, PRIMARY KEY(career_id,request_id)
+    );
+    CREATE INDEX IF NOT EXISTS season_review_drafts_career ON season_review_drafts(career_id,season_id);
   `);
   const columns = new Set(
     (db.prepare("PRAGMA table_info(games)").all() as { name: string }[]).map(
@@ -216,6 +242,191 @@ export class PostseasonService {
         !!b.nba_champion_team_id &&
         !q,
     };
+  }
+
+  seasonReview(careerId: string): SeasonReviewResponse {
+    const career = this.getCareer(careerId);
+    if (!career) throw new PostseasonError("Career not found.", 404);
+    if (career.season.seasonReview)
+      return { status: "completed", review: career.season.seasonReview };
+    const row: any = this.db
+      .prepare(
+        "SELECT * FROM season_review_drafts WHERE career_id=? AND season_id=?",
+      )
+      .get(careerId, career.season.id);
+    return {
+      status: "draft",
+      review: row
+        ? {
+            careerId,
+            seasonId: career.season.id,
+            awards: JSON.parse(String(row.awards)) as SeasonAwards,
+            currentStep: Number(row.current_step) as SeasonReviewStep,
+            updatedAt: String(row.updated_at),
+          }
+        : {
+            careerId,
+            seasonId: career.season.id,
+            awards: { teamEntries: [], individualEntries: [] },
+            currentStep: 1,
+            updatedAt: new Date().toISOString(),
+          },
+    };
+  }
+
+  saveSeasonReviewDraft(
+    careerId: string,
+    raw: SaveSeasonReviewDraftMutation,
+  ): SeasonReviewResponse {
+    const career = this.getCareer(careerId);
+    if (!career) throw new PostseasonError("Career not found.", 404);
+    if (career.season.phase !== "postseason")
+      throw new PostseasonError(
+        "Only an unfinished postseason can have an editable season review.",
+        409,
+      );
+    this.validateReviewRequest(raw?.requestId);
+    if (
+      !Number.isInteger(raw?.currentStep) ||
+      raw.currentStep < 1 ||
+      raw.currentStep > 5
+    )
+      throw new PostseasonError("Choose a valid Season Review step.");
+    let awards: SeasonAwards;
+    try {
+      awards = parseSeasonReviewDraftAwards(raw?.awards, career.teams);
+    } catch (error) {
+      throw new PostseasonError(
+        error instanceof Error ? error.message : "Invalid season awards.",
+      );
+    }
+    const previous: any = this.db
+      .prepare(
+        "SELECT kind,result FROM season_review_mutations WHERE career_id=? AND request_id=?",
+      )
+      .get(careerId, raw.requestId);
+    if (previous) {
+      if (previous.kind !== "saveDraft")
+        throw new PostseasonError(
+          "This request ID was already used for another operation.",
+          409,
+        );
+      return JSON.parse(String(previous.result)) as SeasonReviewResponse;
+    }
+    const now = new Date().toISOString();
+    const review: SeasonReviewDraft = {
+      careerId,
+      seasonId: career.season.id,
+      awards,
+      currentStep: raw.currentStep,
+      updatedAt: now,
+    };
+    const response: SeasonReviewResponse = { status: "draft", review };
+    this.db.exec("BEGIN IMMEDIATE");
+    try {
+      this.db
+        .prepare(
+          `INSERT INTO season_review_drafts
+        (season_id,career_id,awards,current_step,created_at,updated_at) VALUES (?,?,?,?,?,?)
+        ON CONFLICT(season_id) DO UPDATE SET awards=excluded.awards,current_step=excluded.current_step,updated_at=excluded.updated_at`,
+        )
+        .run(
+          career.season.id,
+          careerId,
+          JSON.stringify(awards),
+          raw.currentStep,
+          now,
+          now,
+        );
+      this.db
+        .prepare("INSERT INTO season_review_mutations VALUES (?,?,?,?,?,?)")
+        .run(
+          careerId,
+          raw.requestId,
+          career.season.id,
+          "saveDraft",
+          JSON.stringify(response),
+          now,
+        );
+      this.db.exec("COMMIT");
+    } catch (error) {
+      this.db.exec("ROLLBACK");
+      throw error;
+    }
+    return response;
+  }
+
+  private validateReviewRequest(requestId: unknown) {
+    if (typeof requestId !== "string" || !/^[\w-]{20,80}$/.test(requestId))
+      throw new PostseasonError(
+        "Invalid Season Review request. Reload and retry.",
+      );
+  }
+
+  private assertBracketAgreesWithPlayerGames(
+    career: Career,
+    state: PostseasonState,
+  ) {
+    if (!state.canCompleteSeason || state.pendingSchedule)
+      throw new PostseasonError(
+        "Complete every Play-In game and playoff series before ending the season.",
+        409,
+      );
+    const byId = new Map(career.season.games.map((game) => [game.id, game]));
+    for (const playIn of state.playInGames) {
+      if (!playIn.playerMatchId) continue;
+      const game = byId.get(playIn.playerMatchId);
+      if (
+        !game ||
+        game.status !== "completed" ||
+        game.teamScore == null ||
+        game.opponentScore == null
+      )
+        throw new PostseasonError(
+          "A required player-team postseason game is unfinished.",
+          409,
+        );
+      const first =
+        playIn.firstTeamId === game.teamId
+          ? game.teamScore
+          : game.opponentScore;
+      const second =
+        playIn.secondTeamId === game.teamId
+          ? game.teamScore
+          : game.opponentScore;
+      const outcome = playInOutcome({
+        firstTeamId: playIn.firstTeamId!,
+        secondTeamId: playIn.secondTeamId!,
+        firstTeamScore: first,
+        secondTeamScore: second,
+      });
+      if (!outcome || outcome.winnerTeamId !== playIn.winnerTeamId)
+        throw new PostseasonError(
+          "The postseason bracket no longer agrees with the player's saved matches.",
+          409,
+        );
+    }
+    for (const series of state.playoffSeries) {
+      if (
+        ![series.firstTeamId, series.secondTeamId].includes(
+          career.profile.currentTeamId,
+        )
+      )
+        continue;
+      const score = playerSeriesScore(
+        series,
+        career.season.games,
+        career.profile.currentTeamId,
+      );
+      if (
+        score.firstTeamWins !== series.firstTeamWins ||
+        score.secondTeamWins !== series.secondTeamWins
+      )
+        throw new PostseasonError(
+          "The postseason bracket no longer agrees with the player's saved matches.",
+          409,
+        );
+    }
   }
 
   confirmStandings(careerId: string, raw: unknown): Career {
@@ -918,15 +1129,70 @@ export class PostseasonService {
     }
   }
 
-  completeSeason(careerId: string): Career {
+  completeSeason(careerId: string, raw: CompleteSeasonReviewMutation): Career {
     const career = this.getCareer(careerId);
     if (!career) throw new PostseasonError("Career not found.", 404);
+    this.validateReviewRequest(raw?.requestId);
+    const previous: any = this.db
+      .prepare(
+        "SELECT kind FROM season_review_mutations WHERE career_id=? AND request_id=?",
+      )
+      .get(careerId, raw.requestId);
+    if (previous) {
+      if (previous.kind !== "complete")
+        throw new PostseasonError(
+          "This request ID was already used for another operation.",
+          409,
+        );
+      return career;
+    }
+    if (career.season.phase === "completed" && career.season.seasonReview)
+      return career;
     const state = this.state(careerId, career.season.id);
-    if (!state?.canCompleteSeason)
+    if (!state)
       throw new PostseasonError(
         "Complete every Play-In game and playoff series before ending the season.",
         409,
       );
+    this.assertBracketAgreesWithPlayerGames(career, state);
+    let awards: SeasonAwards;
+    try {
+      awards = normalizeSeasonAwards(raw?.awards, career.teams);
+    } catch (error) {
+      throw new PostseasonError(
+        error instanceof Error ? error.message : "Invalid season awards.",
+      );
+    }
+    const playerStanding = career.season.finalStandings?.find(
+      (standing) => standing.teamId === career.profile.currentTeamId,
+    );
+    if (
+      !career.season.finalStandings ||
+      career.season.finalStandings.length !== 30 ||
+      !playerStanding ||
+      !state.eastChampionTeamId ||
+      !state.westChampionTeamId ||
+      !state.nbaChampionTeamId ||
+      !state.playerPostseasonResult
+    )
+      throw new PostseasonError(
+        "The final league results are incomplete.",
+        409,
+      );
+    const completedAt = new Date().toISOString();
+    const review: CompletedSeasonReview = {
+      careerId,
+      seasonId: career.season.id,
+      standings: career.season.finalStandings,
+      eastChampionTeamId: state.eastChampionTeamId,
+      westChampionTeamId: state.westChampionTeamId,
+      nbaChampionTeamId: state.nbaChampionTeamId,
+      playerTeamId: career.profile.currentTeamId,
+      playerConferenceSeed: playerStanding.position,
+      playerPostseasonResult: state.playerPostseasonResult,
+      awards,
+      completedAt,
+    };
     this.db.exec("BEGIN IMMEDIATE");
     try {
       const row: any = this.db
@@ -940,6 +1206,7 @@ export class PostseasonService {
       season.phase = "completed";
       season.status = "completed";
       season.playoffs.result = state.playerPostseasonResult;
+      season.seasonReview = review;
       this.db
         .prepare("UPDATE seasons SET data=? WHERE id=?")
         .run(JSON.stringify(season), career.season.id);
@@ -947,7 +1214,20 @@ export class PostseasonService {
         .prepare(
           "UPDATE postseason_brackets SET status='completed',updated_at=? WHERE id=?",
         )
-        .run(new Date().toISOString(), state.id);
+        .run(completedAt, state.id);
+      this.db
+        .prepare("DELETE FROM season_review_drafts WHERE season_id=?")
+        .run(career.season.id);
+      this.db
+        .prepare("INSERT INTO season_review_mutations VALUES (?,?,?,?,?,?)")
+        .run(
+          careerId,
+          raw.requestId,
+          career.season.id,
+          "complete",
+          JSON.stringify({ completed: true }),
+          completedAt,
+        );
       this.db.exec("COMMIT");
     } catch (e) {
       this.db.exec("ROLLBACK");

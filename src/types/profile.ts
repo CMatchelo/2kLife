@@ -13,6 +13,7 @@ export type MyProfile = {
   id: string;
   name: string;
   startingAge: { age: number; seasonYear: string };
+  currentAge?: number;
   position: Position;
   secondaryPosition?: Position;
   currentTeamId: string;
