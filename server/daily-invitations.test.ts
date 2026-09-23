@@ -5,6 +5,7 @@ import { CareerStore } from "./careers.ts";
 import { DailyInvitationService } from "./daily-invitations.ts";
 import { scheduledGame } from "../src/domain/career.ts";
 import {
+  charityRefusalDonationUsdCents,
   dailySponsorEventsPrompt,
   fallbackDailyEvent,
   validateDailySponsorEvents,
@@ -65,6 +66,13 @@ function sequence(values: number[]) {
   let index = 0;
   return () => values[Math.min(index++, values.length - 1)] ?? 0;
 }
+
+test("charity refusal donation is 10% with $5,000 and $5 million bounds", () => {
+  assert.equal(charityRefusalDonationUsdCents(0), 500_000);
+  assert.equal(charityRefusalDonationUsdCents(2_000_000), 500_000);
+  assert.equal(charityRefusalDonationUsdCents(100_000_000), 10_000_000);
+  assert.equal(charityRefusalDonationUsdCents(10_000_000_000), 500_000_000);
+});
 
 test("non-sponsor quantity uses 65/30/5 thresholds and categories never repeat", () => {
   for (const [roll, expected] of [

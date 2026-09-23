@@ -5,6 +5,7 @@ import type { Career } from "../src/types/career.ts";
 import type { Provider } from "./providers/shared.ts";
 import { modernTeams, teamName } from "../src/domain/teams.ts";
 import {
+  charityRefusalDonationUsdCents,
   fallbackDailyEvent,
   nonSponsorEventTypes,
   sponsorEventTypes,
@@ -421,6 +422,7 @@ export class DailyInvitationService {
       eventWindowId: row.event_window_id ? String(row.event_window_id) : null,
       status: String(row.status) as "pending" | "resolved",
       invitations,
+      currentBalanceUsdCents: this.balance(careerId),
       resolvedAt: row.resolved_at ? String(row.resolved_at) : null,
     };
   }
@@ -664,6 +666,7 @@ export class DailyInvitationService {
       }
       const results: DailyEventResult[] = [];
       const followerBaseline = career.profile.socialMedia.currentFollowers;
+      const balanceBaseline = this.balance(career.id);
       for (const item of pending) {
         if (item.type === "sponsor" && item.id !== selected?.id) continue;
         results.push(
@@ -675,6 +678,7 @@ export class DailyInvitationService {
             mutation,
             timestamp,
             followerBaseline,
+            balanceBaseline,
           ),
         );
       }
@@ -737,6 +741,7 @@ export class DailyInvitationService {
     mutation: DailyInvitationMutation,
     timestamp: string,
     followerBaseline: number,
+    balanceBaseline: number,
   ) {
     const reference = `invitation:${selected.id}:attendance`,
       resultId = randomUUID();
@@ -856,7 +861,7 @@ export class DailyInvitationService {
         identities.fan = 1;
         followers = this.integer(750, 2000);
       } else {
-        payment = -500000;
+        payment = -charityRefusalDonationUsdCents(balanceBaseline);
         this.db
           .prepare(
             `INSERT OR IGNORE INTO financial_transactions (id,career_id,amount_usd_cents,currency,in_game_date,recorded_at,origin_type,origin_reference,reason,invitation_reference,idempotency_key,description) VALUES (?,?,?,'USD',?,?,'charity',?,'event_expense',?,?,?)`,
@@ -870,7 +875,7 @@ export class DailyInvitationService {
             selected.id,
             selected.id,
             `${reference}:payment`,
-            `$5,000 donation sent to compensate for missing ${eventTitle}`,
+            `${selected.sourceName} donation sent to compensate for missing ${eventTitle}`,
           );
       }
     }

@@ -129,6 +129,7 @@ export type DailyDecisionGroup = {
   eventWindowId: string | null;
   status: "pending" | "resolved";
   invitations: DailyInvitation[];
+  currentBalanceUsdCents: number;
   resolvedAt: string | null;
 };
 export type GeneratedDailyEvent = {

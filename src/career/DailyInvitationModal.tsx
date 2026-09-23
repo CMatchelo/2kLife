@@ -1,7 +1,10 @@
 import { createPortal } from "react-dom";
 import { useEffect, useRef, useState } from "react";
 import { api } from "./api";
-import { eventLabel } from "../domain/dailySponsorEvents";
+import {
+  charityRefusalDonationUsdCents,
+  eventLabel,
+} from "../domain/dailySponsorEvents";
 import type {
   DailyDecisionGroup,
   DailyEventResult,
@@ -19,42 +22,50 @@ const integer = new Intl.NumberFormat("en-US");
 const signed = (value: number) =>
   `${value >= 0 ? "+" : "−"}${integer.format(Math.abs(value))}`;
 
-const declineEffect = (type: DailyInvitationType, followers: number) => {
+const declineEffect = (
+  type: DailyInvitationType,
+  followers: number,
+  balanceUsdCents: number,
+) => {
   if (type === "team") return "−1 team affinity";
   if (type === "player") return "−1 player affinity";
   if (type === "fan")
     return `Lose up to ${integer.format(Math.min(10000, Math.floor(followers * 0.1)))} followers (random roll 100–10,000, capped at 10%)`;
   if (type === "charity")
-    return "$5,000 donation sent to compensate for your absence";
+    return `${money(charityRefusalDonationUsdCents(balanceUsdCents))} donation sent to compensate for your absence`;
   return "The appearance remains subject to the existing sponsor-contract consequences";
 };
 
-const invitationEffects = (type: DailyInvitationType, followers: number) => {
+const invitationEffects = (
+  type: DailyInvitationType,
+  followers: number,
+  balanceUsdCents: number,
+) => {
   if (type === "team")
     return {
       reward: "+1 Team identity and +1 team affinity",
-      penalty: declineEffect(type, followers),
+      penalty: declineEffect(type, followers, balanceUsdCents),
     };
   if (type === "player")
     return {
       reward: "+1 Star identity and +1 player affinity",
-      penalty: declineEffect(type, followers),
+      penalty: declineEffect(type, followers, balanceUsdCents),
     };
   if (type === "fan") {
     const cap = Math.min(15000, Math.max(1000, Math.floor(followers * 0.3)));
     return {
       reward: `+1 Fan identity and 1,000–${integer.format(cap)} followers (maximum 30% with a 1,000-follower minimum)`,
-      penalty: declineEffect(type, followers),
+      penalty: declineEffect(type, followers, balanceUsdCents),
     };
   }
   if (type === "charity")
     return {
       reward: "+1 Fan identity and 750–2,000 followers",
-      penalty: declineEffect(type, followers),
+      penalty: declineEffect(type, followers, balanceUsdCents),
     };
   return {
     reward: "Payment, followers, and one attended contract appearance",
-    penalty: declineEffect(type, followers),
+    penalty: declineEffect(type, followers, balanceUsdCents),
   };
 };
 
@@ -271,7 +282,13 @@ export default function DailyInvitationModal({
     );
     const consequences = declined
       .filter((item) => item.type !== "sponsor")
-      .map((item) => declineEffect(item.type, currentFollowers));
+      .map((item) =>
+        declineEffect(
+          item.type,
+          currentFollowers,
+          initial.currentBalanceUsdCents,
+        ),
+      );
     if (
       consequences.length &&
       !window.confirm(
@@ -383,6 +400,7 @@ export default function DailyInvitationModal({
               const effects = invitationEffects(
                 invitation.type,
                 currentFollowers,
+                initial.currentBalanceUsdCents,
               );
               return (
                 <article

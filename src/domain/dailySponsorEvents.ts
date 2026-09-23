@@ -98,6 +98,12 @@ export const eventLabel = (type: DailyEventType | null) =>
         .replaceAll("_", " ")
         .replace(/\b\w/g, (letter) => letter.toUpperCase())
     : "Scheduled sponsor event";
+
+export const charityRefusalDonationUsdCents = (balanceUsdCents: number) =>
+  Math.min(
+    500_000_000,
+    Math.max(500_000, Math.floor(Math.max(0, balanceUsdCents) * 0.1)),
+  );
 const text = { type: "string", minLength: 1, maxLength: 700 };
 export const dailySponsorEventsSchema = {
   type: "object",
