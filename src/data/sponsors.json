@@ -1,0 +1,2016 @@
+{
+  "schemaVersion": 1,
+  "currency": "USD",
+  "moneyUnit": "dollars",
+  "percentageUnit": "fraction",
+  "tiers": {
+    "entry": {
+      "minimumFollowers": 0,
+      "footwearRoyaltyRate": 0.2
+    },
+    "middle": {
+      "minimumFollowers": 50000,
+      "footwearRoyaltyRate": 0.3
+    },
+    "top": {
+      "minimumFollowers": 200000,
+      "footwearRoyaltyRate": 0.5
+    }
+  },
+  "brands": [
+    {
+      "id": "qiaodan",
+      "name": "Qiaodan",
+      "kind": "footwear",
+      "category": "footwear",
+      "tier": "entry",
+      "preferredIdentities": [
+        "star",
+        "team"
+      ],
+      "permanentMilestones": [
+        {
+          "kind": "singleGame",
+          "stat": "points",
+          "threshold": 12,
+          "interest": 0.2
+        },
+        {
+          "kind": "singleGame",
+          "stat": "assists",
+          "threshold": 4,
+          "interest": 0.2
+        },
+        {
+          "kind": "singleGame",
+          "stat": "rebounds",
+          "threshold": 4,
+          "interest": 0.2
+        },
+        {
+          "kind": "singleGame",
+          "stat": "minutes",
+          "threshold": 20,
+          "interest": 0.2
+        }
+      ],
+      "dynamicMilestone": {
+        "kind": "seasonShootingPercentage",
+        "stat": "fieldGoalsPercentage",
+        "threshold": 0.4,
+        "minimumAttempts": 40,
+        "season": "current",
+        "category": "regularSeason",
+        "aggregation": "totals",
+        "interest": 0.2
+      },
+      "baseContract": {
+        "durationMatches": 24,
+        "fixedPaymentUsd": 30000,
+        "perMatchUsd": 500,
+        "perEventUsd": 2000,
+        "requiredEvents": 2
+      },
+      "royaltyRate": 0.2,
+      "customShoeEntitlement": 2
+    },
+    {
+      "id": "peak",
+      "name": "Peak",
+      "kind": "footwear",
+      "category": "footwear",
+      "tier": "entry",
+      "preferredIdentities": [
+        "team",
+        "fan"
+      ],
+      "permanentMilestones": [
+        {
+          "kind": "singleGame",
+          "stat": "rebounds",
+          "threshold": 6,
+          "interest": 0.2
+        },
+        {
+          "kind": "singleGame",
+          "stat": "blocks",
+          "threshold": 1,
+          "interest": 0.2
+        },
+        {
+          "kind": "singleGame",
+          "stat": "assists",
+          "threshold": 2,
+          "interest": 0.2
+        },
+        {
+          "kind": "singleGame",
+          "stat": "minutes",
+          "threshold": 20,
+          "interest": 0.2
+        }
+      ],
+      "dynamicMilestone": {
+        "kind": "seasonShootingPercentage",
+        "stat": "fieldGoalsPercentage",
+        "threshold": 0.42,
+        "minimumAttempts": 40,
+        "season": "current",
+        "category": "regularSeason",
+        "aggregation": "totals",
+        "interest": 0.2
+      },
+      "baseContract": {
+        "durationMatches": 22,
+        "fixedPaymentUsd": 27000,
+        "perMatchUsd": 500,
+        "perEventUsd": 2500,
+        "requiredEvents": 2
+      },
+      "royaltyRate": 0.2,
+      "customShoeEntitlement": 2
+    },
+    {
+      "id": "and1",
+      "name": "AND1",
+      "kind": "footwear",
+      "category": "footwear",
+      "tier": "entry",
+      "preferredIdentities": [
+        "star",
+        "fan"
+      ],
+      "permanentMilestones": [
+        {
+          "kind": "singleGame",
+          "stat": "points",
+          "threshold": 15,
+          "interest": 0.2
+        },
+        {
+          "kind": "singleGame",
+          "stat": "threePointersMade",
+          "threshold": 2,
+          "interest": 0.2
+        },
+        {
+          "kind": "singleGame",
+          "stat": "steals",
+          "threshold": 1,
+          "interest": 0.2
+        },
+        {
+          "kind": "singleGame",
+          "stat": "assists",
+          "threshold": 3,
+          "interest": 0.2
+        }
+      ],
+      "dynamicMilestone": {
+        "kind": "seasonShootingPercentage",
+        "stat": "freeThrowsPercentage",
+        "threshold": 0.65,
+        "minimumAttempts": 15,
+        "season": "current",
+        "category": "regularSeason",
+        "aggregation": "totals",
+        "interest": 0.2
+      },
+      "baseContract": {
+        "durationMatches": 20,
+        "fixedPaymentUsd": 18000,
+        "perMatchUsd": 500,
+        "perEventUsd": 4000,
+        "requiredEvents": 3
+      },
+      "royaltyRate": 0.2,
+      "customShoeEntitlement": 2
+    },
+    {
+      "id": "rigorer",
+      "name": "Rigorer",
+      "kind": "footwear",
+      "category": "footwear",
+      "tier": "entry",
+      "preferredIdentities": [
+        "star",
+        "team"
+      ],
+      "permanentMilestones": [
+        {
+          "kind": "singleGame",
+          "stat": "points",
+          "threshold": 12,
+          "interest": 0.2
+        },
+        {
+          "kind": "singleGame",
+          "stat": "assists",
+          "threshold": 5,
+          "interest": 0.2
+        },
+        {
+          "kind": "singleGame",
+          "stat": "steals",
+          "threshold": 1,
+          "interest": 0.2
+        },
+        {
+          "kind": "singleGame",
+          "stat": "minutes",
+          "threshold": 22,
+          "interest": 0.2
+        }
+      ],
+      "dynamicMilestone": {
+        "kind": "seasonShootingPercentage",
+        "stat": "fieldGoalsPercentage",
+        "threshold": 0.4,
+        "minimumAttempts": 40,
+        "season": "current",
+        "category": "regularSeason",
+        "aggregation": "totals",
+        "interest": 0.2
+      },
+      "baseContract": {
+        "durationMatches": 20,
+        "fixedPaymentUsd": 24000,
+        "perMatchUsd": 500,
+        "perEventUsd": 3000,
+        "requiredEvents": 2
+      },
+      "royaltyRate": 0.2,
+      "customShoeEntitlement": 2
+    },
+    {
+      "id": "741",
+      "name": "741",
+      "kind": "footwear",
+      "category": "footwear",
+      "tier": "entry",
+      "preferredIdentities": [
+        "star",
+        "fan"
+      ],
+      "permanentMilestones": [
+        {
+          "kind": "singleGame",
+          "stat": "points",
+          "threshold": 15,
+          "interest": 0.2
+        },
+        {
+          "kind": "singleGame",
+          "stat": "rebounds",
+          "threshold": 4,
+          "interest": 0.2
+        },
+        {
+          "kind": "singleGame",
+          "stat": "blocks",
+          "threshold": 1,
+          "interest": 0.2
+        },
+        {
+          "kind": "singleGame",
+          "stat": "minutes",
+          "threshold": 22,
+          "interest": 0.2
+        }
+      ],
+      "dynamicMilestone": {
+        "kind": "seasonShootingPercentage",
+        "stat": "freeThrowsPercentage",
+        "threshold": 0.65,
+        "minimumAttempts": 15,
+        "season": "current",
+        "category": "regularSeason",
+        "aggregation": "totals",
+        "interest": 0.2
+      },
+      "baseContract": {
+        "durationMatches": 18,
+        "fixedPaymentUsd": 21000,
+        "perMatchUsd": 500,
+        "perEventUsd": 3500,
+        "requiredEvents": 2
+      },
+      "royaltyRate": 0.2,
+      "customShoeEntitlement": 2
+    },
+    {
+      "id": "2k-shoes",
+      "name": "2kShoes",
+      "kind": "footwear",
+      "category": "footwear",
+      "tier": "entry",
+      "preferredIdentities": [
+        "team",
+        "fan"
+      ],
+      "permanentMilestones": [
+        {
+          "kind": "singleGame",
+          "stat": "points",
+          "threshold": 10,
+          "interest": 0.2
+        },
+        {
+          "kind": "singleGame",
+          "stat": "assists",
+          "threshold": 3,
+          "interest": 0.2
+        },
+        {
+          "kind": "singleGame",
+          "stat": "rebounds",
+          "threshold": 3,
+          "interest": 0.2
+        },
+        {
+          "kind": "singleGame",
+          "stat": "minutes",
+          "threshold": 18,
+          "interest": 0.2
+        }
+      ],
+      "dynamicMilestone": {
+        "kind": "seasonShootingPercentage",
+        "stat": "fieldGoalsPercentage",
+        "threshold": 0.38,
+        "minimumAttempts": 30,
+        "season": "current",
+        "category": "regularSeason",
+        "aggregation": "totals",
+        "interest": 0.2
+      },
+      "baseContract": {
+        "durationMatches": 16,
+        "fixedPaymentUsd": 15000,
+        "perMatchUsd": 500,
+        "perEventUsd": 4500,
+        "requiredEvents": 3
+      },
+      "royaltyRate": 0.2,
+      "customShoeEntitlement": 2
+    },
+    {
+      "id": "nos",
+      "name": "NOS",
+      "kind": "general",
+      "category": "energy_drinks",
+      "tier": "entry",
+      "preferredIdentities": [
+        "star",
+        "fan"
+      ],
+      "permanentMilestones": [
+        {
+          "kind": "singleGame",
+          "stat": "points",
+          "threshold": 15,
+          "interest": 0.2
+        },
+        {
+          "kind": "singleGame",
+          "stat": "threePointersMade",
+          "threshold": 2,
+          "interest": 0.2
+        },
+        {
+          "kind": "singleGame",
+          "stat": "steals",
+          "threshold": 1,
+          "interest": 0.2
+        },
+        {
+          "kind": "singleGame",
+          "stat": "minutes",
+          "threshold": 20,
+          "interest": 0.2
+        }
+      ],
+      "dynamicMilestone": {
+        "kind": "seasonShootingPercentage",
+        "stat": "freeThrowsPercentage",
+        "threshold": 0.65,
+        "minimumAttempts": 15,
+        "season": "current",
+        "category": "regularSeason",
+        "aggregation": "totals",
+        "interest": 0.2
+      },
+      "baseContract": {
+        "durationMatches": 20,
+        "fixedPaymentUsd": 18000,
+        "perMatchUsd": 500,
+        "perEventUsd": 4000,
+        "requiredEvents": 3
+      }
+    },
+    {
+      "id": "burn",
+      "name": "Burn",
+      "kind": "general",
+      "category": "energy_drinks",
+      "tier": "entry",
+      "preferredIdentities": [
+        "star",
+        "team"
+      ],
+      "permanentMilestones": [
+        {
+          "kind": "singleGame",
+          "stat": "points",
+          "threshold": 12,
+          "interest": 0.2
+        },
+        {
+          "kind": "singleGame",
+          "stat": "assists",
+          "threshold": 4,
+          "interest": 0.2
+        },
+        {
+          "kind": "singleGame",
+          "stat": "steals",
+          "threshold": 1,
+          "interest": 0.2
+        },
+        {
+          "kind": "singleGame",
+          "stat": "minutes",
+          "threshold": 22,
+          "interest": 0.2
+        }
+      ],
+      "dynamicMilestone": {
+        "kind": "seasonShootingPercentage",
+        "stat": "fieldGoalsPercentage",
+        "threshold": 0.4,
+        "minimumAttempts": 40,
+        "season": "current",
+        "category": "regularSeason",
+        "aggregation": "totals",
+        "interest": 0.2
+      },
+      "baseContract": {
+        "durationMatches": 18,
+        "fixedPaymentUsd": 15000,
+        "perMatchUsd": 500,
+        "perEventUsd": 4500,
+        "requiredEvents": 3
+      }
+    },
+    {
+      "id": "att",
+      "name": "AT&T",
+      "kind": "general",
+      "category": "telecommunications",
+      "tier": "entry",
+      "preferredIdentities": [
+        "team",
+        "fan"
+      ],
+      "permanentMilestones": [
+        {
+          "kind": "singleGame",
+          "stat": "assists",
+          "threshold": 5,
+          "interest": 0.2
+        },
+        {
+          "kind": "singleGame",
+          "stat": "rebounds",
+          "threshold": 3,
+          "interest": 0.2
+        },
+        {
+          "kind": "singleGame",
+          "stat": "steals",
+          "threshold": 1,
+          "interest": 0.2
+        },
+        {
+          "kind": "singleGame",
+          "stat": "minutes",
+          "threshold": 20,
+          "interest": 0.2
+        }
+      ],
+      "dynamicMilestone": {
+        "kind": "seasonShootingPercentage",
+        "stat": "freeThrowsPercentage",
+        "threshold": 0.65,
+        "minimumAttempts": 15,
+        "season": "current",
+        "category": "regularSeason",
+        "aggregation": "totals",
+        "interest": 0.2
+      },
+      "baseContract": {
+        "durationMatches": 24,
+        "fixedPaymentUsd": 30000,
+        "perMatchUsd": 500,
+        "perEventUsd": 2000,
+        "requiredEvents": 2
+      }
+    },
+    {
+      "id": "motorola",
+      "name": "Motorola",
+      "kind": "general",
+      "category": "consumer_electronics",
+      "tier": "entry",
+      "preferredIdentities": [
+        "star",
+        "team"
+      ],
+      "permanentMilestones": [
+        {
+          "kind": "singleGame",
+          "stat": "points",
+          "threshold": 12,
+          "interest": 0.2
+        },
+        {
+          "kind": "singleGame",
+          "stat": "assists",
+          "threshold": 4,
+          "interest": 0.2
+        },
+        {
+          "kind": "singleGame",
+          "stat": "threePointersMade",
+          "threshold": 2,
+          "interest": 0.2
+        },
+        {
+          "kind": "singleGame",
+          "stat": "minutes",
+          "threshold": 20,
+          "interest": 0.2
+        }
+      ],
+      "dynamicMilestone": {
+        "kind": "seasonShootingPercentage",
+        "stat": "fieldGoalsPercentage",
+        "threshold": 0.4,
+        "minimumAttempts": 40,
+        "season": "current",
+        "category": "regularSeason",
+        "aggregation": "totals",
+        "interest": 0.2
+      },
+      "baseContract": {
+        "durationMatches": 22,
+        "fixedPaymentUsd": 27000,
+        "perMatchUsd": 500,
+        "perEventUsd": 2500,
+        "requiredEvents": 2
+      }
+    },
+    {
+      "id": "visit-rwanda",
+      "name": "Visit Rwanda",
+      "kind": "general",
+      "category": "tourism_attractions",
+      "tier": "entry",
+      "preferredIdentities": [
+        "team",
+        "fan"
+      ],
+      "permanentMilestones": [
+        {
+          "kind": "singleGame",
+          "stat": "rebounds",
+          "threshold": 5,
+          "interest": 0.2
+        },
+        {
+          "kind": "singleGame",
+          "stat": "assists",
+          "threshold": 3,
+          "interest": 0.2
+        },
+        {
+          "kind": "singleGame",
+          "stat": "blocks",
+          "threshold": 1,
+          "interest": 0.2
+        },
+        {
+          "kind": "singleGame",
+          "stat": "minutes",
+          "threshold": 20,
+          "interest": 0.2
+        }
+      ],
+      "dynamicMilestone": {
+        "kind": "seasonShootingPercentage",
+        "stat": "fieldGoalsPercentage",
+        "threshold": 0.4,
+        "minimumAttempts": 40,
+        "season": "current",
+        "category": "regularSeason",
+        "aggregation": "totals",
+        "interest": 0.2
+      },
+      "baseContract": {
+        "durationMatches": 20,
+        "fixedPaymentUsd": 24000,
+        "perMatchUsd": 500,
+        "perEventUsd": 3000,
+        "requiredEvents": 2
+      }
+    },
+    {
+      "id": "2k",
+      "name": "2K",
+      "kind": "general",
+      "category": "video_games",
+      "tier": "entry",
+      "preferredIdentities": [
+        "star",
+        "fan"
+      ],
+      "permanentMilestones": [
+        {
+          "kind": "singleGame",
+          "stat": "points",
+          "threshold": 15,
+          "interest": 0.2
+        },
+        {
+          "kind": "singleGame",
+          "stat": "threePointersMade",
+          "threshold": 2,
+          "interest": 0.2
+        },
+        {
+          "kind": "singleGame",
+          "stat": "assists",
+          "threshold": 3,
+          "interest": 0.2
+        },
+        {
+          "kind": "singleGame",
+          "stat": "minutes",
+          "threshold": 22,
+          "interest": 0.2
+        }
+      ],
+      "dynamicMilestone": {
+        "kind": "seasonShootingPercentage",
+        "stat": "freeThrowsPercentage",
+        "threshold": 0.65,
+        "minimumAttempts": 15,
+        "season": "current",
+        "category": "regularSeason",
+        "aggregation": "totals",
+        "interest": 0.2
+      },
+      "baseContract": {
+        "durationMatches": 18,
+        "fixedPaymentUsd": 21000,
+        "perMatchUsd": 500,
+        "perEventUsd": 3500,
+        "requiredEvents": 2
+      }
+    },
+    {
+      "id": "new-balance",
+      "name": "New Balance",
+      "kind": "footwear",
+      "category": "footwear",
+      "tier": "middle",
+      "preferredIdentities": [
+        "team",
+        "fan"
+      ],
+      "permanentMilestones": [
+        {
+          "kind": "singleGame",
+          "stat": "points",
+          "threshold": 22,
+          "interest": 0.2
+        },
+        {
+          "kind": "singleGame",
+          "stat": "rebounds",
+          "threshold": 8,
+          "interest": 0.2
+        },
+        {
+          "kind": "singleGame",
+          "stat": "steals",
+          "threshold": 2,
+          "interest": 0.2
+        },
+        {
+          "kind": "doubleDouble",
+          "threshold": 10,
+          "requiredCount": 1,
+          "interest": 0.2
+        }
+      ],
+      "dynamicMilestone": {
+        "kind": "seasonShootingPercentage",
+        "stat": "fieldGoalsPercentage",
+        "threshold": 0.46,
+        "minimumAttempts": 120,
+        "season": "current",
+        "category": "regularSeason",
+        "aggregation": "totals",
+        "interest": 0.2
+      },
+      "baseContract": {
+        "durationMatches": 40,
+        "fixedPaymentUsd": 150000,
+        "perMatchUsd": 1500,
+        "perEventUsd": 8000,
+        "requiredEvents": 3
+      },
+      "royaltyRate": 0.3,
+      "customShoeEntitlement": 2
+    },
+    {
+      "id": "li-ning",
+      "name": "Li-Ning",
+      "kind": "footwear",
+      "category": "footwear",
+      "tier": "middle",
+      "preferredIdentities": [
+        "star",
+        "fan"
+      ],
+      "permanentMilestones": [
+        {
+          "kind": "singleGame",
+          "stat": "points",
+          "threshold": 25,
+          "interest": 0.2
+        },
+        {
+          "kind": "singleGame",
+          "stat": "threePointersMade",
+          "threshold": 4,
+          "interest": 0.2
+        },
+        {
+          "kind": "singleGame",
+          "stat": "assists",
+          "threshold": 6,
+          "interest": 0.2
+        },
+        {
+          "kind": "doubleDouble",
+          "threshold": 10,
+          "requiredCount": 1,
+          "interest": 0.2
+        }
+      ],
+      "dynamicMilestone": {
+        "kind": "seasonShootingPercentage",
+        "stat": "freeThrowsPercentage",
+        "threshold": 0.78,
+        "minimumAttempts": 40,
+        "season": "current",
+        "category": "regularSeason",
+        "aggregation": "totals",
+        "interest": 0.2
+      },
+      "baseContract": {
+        "durationMatches": 32,
+        "fixedPaymentUsd": 105000,
+        "perMatchUsd": 1500,
+        "perEventUsd": 14000,
+        "requiredEvents": 4
+      },
+      "royaltyRate": 0.3,
+      "customShoeEntitlement": 2
+    },
+    {
+      "id": "under-armour",
+      "name": "Under Armour",
+      "kind": "footwear",
+      "category": "footwear",
+      "tier": "middle",
+      "preferredIdentities": [
+        "star",
+        "team"
+      ],
+      "permanentMilestones": [
+        {
+          "kind": "singleGame",
+          "stat": "points",
+          "threshold": 25,
+          "interest": 0.2
+        },
+        {
+          "kind": "singleGame",
+          "stat": "threePointersMade",
+          "threshold": 5,
+          "interest": 0.2
+        },
+        {
+          "kind": "singleGame",
+          "stat": "assists",
+          "threshold": 7,
+          "interest": 0.2
+        },
+        {
+          "kind": "singleGame",
+          "stat": "minutes",
+          "threshold": 30,
+          "interest": 0.2
+        }
+      ],
+      "dynamicMilestone": {
+        "kind": "seasonShootingPercentage",
+        "stat": "freeThrowsPercentage",
+        "threshold": 0.8,
+        "minimumAttempts": 40,
+        "season": "current",
+        "category": "regularSeason",
+        "aggregation": "totals",
+        "interest": 0.2
+      },
+      "baseContract": {
+        "durationMatches": 36,
+        "fixedPaymentUsd": 135000,
+        "perMatchUsd": 1500,
+        "perEventUsd": 10000,
+        "requiredEvents": 3
+      },
+      "royaltyRate": 0.3,
+      "customShoeEntitlement": 2
+    },
+    {
+      "id": "361-degrees",
+      "name": "361°",
+      "kind": "footwear",
+      "category": "footwear",
+      "tier": "middle",
+      "preferredIdentities": [
+        "star",
+        "team"
+      ],
+      "permanentMilestones": [
+        {
+          "kind": "singleGame",
+          "stat": "points",
+          "threshold": 20,
+          "interest": 0.2
+        },
+        {
+          "kind": "singleGame",
+          "stat": "rebounds",
+          "threshold": 10,
+          "interest": 0.2
+        },
+        {
+          "kind": "singleGame",
+          "stat": "blocks",
+          "threshold": 3,
+          "interest": 0.2
+        },
+        {
+          "kind": "doubleDouble",
+          "threshold": 10,
+          "requiredCount": 1,
+          "interest": 0.2
+        }
+      ],
+      "dynamicMilestone": {
+        "kind": "seasonShootingPercentage",
+        "stat": "fieldGoalsPercentage",
+        "threshold": 0.5,
+        "minimumAttempts": 120,
+        "season": "current",
+        "category": "regularSeason",
+        "aggregation": "totals",
+        "interest": 0.2
+      },
+      "baseContract": {
+        "durationMatches": 30,
+        "fixedPaymentUsd": 90000,
+        "perMatchUsd": 1500,
+        "perEventUsd": 16000,
+        "requiredEvents": 4
+      },
+      "royaltyRate": 0.3,
+      "customShoeEntitlement": 2
+    },
+    {
+      "id": "converse",
+      "name": "Converse",
+      "kind": "footwear",
+      "category": "footwear",
+      "tier": "middle",
+      "preferredIdentities": [
+        "team",
+        "fan"
+      ],
+      "permanentMilestones": [
+        {
+          "kind": "singleGame",
+          "stat": "points",
+          "threshold": 18,
+          "interest": 0.2
+        },
+        {
+          "kind": "singleGame",
+          "stat": "assists",
+          "threshold": 8,
+          "interest": 0.2
+        },
+        {
+          "kind": "singleGame",
+          "stat": "steals",
+          "threshold": 3,
+          "interest": 0.2
+        },
+        {
+          "kind": "doubleDouble",
+          "threshold": 10,
+          "requiredCount": 1,
+          "interest": 0.2
+        }
+      ],
+      "dynamicMilestone": {
+        "kind": "seasonShootingPercentage",
+        "stat": "fieldGoalsPercentage",
+        "threshold": 0.45,
+        "minimumAttempts": 120,
+        "season": "current",
+        "category": "regularSeason",
+        "aggregation": "totals",
+        "interest": 0.2
+      },
+      "baseContract": {
+        "durationMatches": 34,
+        "fixedPaymentUsd": 120000,
+        "perMatchUsd": 1500,
+        "perEventUsd": 12000,
+        "requiredEvents": 3
+      },
+      "royaltyRate": 0.3,
+      "customShoeEntitlement": 2
+    },
+    {
+      "id": "reebok",
+      "name": "Reebok",
+      "kind": "footwear",
+      "category": "footwear",
+      "tier": "middle",
+      "preferredIdentities": [
+        "star",
+        "fan"
+      ],
+      "permanentMilestones": [
+        {
+          "kind": "singleGame",
+          "stat": "points",
+          "threshold": 25,
+          "interest": 0.2
+        },
+        {
+          "kind": "singleGame",
+          "stat": "assists",
+          "threshold": 6,
+          "interest": 0.2
+        },
+        {
+          "kind": "singleGame",
+          "stat": "steals",
+          "threshold": 3,
+          "interest": 0.2
+        },
+        {
+          "kind": "doubleDouble",
+          "threshold": 10,
+          "requiredCount": 1,
+          "interest": 0.2
+        }
+      ],
+      "dynamicMilestone": {
+        "kind": "seasonShootingPercentage",
+        "stat": "freeThrowsPercentage",
+        "threshold": 0.75,
+        "minimumAttempts": 40,
+        "season": "current",
+        "category": "regularSeason",
+        "aggregation": "totals",
+        "interest": 0.2
+      },
+      "baseContract": {
+        "durationMatches": 28,
+        "fixedPaymentUsd": 75000,
+        "perMatchUsd": 1500,
+        "perEventUsd": 18000,
+        "requiredEvents": 4
+      },
+      "royaltyRate": 0.3,
+      "customShoeEntitlement": 2
+    },
+    {
+      "id": "rockstar-energy",
+      "name": "Rockstar Energy",
+      "kind": "general",
+      "category": "energy_drinks",
+      "tier": "middle",
+      "preferredIdentities": [
+        "star",
+        "fan"
+      ],
+      "permanentMilestones": [
+        {
+          "kind": "singleGame",
+          "stat": "points",
+          "threshold": 25,
+          "interest": 0.2
+        },
+        {
+          "kind": "singleGame",
+          "stat": "threePointersMade",
+          "threshold": 4,
+          "interest": 0.2
+        },
+        {
+          "kind": "singleGame",
+          "stat": "steals",
+          "threshold": 2,
+          "interest": 0.2
+        },
+        {
+          "kind": "singleGame",
+          "stat": "minutes",
+          "threshold": 30,
+          "interest": 0.2
+        }
+      ],
+      "dynamicMilestone": {
+        "kind": "seasonShootingPercentage",
+        "stat": "freeThrowsPercentage",
+        "threshold": 0.78,
+        "minimumAttempts": 40,
+        "season": "current",
+        "category": "regularSeason",
+        "aggregation": "totals",
+        "interest": 0.2
+      },
+      "baseContract": {
+        "durationMatches": 28,
+        "fixedPaymentUsd": 75000,
+        "perMatchUsd": 1500,
+        "perEventUsd": 18000,
+        "requiredEvents": 4
+      }
+    },
+    {
+      "id": "red-bull",
+      "name": "Red Bull",
+      "kind": "general",
+      "category": "energy_drinks",
+      "tier": "middle",
+      "preferredIdentities": [
+        "star",
+        "fan"
+      ],
+      "permanentMilestones": [
+        {
+          "kind": "singleGame",
+          "stat": "points",
+          "threshold": 25,
+          "interest": 0.2
+        },
+        {
+          "kind": "singleGame",
+          "stat": "rebounds",
+          "threshold": 8,
+          "interest": 0.2
+        },
+        {
+          "kind": "singleGame",
+          "stat": "blocks",
+          "threshold": 2,
+          "interest": 0.2
+        },
+        {
+          "kind": "doubleDouble",
+          "threshold": 10,
+          "requiredCount": 1,
+          "interest": 0.2
+        }
+      ],
+      "dynamicMilestone": {
+        "kind": "seasonShootingPercentage",
+        "stat": "fieldGoalsPercentage",
+        "threshold": 0.47,
+        "minimumAttempts": 120,
+        "season": "current",
+        "category": "regularSeason",
+        "aggregation": "totals",
+        "interest": 0.2
+      },
+      "baseContract": {
+        "durationMatches": 32,
+        "fixedPaymentUsd": 105000,
+        "perMatchUsd": 1500,
+        "perEventUsd": 14000,
+        "requiredEvents": 4
+      }
+    },
+    {
+      "id": "kia",
+      "name": "KIA",
+      "kind": "general",
+      "category": "automotive",
+      "tier": "middle",
+      "preferredIdentities": [
+        "star",
+        "team"
+      ],
+      "permanentMilestones": [
+        {
+          "kind": "singleGame",
+          "stat": "points",
+          "threshold": 22,
+          "interest": 0.2
+        },
+        {
+          "kind": "singleGame",
+          "stat": "assists",
+          "threshold": 7,
+          "interest": 0.2
+        },
+        {
+          "kind": "singleGame",
+          "stat": "rebounds",
+          "threshold": 8,
+          "interest": 0.2
+        },
+        {
+          "kind": "doubleDouble",
+          "threshold": 10,
+          "requiredCount": 1,
+          "interest": 0.2
+        }
+      ],
+      "dynamicMilestone": {
+        "kind": "seasonShootingPercentage",
+        "stat": "fieldGoalsPercentage",
+        "threshold": 0.46,
+        "minimumAttempts": 120,
+        "season": "current",
+        "category": "regularSeason",
+        "aggregation": "totals",
+        "interest": 0.2
+      },
+      "baseContract": {
+        "durationMatches": 40,
+        "fixedPaymentUsd": 150000,
+        "perMatchUsd": 1500,
+        "perEventUsd": 8000,
+        "requiredEvents": 3
+      }
+    },
+    {
+      "id": "anheuser-busch",
+      "name": "Anheuser-Busch",
+      "kind": "general",
+      "category": "alcoholic_beverages",
+      "tier": "middle",
+      "preferredIdentities": [
+        "team",
+        "fan"
+      ],
+      "permanentMilestones": [
+        {
+          "kind": "singleGame",
+          "stat": "points",
+          "threshold": 20,
+          "interest": 0.2
+        },
+        {
+          "kind": "singleGame",
+          "stat": "rebounds",
+          "threshold": 8,
+          "interest": 0.2
+        },
+        {
+          "kind": "singleGame",
+          "stat": "assists",
+          "threshold": 5,
+          "interest": 0.2
+        },
+        {
+          "kind": "doubleDouble",
+          "threshold": 10,
+          "requiredCount": 1,
+          "interest": 0.2
+        }
+      ],
+      "dynamicMilestone": {
+        "kind": "seasonShootingPercentage",
+        "stat": "freeThrowsPercentage",
+        "threshold": 0.75,
+        "minimumAttempts": 40,
+        "season": "current",
+        "category": "regularSeason",
+        "aggregation": "totals",
+        "interest": 0.2
+      },
+      "baseContract": {
+        "durationMatches": 36,
+        "fixedPaymentUsd": 135000,
+        "perMatchUsd": 1500,
+        "perEventUsd": 10000,
+        "requiredEvents": 3
+      }
+    },
+    {
+      "id": "newage",
+      "name": "NewAge",
+      "kind": "general",
+      "category": "wellness_nutrition",
+      "tier": "middle",
+      "preferredIdentities": [
+        "team",
+        "fan"
+      ],
+      "permanentMilestones": [
+        {
+          "kind": "singleGame",
+          "stat": "points",
+          "threshold": 18,
+          "interest": 0.2
+        },
+        {
+          "kind": "singleGame",
+          "stat": "rebounds",
+          "threshold": 10,
+          "interest": 0.2
+        },
+        {
+          "kind": "singleGame",
+          "stat": "blocks",
+          "threshold": 2,
+          "interest": 0.2
+        },
+        {
+          "kind": "doubleDouble",
+          "threshold": 10,
+          "requiredCount": 1,
+          "interest": 0.2
+        }
+      ],
+      "dynamicMilestone": {
+        "kind": "seasonShootingPercentage",
+        "stat": "fieldGoalsPercentage",
+        "threshold": 0.48,
+        "minimumAttempts": 120,
+        "season": "current",
+        "category": "regularSeason",
+        "aggregation": "totals",
+        "interest": 0.2
+      },
+      "baseContract": {
+        "durationMatches": 30,
+        "fixedPaymentUsd": 90000,
+        "perMatchUsd": 1500,
+        "perEventUsd": 16000,
+        "requiredEvents": 4
+      }
+    },
+    {
+      "id": "jbl",
+      "name": "JBL",
+      "kind": "general",
+      "category": "audio",
+      "tier": "middle",
+      "preferredIdentities": [
+        "star",
+        "team"
+      ],
+      "permanentMilestones": [
+        {
+          "kind": "singleGame",
+          "stat": "points",
+          "threshold": 25,
+          "interest": 0.2
+        },
+        {
+          "kind": "singleGame",
+          "stat": "threePointersMade",
+          "threshold": 4,
+          "interest": 0.2
+        },
+        {
+          "kind": "singleGame",
+          "stat": "assists",
+          "threshold": 6,
+          "interest": 0.2
+        },
+        {
+          "kind": "singleGame",
+          "stat": "minutes",
+          "threshold": 30,
+          "interest": 0.2
+        }
+      ],
+      "dynamicMilestone": {
+        "kind": "seasonShootingPercentage",
+        "stat": "freeThrowsPercentage",
+        "threshold": 0.78,
+        "minimumAttempts": 40,
+        "season": "current",
+        "category": "regularSeason",
+        "aggregation": "totals",
+        "interest": 0.2
+      },
+      "baseContract": {
+        "durationMatches": 34,
+        "fixedPaymentUsd": 120000,
+        "perMatchUsd": 1500,
+        "perEventUsd": 12000,
+        "requiredEvents": 3
+      }
+    },
+    {
+      "id": "nike",
+      "name": "Nike",
+      "kind": "footwear",
+      "category": "footwear",
+      "tier": "top",
+      "preferredIdentities": [
+        "star",
+        "team"
+      ],
+      "permanentMilestones": [
+        {
+          "kind": "singleGame",
+          "stat": "points",
+          "threshold": 40,
+          "interest": 0.2
+        },
+        {
+          "kind": "singleGame",
+          "stat": "assists",
+          "threshold": 10,
+          "interest": 0.2
+        },
+        {
+          "kind": "singleGame",
+          "stat": "steals",
+          "threshold": 4,
+          "interest": 0.2
+        },
+        {
+          "kind": "appearanceStreak",
+          "stat": "points",
+          "threshold": 30,
+          "requiredCount": 3,
+          "consecutive": "playerAppearances",
+          "interest": 0.2
+        }
+      ],
+      "dynamicMilestone": {
+        "kind": "seasonShootingPercentage",
+        "stat": "fieldGoalsPercentage",
+        "threshold": 0.5,
+        "minimumAttempts": 250,
+        "season": "current",
+        "category": "regularSeason",
+        "aggregation": "totals",
+        "interest": 0.2
+      },
+      "baseContract": {
+        "durationMatches": 60,
+        "fixedPaymentUsd": 600000,
+        "perMatchUsd": 4000,
+        "perEventUsd": 25000,
+        "requiredEvents": 5
+      },
+      "royaltyRate": 0.5,
+      "customShoeEntitlement": 2
+    },
+    {
+      "id": "adidas",
+      "name": "adidas",
+      "kind": "footwear",
+      "category": "footwear",
+      "tier": "top",
+      "preferredIdentities": [
+        "star",
+        "team"
+      ],
+      "permanentMilestones": [
+        {
+          "kind": "singleGame",
+          "stat": "points",
+          "threshold": 30,
+          "interest": 0.2
+        },
+        {
+          "kind": "singleGame",
+          "stat": "assists",
+          "threshold": 12,
+          "interest": 0.2
+        },
+        {
+          "kind": "singleGame",
+          "stat": "rebounds",
+          "threshold": 10,
+          "interest": 0.2
+        },
+        {
+          "kind": "tripleDouble",
+          "threshold": 10,
+          "requiredCount": 1,
+          "interest": 0.2
+        }
+      ],
+      "dynamicMilestone": {
+        "kind": "seasonShootingPercentage",
+        "stat": "freeThrowsPercentage",
+        "threshold": 0.85,
+        "minimumAttempts": 80,
+        "season": "current",
+        "category": "regularSeason",
+        "aggregation": "totals",
+        "interest": 0.2
+      },
+      "baseContract": {
+        "durationMatches": 56,
+        "fixedPaymentUsd": 540000,
+        "perMatchUsd": 4000,
+        "perEventUsd": 30000,
+        "requiredEvents": 5
+      },
+      "royaltyRate": 0.5,
+      "customShoeEntitlement": 2
+    },
+    {
+      "id": "anta",
+      "name": "Anta",
+      "kind": "footwear",
+      "category": "footwear",
+      "tier": "top",
+      "preferredIdentities": [
+        "star",
+        "team"
+      ],
+      "permanentMilestones": [
+        {
+          "kind": "singleGame",
+          "stat": "points",
+          "threshold": 35,
+          "interest": 0.2
+        },
+        {
+          "kind": "singleGame",
+          "stat": "threePointersMade",
+          "threshold": 7,
+          "interest": 0.2
+        },
+        {
+          "kind": "singleGame",
+          "stat": "steals",
+          "threshold": 4,
+          "interest": 0.2
+        },
+        {
+          "kind": "appearanceStreak",
+          "stat": "points",
+          "threshold": 25,
+          "requiredCount": 5,
+          "consecutive": "playerAppearances",
+          "interest": 0.2
+        }
+      ],
+      "dynamicMilestone": {
+        "kind": "seasonShootingPercentage",
+        "stat": "freeThrowsPercentage",
+        "threshold": 0.85,
+        "minimumAttempts": 80,
+        "season": "current",
+        "category": "regularSeason",
+        "aggregation": "totals",
+        "interest": 0.2
+      },
+      "baseContract": {
+        "durationMatches": 50,
+        "fixedPaymentUsd": 420000,
+        "perMatchUsd": 4000,
+        "perEventUsd": 40000,
+        "requiredEvents": 6
+      },
+      "royaltyRate": 0.5,
+      "customShoeEntitlement": 2
+    },
+    {
+      "id": "skechers",
+      "name": "Skechers",
+      "kind": "footwear",
+      "category": "footwear",
+      "tier": "top",
+      "preferredIdentities": [
+        "team",
+        "fan"
+      ],
+      "permanentMilestones": [
+        {
+          "kind": "singleGame",
+          "stat": "points",
+          "threshold": 30,
+          "interest": 0.2
+        },
+        {
+          "kind": "singleGame",
+          "stat": "rebounds",
+          "threshold": 15,
+          "interest": 0.2
+        },
+        {
+          "kind": "singleGame",
+          "stat": "blocks",
+          "threshold": 4,
+          "interest": 0.2
+        },
+        {
+          "kind": "appearanceStreak",
+          "stat": "rebounds",
+          "threshold": 10,
+          "requiredCount": 5,
+          "consecutive": "playerAppearances",
+          "interest": 0.2
+        }
+      ],
+      "dynamicMilestone": {
+        "kind": "seasonShootingPercentage",
+        "stat": "fieldGoalsPercentage",
+        "threshold": 0.55,
+        "minimumAttempts": 250,
+        "season": "current",
+        "category": "regularSeason",
+        "aggregation": "totals",
+        "interest": 0.2
+      },
+      "baseContract": {
+        "durationMatches": 48,
+        "fixedPaymentUsd": 360000,
+        "perMatchUsd": 4000,
+        "perEventUsd": 45000,
+        "requiredEvents": 7
+      },
+      "royaltyRate": 0.5,
+      "customShoeEntitlement": 2
+    },
+    {
+      "id": "puma",
+      "name": "Puma",
+      "kind": "footwear",
+      "category": "footwear",
+      "tier": "top",
+      "preferredIdentities": [
+        "star",
+        "fan"
+      ],
+      "permanentMilestones": [
+        {
+          "kind": "singleGame",
+          "stat": "points",
+          "threshold": 35,
+          "interest": 0.2
+        },
+        {
+          "kind": "singleGame",
+          "stat": "threePointersMade",
+          "threshold": 6,
+          "interest": 0.2
+        },
+        {
+          "kind": "singleGame",
+          "stat": "assists",
+          "threshold": 10,
+          "interest": 0.2
+        },
+        {
+          "kind": "tripleDouble",
+          "threshold": 10,
+          "requiredCount": 1,
+          "interest": 0.2
+        }
+      ],
+      "dynamicMilestone": {
+        "kind": "seasonShootingPercentage",
+        "stat": "freeThrowsPercentage",
+        "threshold": 0.83,
+        "minimumAttempts": 80,
+        "season": "current",
+        "category": "regularSeason",
+        "aggregation": "totals",
+        "interest": 0.2
+      },
+      "baseContract": {
+        "durationMatches": 44,
+        "fixedPaymentUsd": 300000,
+        "perMatchUsd": 4000,
+        "perEventUsd": 50000,
+        "requiredEvents": 7
+      },
+      "royaltyRate": 0.5,
+      "customShoeEntitlement": 2
+    },
+    {
+      "id": "jordan",
+      "name": "Jordan",
+      "kind": "footwear",
+      "category": "footwear",
+      "tier": "top",
+      "preferredIdentities": [
+        "star",
+        "fan"
+      ],
+      "permanentMilestones": [
+        {
+          "kind": "singleGame",
+          "stat": "points",
+          "threshold": 45,
+          "interest": 0.2
+        },
+        {
+          "kind": "singleGame",
+          "stat": "steals",
+          "threshold": 5,
+          "interest": 0.2
+        },
+        {
+          "kind": "singleGame",
+          "stat": "rebounds",
+          "threshold": 10,
+          "interest": 0.2
+        },
+        {
+          "kind": "appearanceStreak",
+          "stat": "points",
+          "threshold": 30,
+          "requiredCount": 3,
+          "consecutive": "playerAppearances",
+          "interest": 0.2
+        }
+      ],
+      "dynamicMilestone": {
+        "kind": "seasonShootingPercentage",
+        "stat": "fieldGoalsPercentage",
+        "threshold": 0.5,
+        "minimumAttempts": 250,
+        "season": "current",
+        "category": "regularSeason",
+        "aggregation": "totals",
+        "interest": 0.2
+      },
+      "baseContract": {
+        "durationMatches": 54,
+        "fixedPaymentUsd": 480000,
+        "perMatchUsd": 4000,
+        "perEventUsd": 35000,
+        "requiredEvents": 6
+      },
+      "royaltyRate": 0.5,
+      "customShoeEntitlement": 2
+    },
+    {
+      "id": "gatorade",
+      "name": "Gatorade",
+      "kind": "general",
+      "category": "sports_drinks",
+      "tier": "top",
+      "preferredIdentities": [
+        "star",
+        "team"
+      ],
+      "permanentMilestones": [
+        {
+          "kind": "singleGame",
+          "stat": "points",
+          "threshold": 35,
+          "interest": 0.2
+        },
+        {
+          "kind": "singleGame",
+          "stat": "assists",
+          "threshold": 12,
+          "interest": 0.2
+        },
+        {
+          "kind": "singleGame",
+          "stat": "rebounds",
+          "threshold": 12,
+          "interest": 0.2
+        },
+        {
+          "kind": "tripleDouble",
+          "threshold": 10,
+          "requiredCount": 1,
+          "interest": 0.2
+        }
+      ],
+      "dynamicMilestone": {
+        "kind": "seasonShootingPercentage",
+        "stat": "fieldGoalsPercentage",
+        "threshold": 0.5,
+        "minimumAttempts": 250,
+        "season": "current",
+        "category": "regularSeason",
+        "aggregation": "totals",
+        "interest": 0.2
+      },
+      "baseContract": {
+        "durationMatches": 60,
+        "fixedPaymentUsd": 600000,
+        "perMatchUsd": 4000,
+        "perEventUsd": 25000,
+        "requiredEvents": 5
+      }
+    },
+    {
+      "id": "monster-energy",
+      "name": "Monster Energy",
+      "kind": "general",
+      "category": "energy_drinks",
+      "tier": "top",
+      "preferredIdentities": [
+        "star",
+        "fan"
+      ],
+      "permanentMilestones": [
+        {
+          "kind": "singleGame",
+          "stat": "points",
+          "threshold": 40,
+          "interest": 0.2
+        },
+        {
+          "kind": "singleGame",
+          "stat": "threePointersMade",
+          "threshold": 7,
+          "interest": 0.2
+        },
+        {
+          "kind": "singleGame",
+          "stat": "steals",
+          "threshold": 4,
+          "interest": 0.2
+        },
+        {
+          "kind": "appearanceStreak",
+          "stat": "points",
+          "threshold": 30,
+          "requiredCount": 3,
+          "consecutive": "playerAppearances",
+          "interest": 0.2
+        }
+      ],
+      "dynamicMilestone": {
+        "kind": "seasonShootingPercentage",
+        "stat": "freeThrowsPercentage",
+        "threshold": 0.83,
+        "minimumAttempts": 80,
+        "season": "current",
+        "category": "regularSeason",
+        "aggregation": "totals",
+        "interest": 0.2
+      },
+      "baseContract": {
+        "durationMatches": 44,
+        "fixedPaymentUsd": 300000,
+        "perMatchUsd": 4000,
+        "perEventUsd": 50000,
+        "requiredEvents": 7
+      }
+    },
+    {
+      "id": "state-farm",
+      "name": "State Farm",
+      "kind": "general",
+      "category": "insurance",
+      "tier": "top",
+      "preferredIdentities": [
+        "team",
+        "fan"
+      ],
+      "permanentMilestones": [
+        {
+          "kind": "singleGame",
+          "stat": "points",
+          "threshold": 25,
+          "interest": 0.2
+        },
+        {
+          "kind": "singleGame",
+          "stat": "assists",
+          "threshold": 15,
+          "interest": 0.2
+        },
+        {
+          "kind": "singleGame",
+          "stat": "steals",
+          "threshold": 4,
+          "interest": 0.2
+        },
+        {
+          "kind": "appearanceStreak",
+          "stat": "assists",
+          "threshold": 8,
+          "requiredCount": 5,
+          "consecutive": "playerAppearances",
+          "interest": 0.2
+        }
+      ],
+      "dynamicMilestone": {
+        "kind": "seasonShootingPercentage",
+        "stat": "freeThrowsPercentage",
+        "threshold": 0.85,
+        "minimumAttempts": 80,
+        "season": "current",
+        "category": "regularSeason",
+        "aggregation": "totals",
+        "interest": 0.2
+      },
+      "baseContract": {
+        "durationMatches": 56,
+        "fixedPaymentUsd": 540000,
+        "perMatchUsd": 4000,
+        "perEventUsd": 30000,
+        "requiredEvents": 5
+      }
+    },
+    {
+      "id": "coca-cola",
+      "name": "Coca-Cola",
+      "kind": "general",
+      "category": "soft_drinks",
+      "tier": "top",
+      "preferredIdentities": [
+        "team",
+        "fan"
+      ],
+      "permanentMilestones": [
+        {
+          "kind": "singleGame",
+          "stat": "points",
+          "threshold": 30,
+          "interest": 0.2
+        },
+        {
+          "kind": "singleGame",
+          "stat": "rebounds",
+          "threshold": 12,
+          "interest": 0.2
+        },
+        {
+          "kind": "singleGame",
+          "stat": "assists",
+          "threshold": 10,
+          "interest": 0.2
+        },
+        {
+          "kind": "tripleDouble",
+          "threshold": 10,
+          "requiredCount": 1,
+          "interest": 0.2
+        }
+      ],
+      "dynamicMilestone": {
+        "kind": "seasonShootingPercentage",
+        "stat": "fieldGoalsPercentage",
+        "threshold": 0.48,
+        "minimumAttempts": 250,
+        "season": "current",
+        "category": "regularSeason",
+        "aggregation": "totals",
+        "interest": 0.2
+      },
+      "baseContract": {
+        "durationMatches": 54,
+        "fixedPaymentUsd": 480000,
+        "perMatchUsd": 4000,
+        "perEventUsd": 35000,
+        "requiredEvents": 6
+      }
+    },
+    {
+      "id": "walt-disney-world",
+      "name": "Walt Disney World",
+      "kind": "general",
+      "category": "tourism_attractions",
+      "tier": "top",
+      "preferredIdentities": [
+        "star",
+        "fan"
+      ],
+      "permanentMilestones": [
+        {
+          "kind": "singleGame",
+          "stat": "points",
+          "threshold": 35,
+          "interest": 0.2
+        },
+        {
+          "kind": "singleGame",
+          "stat": "threePointersMade",
+          "threshold": 6,
+          "interest": 0.2
+        },
+        {
+          "kind": "singleGame",
+          "stat": "assists",
+          "threshold": 12,
+          "interest": 0.2
+        },
+        {
+          "kind": "tripleDouble",
+          "threshold": 10,
+          "requiredCount": 1,
+          "interest": 0.2
+        }
+      ],
+      "dynamicMilestone": {
+        "kind": "seasonShootingPercentage",
+        "stat": "freeThrowsPercentage",
+        "threshold": 0.85,
+        "minimumAttempts": 80,
+        "season": "current",
+        "category": "regularSeason",
+        "aggregation": "totals",
+        "interest": 0.2
+      },
+      "baseContract": {
+        "durationMatches": 48,
+        "fixedPaymentUsd": 360000,
+        "perMatchUsd": 4000,
+        "perEventUsd": 45000,
+        "requiredEvents": 7
+      }
+    },
+    {
+      "id": "beats",
+      "name": "Beats",
+      "kind": "general",
+      "category": "audio",
+      "tier": "top",
+      "preferredIdentities": [
+        "star",
+        "team"
+      ],
+      "permanentMilestones": [
+        {
+          "kind": "singleGame",
+          "stat": "points",
+          "threshold": 40,
+          "interest": 0.2
+        },
+        {
+          "kind": "singleGame",
+          "stat": "threePointersMade",
+          "threshold": 7,
+          "interest": 0.2
+        },
+        {
+          "kind": "singleGame",
+          "stat": "assists",
+          "threshold": 10,
+          "interest": 0.2
+        },
+        {
+          "kind": "appearanceStreak",
+          "stat": "points",
+          "threshold": 25,
+          "requiredCount": 5,
+          "consecutive": "playerAppearances",
+          "interest": 0.2
+        }
+      ],
+      "dynamicMilestone": {
+        "kind": "seasonShootingPercentage",
+        "stat": "freeThrowsPercentage",
+        "threshold": 0.85,
+        "minimumAttempts": 80,
+        "season": "current",
+        "category": "regularSeason",
+        "aggregation": "totals",
+        "interest": 0.2
+      },
+      "baseContract": {
+        "durationMatches": 50,
+        "fixedPaymentUsd": 420000,
+        "perMatchUsd": 4000,
+        "perEventUsd": 40000,
+        "requiredEvents": 6
+      }
+    }
+  ]
+}
