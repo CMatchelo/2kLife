@@ -10,6 +10,8 @@ This project began as a personal idea and was built and refined with AI assistan
 
 2kLife is an unofficial, fan-made project. It is not affiliated with, endorsed by, or sponsored by the NBA, NBA 2K, Take-Two Interactive, Visual Concepts, any NBA team, player, sponsor, or brand shown in the app. All names, logos, and trademarks belong to their respective owners.
 
+This app is still in development and testing. Feel free to report any bugs you encounter.
+
 ![2kLife overview](public/prints/2.png)
 
 ## Features
@@ -94,6 +96,7 @@ These are ideas still to be implemented on this companion. Feel free to help or 
 - Add NBA player-contract and free-agency negotiations.
 - Active finaltial live, with houses, cars, and luxury itens to spend money on
 - Use data from previous seasons in AI generated interviews
+- Executable so anyone can run, without needing to clone a repository and installing.
 
 ## Technology
 
