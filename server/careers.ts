@@ -11,6 +11,7 @@ import { parseGameDetails } from "../src/domain/gameDetails.ts";
 import { DatabaseSync } from "node:sqlite";
 import { migrateProgression } from "./progression.ts";
 import { SponsorService } from "./sponsors.ts";
+import { DailyInvitationService } from "./daily-invitations.ts";
 import { calendarDate } from "../src/domain/calendarDate.ts";
 import { seasonMonths } from "../src/domain/career.ts";
 import { randomUUID } from "node:crypto";
@@ -85,6 +86,7 @@ export function parseDraft(raw: unknown): CareerDraft {
 export class CareerStore {
   db: DatabaseSync;
   sponsors: SponsorService;
+  invitations: DailyInvitationService;
   constructor(file: string) {
     this.db = new DatabaseSync(file);
     this.db.exec(`PRAGMA foreign_keys = ON; PRAGMA journal_mode = WAL;
@@ -103,6 +105,7 @@ export class CareerStore {
       SELECT g.id, s.career_id, g.id FROM games g JOIN seasons s ON s.id = g.season_id WHERE json_extract(g.data, '$.status') = 'completed';`);
     migrateProgression(this.db);
     this.sponsors = new SponsorService(this.db);
+    this.invitations = new DailyInvitationService(this);
     for (const row of this.db.prepare("SELECT id FROM careers").all()) {
       const career = this.get(String(row.id));
       if (
@@ -405,7 +408,9 @@ export class CareerStore {
       throw new ValidationError(
         "Choose a valid month and confirm whether its full schedule is recorded.",
       );
-    return this.get(careerId);
+    const updated = this.get(careerId);
+    if (updated) this.sponsors.reconcileCalendar(updated);
+    return updated;
   }
   // Append a single forgotten fixture to an existing career's schedule.
   addGame(careerId: string, raw: unknown): Career | null {
@@ -463,7 +468,9 @@ export class CareerStore {
         "The game could not be saved. Check for a duplicate fixture and retry.",
       );
     }
-    return this.get(careerId)!;
+    const updatedCareer = this.get(careerId)!;
+    this.sponsors.reconcileCalendar(updatedCareer);
+    return updatedCareer;
   }
   updateGame(
     careerId: string,
@@ -575,10 +582,22 @@ export class CareerStore {
           "DELETE FROM sponsor_milestone_progress WHERE period_id IN (SELECT id FROM sponsor_eligibility_periods WHERE career_id = ?)",
         )
         .run(id);
+      this.db.prepare("DELETE FROM sponsor_appearance_history WHERE contract_entry_id IN (SELECT id FROM sponsor_contract_appearances WHERE career_id=?)").run(id);
       for (const table of [
+        "daily_invitation_mutations",
+        "daily_event_results",
+        "daily_invitations",
+        "daily_decision_groups",
         "financial_transactions",
+        "sponsor_renewal_evaluations",
+        "sponsor_professionalism_blocks",
+        "sponsor_attendance_failures",
+        "sponsor_contract_settlements",
+        "sponsor_contract_appearances",
         "sponsor_contract_matches",
         "sponsor_contracts",
+        "sponsor_signing_reviews",
+        "sponsor_offer_appearances",
         "sponsor_offer_mutations",
         "sponsor_offers",
         "sponsor_offer_evaluations",
@@ -605,6 +624,11 @@ export class CareerStore {
       this.db
         .prepare(
           "DELETE FROM offday_processing WHERE season_id IN (SELECT id FROM seasons WHERE career_id = ?)",
+        )
+        .run(id);
+      this.db
+        .prepare(
+          "DELETE FROM offday_event_pairs WHERE season_id IN (SELECT id FROM seasons WHERE career_id = ?)",
         )
         .run(id);
       this.db

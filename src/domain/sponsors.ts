@@ -345,6 +345,11 @@ export function validateSponsorCatalog(
     ]) {
       integer(terms[key], 0, `${path}.baseContract.${key}`);
     }
+    requireValue(
+      terms.requiredEvents === Math.ceil(Number(terms.durationMatches) / 5),
+      `${path}.baseContract.requiredEvents`,
+      "must require one appearance per five contract matches, rounded up",
+    );
   }
   requireValue(
     Object.values(counts).every((count) => count === 12),

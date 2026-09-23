@@ -15,10 +15,13 @@ import type {
   SponsorIneligibilityReason,
   SponsorsOverview,
   SponsorApproachAIContext,
+  SponsorApproachAIResponse,
   SponsorApproachGroup,
   FinancialTransaction,
   SponsorOffer,
   SponsorOfferMutation,
+  SponsorAppearanceDate,
+  SponsorScheduleReview,
 } from "../src/types/sponsor.ts";
 import type { Provider } from "./providers/shared.ts";
 
@@ -96,8 +99,35 @@ export function migrateSponsors(db: DatabaseSync) {
   );
   CREATE TABLE IF NOT EXISTS sponsor_cooldowns (
     career_id TEXT NOT NULL REFERENCES careers(id), brand_id TEXT NOT NULL,
-    until_match_boundary INTEGER NOT NULL, reason TEXT NOT NULL, reference TEXT NOT NULL,
+    until_match_boundary INTEGER, until_date TEXT, reason TEXT NOT NULL, reference TEXT NOT NULL,
     PRIMARY KEY(career_id, brand_id)
+  );
+  CREATE TABLE IF NOT EXISTS sponsor_contract_settlements (
+    id TEXT PRIMARY KEY, contract_id TEXT NOT NULL UNIQUE REFERENCES sponsor_contracts(id), career_id TEXT NOT NULL REFERENCES careers(id),
+    brand_id TEXT NOT NULL, expiration_date TEXT NOT NULL, triggering_game_id TEXT NOT NULL REFERENCES games(id),
+    fixed_payment_usd_cents INTEGER NOT NULL, signing_installment_usd_cents INTEGER NOT NULL,
+    required_appearances INTEGER NOT NULL, attended_appearances INTEGER NOT NULL, missing_appearances INTEGER NOT NULL,
+    penalty_per_missing_usd_cents INTEGER NOT NULL, attendance_penalty_usd_cents INTEGER NOT NULL,
+    original_final_installment_usd_cents INTEGER NOT NULL, final_installment_usd_cents INTEGER NOT NULL,
+    total_fixed_received_usd_cents INTEGER NOT NULL, settled_at TEXT NOT NULL, idempotency_reference TEXT NOT NULL UNIQUE
+  );
+  CREATE TABLE IF NOT EXISTS sponsor_attendance_failures (
+    id TEXT PRIMARY KEY, career_id TEXT NOT NULL REFERENCES careers(id), brand_id TEXT NOT NULL,
+    contract_id TEXT NOT NULL UNIQUE REFERENCES sponsor_contracts(id), expiration_date TEXT NOT NULL,
+    required_appearances INTEGER NOT NULL, attended_appearances INTEGER NOT NULL, missing_appearances INTEGER NOT NULL,
+    failure_sequence INTEGER NOT NULL, created_at TEXT NOT NULL, UNIQUE(career_id,brand_id,failure_sequence)
+  );
+  CREATE TABLE IF NOT EXISTS sponsor_professionalism_blocks (
+    id TEXT PRIMARY KEY, career_id TEXT NOT NULL REFERENCES careers(id), brand_id TEXT NOT NULL,
+    first_failure_contract_id TEXT NOT NULL REFERENCES sponsor_contracts(id), second_failure_contract_id TEXT NOT NULL REFERENCES sponsor_contracts(id),
+    blocked_at TEXT NOT NULL, block_date TEXT NOT NULL, reason TEXT NOT NULL, UNIQUE(career_id,brand_id)
+  );
+  CREATE TABLE IF NOT EXISTS sponsor_renewal_evaluations (
+    id TEXT PRIMARY KEY, career_id TEXT NOT NULL REFERENCES careers(id), brand_id TEXT NOT NULL,
+    contract_id TEXT NOT NULL UNIQUE REFERENCES sponsor_contracts(id), attended_appearances INTEGER NOT NULL,
+    required_appearances INTEGER NOT NULL, probability REAL NOT NULL, random_result REAL,
+    evaluation_date TEXT NOT NULL, status TEXT NOT NULL, failure_reason TEXT,
+    offer_id TEXT UNIQUE REFERENCES sponsor_offers(id), idempotency_reference TEXT NOT NULL UNIQUE, evaluated_at TEXT NOT NULL
   );
   CREATE TABLE IF NOT EXISTS sponsor_approach_groups (
     id TEXT PRIMARY KEY, career_id TEXT NOT NULL REFERENCES careers(id), game_id TEXT NOT NULL REFERENCES games(id),
@@ -122,6 +152,16 @@ export function migrateSponsors(db: DatabaseSync) {
     career_id TEXT NOT NULL REFERENCES careers(id), request_id TEXT NOT NULL, offer_id TEXT NOT NULL,
     action TEXT NOT NULL, completed_at TEXT NOT NULL, PRIMARY KEY(career_id, request_id)
   );
+  CREATE TABLE IF NOT EXISTS sponsor_offer_appearances (
+    id TEXT PRIMARY KEY, offer_id TEXT NOT NULL REFERENCES sponsor_offers(id), career_id TEXT NOT NULL REFERENCES careers(id),
+    original_date TEXT NOT NULL, proposed_date TEXT NOT NULL, selected_at TEXT NOT NULL,
+    selection_kind TEXT NOT NULL, replaced_date TEXT, replacement_at TEXT,
+    UNIQUE(offer_id, proposed_date)
+  );
+  CREATE TABLE IF NOT EXISTS sponsor_signing_reviews (
+    id TEXT PRIMARY KEY, offer_id TEXT NOT NULL UNIQUE REFERENCES sponsor_offers(id), career_id TEXT NOT NULL REFERENCES careers(id),
+    schedule TEXT NOT NULL, created_at TEXT NOT NULL, signing_date TEXT NOT NULL
+  );
   CREATE TABLE IF NOT EXISTS sponsor_contracts (
     id TEXT PRIMARY KEY, career_id TEXT NOT NULL REFERENCES careers(id), brand_id TEXT NOT NULL,
     brand_name TEXT NOT NULL, source_offer_id TEXT NOT NULL UNIQUE REFERENCES sponsor_offers(id),
@@ -144,6 +184,16 @@ export function migrateSponsors(db: DatabaseSync) {
     career_id TEXT NOT NULL REFERENCES careers(id), counted_at TEXT NOT NULL,
     PRIMARY KEY(contract_id, game_id)
   );
+  CREATE TABLE IF NOT EXISTS sponsor_contract_appearances (
+    id TEXT PRIMARY KEY, contract_id TEXT NOT NULL REFERENCES sponsor_contracts(id), career_id TEXT NOT NULL REFERENCES careers(id),
+    offer_entry_id TEXT NOT NULL REFERENCES sponsor_offer_appearances(id), original_date TEXT NOT NULL, appearance_date TEXT NOT NULL,
+    source TEXT NOT NULL, replaced_date TEXT, status TEXT NOT NULL DEFAULT 'scheduled', conflict_reason TEXT,
+    confirmed_at TEXT NOT NULL, UNIQUE(contract_id, appearance_date)
+  );
+  CREATE TABLE IF NOT EXISTS sponsor_appearance_history (
+    id TEXT PRIMARY KEY, contract_entry_id TEXT NOT NULL REFERENCES sponsor_contract_appearances(id),
+    old_date TEXT NOT NULL, new_date TEXT NOT NULL, reason TEXT NOT NULL, changed_at TEXT NOT NULL
+  );
   CREATE TABLE IF NOT EXISTS financial_transactions (
     id TEXT PRIMARY KEY, career_id TEXT NOT NULL REFERENCES careers(id), amount_usd_cents INTEGER NOT NULL,
     currency TEXT NOT NULL, in_game_date TEXT NOT NULL, recorded_at TEXT NOT NULL,
@@ -152,6 +202,17 @@ export function migrateSponsors(db: DatabaseSync) {
     invitation_reference TEXT, shoe_reference TEXT, idempotency_key TEXT NOT NULL UNIQUE,
     description TEXT, settlement_metadata TEXT
   );`);
+
+  const cooldownColumns = db.prepare("PRAGMA table_info(sponsor_cooldowns)").all().map((column) => String(column.name));
+  if (!cooldownColumns.includes("until_date")) db.exec("ALTER TABLE sponsor_cooldowns ADD COLUMN until_date TEXT");
+  if (cooldownColumns.includes("until_match_boundary")) { /* legacy match cooldowns remain valid */ }
+
+  if (!db.prepare("PRAGMA table_info(sponsor_offers)").all().some((column) => column.name === "sponsor_message"))
+    db.exec("ALTER TABLE sponsor_offers ADD COLUMN sponsor_message TEXT");
+  if (!db.prepare("PRAGMA table_info(sponsor_offers)").all().some((column) => column.name === "sponsor_message_source")) {
+    db.exec("ALTER TABLE sponsor_offers ADD COLUMN sponsor_message_source TEXT");
+    db.exec("UPDATE sponsor_offers SET sponsor_message_source='fallback' WHERE sponsor_message IS NOT NULL");
+  }
 
   // Offers created before cents became the canonical unit are upgraded once.
   const legacyOffers = db.prepare("SELECT id,snapshot FROM sponsor_offers").all();
@@ -272,6 +333,83 @@ export class SponsorService {
     }
   }
 
+  private periodEnd(career: Career, after: string, duration: number): string | null {
+    const knownGames = career.season.games.filter((game) => game.date > after)
+      .sort((a, b) => a.date.localeCompare(b.date) || a.id.localeCompare(b.id));
+    // Dates before a recorded game in the first `duration` matches are safely
+    // inside the contract, even when later fixture coverage is still unknown.
+    return knownGames.slice(0, duration).at(-1)?.date ?? null;
+  }
+
+  private confirmedOffDays(career: Career, after: string, end: string): string[] {
+    const months = new Set(career.coverage.filter((month) => month.confirmed).map((month) => month.month));
+    const games = new Set(career.season.games.map((game) => game.date));
+    const dates: string[] = [];
+    for (let date = nextCalendarDate(after); date <= end && (!career.season.seasonEndDate || date < career.season.seasonEndDate); date = nextCalendarDate(date))
+      if (months.has(date.slice(0, 7)) && !games.has(date)) dates.push(date);
+    return dates;
+  }
+
+  private selectDates(dates: string[], count: number): string[] {
+    const pool = [...dates];
+    const picked: string[] = [];
+    for (let index = 0; index < count; index++) {
+      const choice = Math.min(pool.length - 1, Math.max(0, Math.floor(this.random() * pool.length)));
+      picked.push(pool.splice(choice, 1)[0]);
+    }
+    return picked.sort();
+  }
+
+  private offerEntries(offerId: string): SponsorAppearanceDate[] {
+    return this.db.prepare("SELECT * FROM sponsor_offer_appearances WHERE offer_id=? ORDER BY proposed_date,id").all(offerId).map((row) => ({
+      id: String(row.id), offerId, originalDate: String(row.original_date), date: String(row.proposed_date),
+      source: row.selection_kind === "original" ? "original" : "signing_replacement", replacedDate: row.replaced_date ? String(row.replaced_date) : null,
+      status: "scheduled" as const,
+    }));
+  }
+
+  private contractEntries(contractId: string) {
+    return this.db.prepare("SELECT a.*,o.offer_id FROM sponsor_contract_appearances a JOIN sponsor_offer_appearances o ON o.id=a.offer_entry_id WHERE a.contract_id=? ORDER BY a.appearance_date,a.id").all(contractId).map((row) => ({
+      id: String(row.id), offerId: String(row.offer_id), contractId, originalDate: String(row.original_date), date: String(row.appearance_date),
+      source: row.source === "original" ? "original" as const : "signing_replacement" as const,
+      replacedDate: row.replaced_date ? String(row.replaced_date) : null,
+      status: String(row.status) as SponsorAppearanceDate["status"], conflictReason: row.conflict_reason ? String(row.conflict_reason) : null,
+    }));
+  }
+
+  reconcileCalendar(career: Career) {
+    const games = new Set(career.season.games.map((game) => game.date));
+    const confirmed = new Set(career.coverage.filter((item) => item.confirmed).map((item) => item.month));
+    const rows = this.db.prepare("SELECT a.* FROM sponsor_contract_appearances a JOIN sponsor_contracts c ON c.id=a.contract_id WHERE a.career_id=? AND c.status='active' AND a.status IN ('scheduled','calendar_conflict')").all(career.id);
+    for (const row of rows) {
+      const date = String(row.appearance_date);
+      const reason = games.has(date) ? "game_day" : !confirmed.has(date.slice(0, 7)) ? "unconfirmed_calendar" : career.season.seasonEndDate && date >= career.season.seasonEndDate ? "season_end" : null;
+      this.db.prepare("UPDATE sponsor_contract_appearances SET status=?,conflict_reason=? WHERE id=?")
+        .run(reason ? "calendar_conflict" : "scheduled", reason, row.id);
+    }
+  }
+
+  replacementChoices(career: Career, entryId: string) {
+    const row = this.db.prepare("SELECT a.*,c.matches_remaining,c.brand_name FROM sponsor_contract_appearances a JOIN sponsor_contracts c ON c.id=a.contract_id WHERE a.id=? AND a.career_id=? AND c.status='active'").get(entryId, career.id);
+    if (!row || row.status !== "calendar_conflict") throw new SponsorOfferError("This appearance has no current calendar conflict. Reload sponsors.");
+    const end = this.periodEnd(career, career.currentDate!, Number(row.matches_remaining));
+    const used = new Set(this.contractEntries(String(row.contract_id)).filter((entry) => entry.id !== entryId).map((entry) => entry.date));
+    return { oldDate: String(row.appearance_date), brandName: String(row.brand_name), choices: end ? this.confirmedOffDays(career, career.currentDate!, end).filter((date) => !used.has(date)) : [] };
+  }
+
+  replaceConflict(career: Career, entryId: string, date: string) {
+    this.db.exec("BEGIN IMMEDIATE");
+    try {
+      const options = this.replacementChoices(career, entryId);
+      if (!options.choices.includes(date)) throw new SponsorOfferError("That date is no longer a valid confirmed off day. Choose another.");
+      this.db.prepare("UPDATE sponsor_contract_appearances SET appearance_date=?,status='scheduled',conflict_reason=NULL WHERE id=?").run(date, entryId);
+      this.db.prepare("INSERT INTO sponsor_appearance_history VALUES (?,?,?,?,?,?)")
+        .run(randomUUID(), entryId, options.oldDate, date, "calendar_conflict", now());
+      this.db.exec("COMMIT");
+    } catch (error) { this.db.exec("ROLLBACK"); throw error; }
+    return this.getOverview(career);
+  }
+
   private row(careerId: string, brandId: string) {
     return this.db
       .prepare(
@@ -290,18 +428,27 @@ export class SponsorService {
       )
       .all(careerId)
       .map((row) => String(row.brand_id));
+    const professionalism = this.db.prepare("SELECT brand_id FROM sponsor_professionalism_blocks WHERE career_id=?").all(careerId).map((row) => String(row.brand_id));
     const occupiedCategories = this.db
       .prepare("SELECT category FROM sponsor_contracts WHERE career_id=? AND status='active'")
       .all(careerId)
       .map((row) => String(row.category) as CommercialCategory);
     const boundary = this.completedMatchBoundary(careerId);
     const cooldowns = this.db
-      .prepare("SELECT brand_id, until_match_boundary FROM sponsor_cooldowns WHERE career_id=?")
+      .prepare("SELECT brand_id, until_match_boundary, until_date FROM sponsor_cooldowns WHERE career_id=?")
       .all(careerId);
     const matchCooldowns = { ...(supplied.matchCooldowns ?? {}) } as Record<string, number>;
+    const dayCooldowns = { ...(supplied.dayCooldowns ?? {}) } as Record<string, number>;
+    const progression = this.db.prepare('SELECT "current_date" current_date FROM career_progression WHERE career_id=?').get(careerId);
+    const currentDate = progression?.current_date ? String(progression.current_date) : null;
     for (const item of cooldowns) {
-      const remaining = Math.max(0, Number(item.until_match_boundary) - boundary);
+      const remaining = item.until_date ? 0 : Math.max(0, Number(item.until_match_boundary) - boundary);
       if (remaining) matchCooldowns[String(item.brand_id)] = Math.max(matchCooldowns[String(item.brand_id)] ?? 0, remaining);
+      if (item.until_date && currentDate) {
+        let days = 0;
+        for (let date = currentDate; date < String(item.until_date); date = nextCalendarDate(date)) days++;
+        if (days) dayCooldowns[String(item.brand_id)] = Math.max(dayCooldowns[String(item.brand_id)] ?? 0, days);
+      }
     }
     return {
       ...supplied,
@@ -309,9 +456,11 @@ export class SponsorService {
         ...new Set([...(supplied.occupiedCategories ?? []), ...occupiedCategories]),
       ],
       matchCooldowns,
+      dayCooldowns,
       playerBlockedBrandIds: [
         ...new Set([...(supplied.playerBlockedBrandIds ?? []), ...persisted]),
       ],
+      professionalismBlockedBrandIds: [...new Set([...(supplied.professionalismBlockedBrandIds ?? []), ...professionalism])],
     };
   }
 
@@ -691,28 +840,41 @@ export class SponsorService {
     const end = projected.at(-1)?.date ?? current;
     const gameDates = new Set(career.season.games.map((game) => game.date));
     const confirmedMonths = new Set(career.coverage.filter((item) => item.confirmed).map((item) => item.month));
-    let minimumWindows = 0, maximumWindows = 0, run = 0, complete = coverageComplete;
+    let minimumWindows = 0, maximumWindows = 0, complete = coverageComplete;
     for (let date = nextCalendarDate(current); date <= end; date = nextCalendarDate(date)) {
-      if (gameDates.has(date)) {
-        minimumWindows += Math.floor(run / 2); maximumWindows += run; run = 0;
-      } else if (confirmedMonths.has(date.slice(0, 7))) run++;
-      else {
-        minimumWindows += Math.floor(run / 2); maximumWindows += run; run = 0; complete = false;
-      }
+      if (career.season.seasonEndDate && date >= career.season.seasonEndDate) break;
+      if (gameDates.has(date)) continue;
+      if (confirmedMonths.has(date.slice(0, 7))) { minimumWindows++; maximumWindows++; }
+      else complete = false;
     }
-    minimumWindows += Math.floor(run / 2); maximumWindows += run;
     const active = this.getOverview(career).activeContracts;
     const existingRequiredAppearances = active.reduce((sum, contract) => sum + Math.max(0, contract.requiredEvents - contract.attendedEvents), 0);
     const expiringObligations = active.filter((contract) => contract.matchesRemaining <= durationMatches).map((contract) => contract.id);
     const totalCommitments = required + existingRequiredAppearances;
     const risk = !complete ? "incomplete" : totalCommitments <= minimumWindows ? "comfortable" : totalCommitments <= maximumWindows ? "risky" : "overcommitted";
-    return { minimumWindows, maximumWindows, coverageComplete: complete, requiredAppearances: required, existingRequiredAppearances, totalCommitments, expiringObligations, risk } as SponsorOffer["schedule"];
+    return { minimumWindows, maximumWindows, coverageComplete: complete, requiredAppearances: required, existingRequiredAppearances, totalCommitments, expiringObligations, overlaps: [], risk } as SponsorOffer["schedule"];
   }
 
   private offerFromRow(row: Record<string, unknown>): SponsorOffer {
-    const snapshot = JSON.parse(String(row.snapshot)) as Omit<SponsorOffer, "status" | "resolutionReason" | "awaitingContractActivation" | "advice">;
+    const snapshot = JSON.parse(String(row.snapshot)) as Omit<SponsorOffer, "status" | "resolutionReason" | "awaitingContractActivation" | "advice" | "sponsorMessage" | "confirmedSchedule" | "signingReview" | "activatedContractId" | "signingPaymentUsdCents">;
     const contract = this.db.prepare("SELECT id,signing_installment_usd_cents FROM sponsor_contracts WHERE source_offer_id=?").get(row.id);
-    return { ...snapshot, status: String(row.status) as SponsorOffer["status"], resolutionReason: row.resolution_reason ? String(row.resolution_reason) : null, awaitingContractActivation: !!row.awaiting_activation, activatedContractId: contract ? String(contract.id) : null, signingPaymentUsdCents: contract ? Number(contract.signing_installment_usd_cents) : null, advice: row.advice ? String(row.advice) : "" };
+    const review = this.db.prepare("SELECT id,schedule FROM sponsor_signing_reviews WHERE offer_id=?").get(row.id);
+    return { ...snapshot, offerKind: snapshot.offerKind ?? "initial", renewal: snapshot.renewal ?? null, status: String(row.status) as SponsorOffer["status"], resolutionReason: row.resolution_reason ? String(row.resolution_reason) : null, awaitingContractActivation: !!row.awaiting_activation, activatedContractId: contract ? String(contract.id) : null, signingPaymentUsdCents: contract ? Number(contract.signing_installment_usd_cents) : null, advice: row.advice ? String(row.advice) : "", sponsorMessage: row.sponsor_message ? String(row.sponsor_message) : "", confirmedSchedule: contract ? this.contractEntries(String(contract.id)) : null, signingReview: review ? { id: String(review.id), ...JSON.parse(String(review.schedule)) } : null };
+  }
+
+  private prepareSigning(career: Career, offer: SponsorOffer): SponsorScheduleReview {
+    const end = this.periodEnd(career, career.currentDate!, offer.terms.durationMatches);
+    if (!end) throw new SponsorOfferError("No future contract game is recorded. Add future games and confirm off days before signing.");
+    const entries = this.offerEntries(offer.id);
+    const valid = new Set(this.confirmedOffDays(career, career.currentDate!, end));
+    const kept = entries.filter((entry) => valid.has(entry.date));
+    const invalid = entries.filter((entry) => !valid.has(entry.date));
+    const candidates = [...valid].filter((date) => !kept.some((entry) => entry.date === date));
+    if (candidates.length < invalid.length)
+      throw new SponsorOfferError(`Only ${candidates.length} confirmed replacement off days are available for ${invalid.length} dates. Confirm more calendar months or add future games, then review this offer again before its three-match deadline.`);
+    const dates = this.selectDates(candidates, invalid.length);
+    const replaced = invalid.map((entry, index) => ({ ...entry, date: dates[index], source: "signing_replacement" as const, replacedDate: entry.date }));
+    return { id: randomUUID(), kept, replaced, finalSchedule: [...kept, ...replaced].sort((a, b) => a.date.localeCompare(b.date)) };
   }
 
   private expireDueOffers(career: Career, reference: string) {
@@ -722,17 +884,38 @@ export class SponsorService {
       const brandId = String(row.brand_id);
       this.db.prepare("UPDATE sponsor_offers SET status='expired', resolution_reason='response_window_elapsed', resolved_at=? WHERE id=? AND status='pending'").run(now(), row.id);
       this.reset(career.id, brandId, `${reference}:expired:${row.id}`, "offer_expired");
-      this.db.prepare(`INSERT INTO sponsor_cooldowns VALUES (?, ?, ?, 'offer_expired', ?)
-        ON CONFLICT(career_id,brand_id) DO UPDATE SET until_match_boundary=excluded.until_match_boundary, reason=excluded.reason, reference=excluded.reference`)
-        .run(career.id, brandId, boundary + 20, reference);
+      const offer = this.offerFromRow(row as Record<string, unknown>);
+      const matches = offer.offerKind === "renewal" ? 10 : 20;
+      this.db.prepare(`INSERT INTO sponsor_cooldowns (career_id,brand_id,until_match_boundary,until_date,reason,reference) VALUES (?, ?, ?, NULL, 'offer_expired', ?)
+        ON CONFLICT(career_id,brand_id) DO UPDATE SET until_match_boundary=excluded.until_match_boundary,until_date=NULL, reason=excluded.reason, reference=excluded.reference`)
+        .run(career.id, brandId, boundary + matches, reference);
     }
     if (due.length) this.reevaluate(career, `${reference}:expiration`);
   }
 
+  private resumeDeferredRenewals(career: Career, processingReference: string) {
+    const waiting = this.db.prepare(`SELECT r.*,c.*,r.id evaluation_id FROM sponsor_renewal_evaluations r
+      JOIN sponsor_contracts c ON c.id=r.contract_id WHERE r.career_id=? AND r.status='waiting_for_calendar'`).all(career.id);
+    for (const row of waiting) {
+      const settlement = this.db.prepare("SELECT * FROM sponsor_contract_settlements WHERE career_id=? AND contract_id=?").get(career.id, row.contract_id);
+      const game = settlement ? career.season.games.find((item) => item.id === settlement.triggering_game_id) : null;
+      if (!settlement || !game) continue;
+      const result = this.createRenewalOffer(career, game, row as Record<string, unknown>, String(row.evaluation_id), processingReference);
+      if (result.status === "waiting_for_calendar") continue;
+      if (result.status === "failed") {
+        this.db.prepare("UPDATE sponsor_renewal_evaluations SET status='failed',failure_reason=? WHERE id=?").run(result.reason, row.evaluation_id);
+        const reference = `contract:${row.contract_id}:renewal_failed_schedule`;
+        this.reset(career.id, String(row.brand_id), reference, "renewal_failed");
+        this.db.prepare("INSERT OR REPLACE INTO sponsor_cooldowns (career_id,brand_id,until_match_boundary,until_date,reason,reference) VALUES (?,?,0,?,'renewal_failed',?)").run(career.id, row.brand_id, this.addDays(String(settlement.expiration_date), 10), reference);
+      }
+    }
+  }
+
   processOfferCheck(career: Career, game: Game, processingReference: string) {
     this.expireDueOffers(career, processingReference);
+    this.resumeDeferredRenewals(career, processingReference);
     const existing = this.db.prepare("SELECT id FROM sponsor_approach_groups WHERE career_id=? AND processing_reference=?").get(career.id, processingReference);
-    if (existing) return this.getApproachGroup(career.id, String(existing.id))!.offers.map((offer) => ({ id: offer.id, approachGroupId: String(existing.id) }));
+    if (this.db.prepare("SELECT 1 FROM sponsor_offer_evaluations WHERE career_id=? AND processing_reference=? LIMIT 1").get(career.id, processingReference)) return [];
     const states = this.getStates(career);
     const pending = new Set(this.db.prepare("SELECT brand_id FROM sponsor_offers WHERE career_id=? AND status='pending'").all(career.id).map((row) => String(row.brand_id)));
     const activeCategories = new Set(this.getOverview(career).activeContracts.map((contract) => sponsorCatalog.brands.find((brand) => brand.id === contract.brandId)?.category).filter(Boolean));
@@ -748,15 +931,27 @@ export class SponsorService {
         .run(career.id, processingReference, game.id, brand.id, qualifies ? 1 : 0, state.interestPercentage, probability, randomResult, resultKind, succeeded ? 1 : 0);
       if (succeeded) successes.push({ brand, state });
     }
-    if (!successes.length) return [];
-    const groupId = randomUUID();
-    this.db.prepare("INSERT INTO sponsor_approach_groups VALUES (?, ?, ?, ?, NULL, NULL, ?)").run(groupId, career.id, game.id, processingReference, now());
+    const schedulable = successes.flatMap(({ brand, state }) => {
+      const end = this.periodEnd(career, game.date, brand.baseContract.durationMatches);
+      const candidates = end ? this.confirmedOffDays(career, game.date, end) : [];
+      const needed = brand.baseContract.requiredEvents + 1;
+      if (!end || candidates.length < needed) {
+        const hasUnknownDays = !!end && (() => { for (let date = nextCalendarDate(game.date); date <= end && (!career.season.seasonEndDate || date < career.season.seasonEndDate); date = nextCalendarDate(date)) if (!career.coverage.some((month) => month.month === date.slice(0, 7) && month.confirmed)) return true; return false; })();
+        this.db.prepare("UPDATE sponsor_offer_evaluations SET result_kind=?, succeeded=0 WHERE career_id=? AND processing_reference=? AND brand_id=?")
+          .run(!end ? "schedule_unknown_contract_period" : hasUnknownDays ? "schedule_unknown_calendar_coverage" : "schedule_insufficient_confirmed_off_days", career.id, processingReference, brand.id);
+        return [];
+      }
+      return [{ brand, state, end, dates: this.selectDates(candidates, needed) }];
+    });
+    if (!schedulable.length) return existing ? this.getApproachGroup(career.id, String(existing.id))!.offers.map((offer) => ({ id: offer.id, approachGroupId: String(existing.id) })) : [];
+    const groupId = existing ? String(existing.id) : randomUUID();
+    if (!existing) this.db.prepare("INSERT INTO sponsor_approach_groups VALUES (?, ?, ?, ?, NULL, NULL, ?)").run(groupId, career.id, game.id, processingReference, now());
     const boundary = this.completedMatchBoundary(career.id);
-    for (const { brand, state } of successes) {
+    for (const { brand, state, end, dates } of schedulable) {
       const id = randomUUID();
       const completedMilestones = [
-        ...state.permanentMilestones.filter((item) => item.completed).map((item) => ({ milestoneId: item.milestoneId, description: milestoneDescription(item.definition) })),
-        ...(state.dynamicMilestone.completed ? [{ milestoneId: state.dynamicMilestone.milestoneId, description: `${state.dynamicMilestone.displayPercentage}% ${state.dynamicMilestone.definition.stat}` }] : []),
+        ...state.permanentMilestones.filter((item) => item.completed).map((item) => ({ milestoneId: item.milestoneId, description: milestoneDescription(item.definition), evidence: item.evidence ?? undefined })),
+        ...(state.dynamicMilestone.completed ? [{ milestoneId: state.dynamicMilestone.milestoneId, description: `${state.dynamicMilestone.displayPercentage}% current-season ${state.dynamicMilestone.definition.stat === "fieldGoalsPercentage" ? "field-goal shooting" : "free-throw shooting"}`, evidence: { seasonPercentage: state.dynamicMilestone.displayPercentage!, made: state.dynamicMilestone.made, attempts: state.dynamicMilestone.attempts } }] : []),
       ];
       const terms = {
         ...brand.baseContract,
@@ -764,10 +959,16 @@ export class SponsorService {
         customShoeEntitlement: brand.kind === "footwear" ? brand.customShoeEntitlement : null,
       };
       const schedule = this.scheduleAdvice(career, terms.durationMatches, terms.requiredEvents);
+      const active = this.getOverview(career).activeContracts;
+      schedule.overlaps = dates.flatMap((date) => { const brands = active.filter((contract) => contract.appearanceSchedule.some((entry) => entry.date === date && entry.status !== "cancelled")).map((contract) => contract.brandName); return brands.length ? [{ date, brands }] : []; });
       const expirationGame = career.season.games.filter((item) => item.date > game.date).sort((a, b) => a.date.localeCompare(b.date) || a.id.localeCompare(b.id))[2];
-      const snapshot = { id, approachGroupId: groupId, brandId: brand.id, brandName: brand.name, category: brand.category, tier: brand.tier, currency: sponsorCatalog.currency, moneyUnit: sponsorCatalog.moneyUnit, terms, interestPercentage: state.interestPercentage as 60 | 80 | 100, completedMilestones, triggeringGameId: game.id, createdMatchBoundary: boundary, expirationMatchBoundary: boundary + 3, expirationGameId: expirationGame?.id ?? null, expirationGameDate: expirationGame?.date ?? null, schedule };
+      const selectedAt = now();
+      const entries = dates.map((date) => ({ id: randomUUID(), offerId: id, originalDate: date, date, source: "original" as const, replacedDate: null, status: "scheduled" as const }));
+      const snapshot = { id, approachGroupId: groupId, brandId: brand.id, brandName: brand.name, category: brand.category, tier: brand.tier, currency: sponsorCatalog.currency, moneyUnit: sponsorCatalog.moneyUnit, terms, interestPercentage: state.interestPercentage as 60 | 80 | 100, completedMilestones, triggeringGameId: game.id, createdMatchBoundary: boundary, expirationMatchBoundary: boundary + 3, expirationGameId: expirationGame?.id ?? null, expirationGameDate: expirationGame?.date ?? null, schedule, appearanceSchedule: { entries, selectedAt, triggeringDate: game.date, contractEndDate: end }, offerKind: "initial", renewal: null };
       this.db.prepare("INSERT INTO sponsor_offers (id,career_id,group_id,brand_id,game_id,processing_reference,snapshot,status,created_match_boundary,expiration_match_boundary) VALUES (?,?,?,?,?,?,?,'pending',?,?)")
         .run(id, career.id, groupId, brand.id, game.id, processingReference, JSON.stringify(snapshot), boundary, boundary + 3);
+      for (const entry of entries) this.db.prepare("INSERT INTO sponsor_offer_appearances VALUES (?,?,?,?,?,?,?,NULL,NULL)")
+        .run(entry.id, id, career.id, entry.originalDate, entry.date, selectedAt, "original");
     }
     return this.getApproachGroup(career.id, groupId)!.offers.map((offer) => ({ id: offer.id, approachGroupId: groupId }));
   }
@@ -777,7 +978,7 @@ export class SponsorService {
     if (!group) return null;
     const offers = this.db.prepare("SELECT * FROM sponsor_offers WHERE career_id=? AND group_id=? ORDER BY rowid").all(careerId, groupId).map((row) => this.offerFromRow(row));
     const fallback = fallbackSponsorApproach(offers);
-    return { id: groupId, processingReference: String(group.processing_reference), triggeringGameId: String(group.game_id), introduction: group.introduction ? String(group.introduction) : fallback.introduction, textSource: group.text_source === "ai" ? "ai" : "fallback", offers: offers.map((offer) => ({ ...offer, advice: offer.advice || fallback.offerAdvice.find((item) => item.offerId === offer.id)!.message })) };
+    return { id: groupId, processingReference: String(group.processing_reference), triggeringGameId: String(group.game_id), introduction: group.introduction ? String(group.introduction) : fallback.introduction, textSource: group.text_source === "ai" ? "ai" : "fallback", offers: offers.map((offer) => ({ ...offer, advice: offer.advice || fallback.offerAdvice.find((item) => item.offerId === offer.id)!.message, sponsorMessage: offer.sponsorMessage || fallback.sponsorMessages.find((item) => item.offerId === offer.id)!.message })) };
   }
 
   pendingApproaches(careerId: string) {
@@ -787,23 +988,38 @@ export class SponsorService {
 
   private approachContext(career: Career, group: SponsorApproachGroup): SponsorApproachAIContext {
     const game = career.season.games.find((item) => item.id === group.triggeringGameId)!;
-    return { language: "en", playerName: career.profile.name, currentTeam: teamName(career.teams, career.profile.currentTeamId), currentDate: career.currentDate!, triggeringMatch: { id: game.id, date: game.date, opponent: teamName(career.teams, game.opponentId), result: game.teamScore !== undefined && game.opponentScore !== undefined ? (game.teamScore > game.opponentScore ? "win" : "loss") : "unknown", teamScore: game.teamScore ?? null, opponentScore: game.opponentScore ?? null }, offers: group.offers.map((offer) => ({ offerId: offer.id, brandName: offer.brandName, category: offer.category, terms: offer.terms, interestPercentage: offer.interestPercentage, completedMilestones: offer.completedMilestones, expirationMatchBoundary: offer.expirationMatchBoundary, expirationGameDate: offer.expirationGameDate, minimumEventWindows: offer.schedule.minimumWindows, maximumEventWindows: offer.schedule.maximumWindows, calendarCoverageComplete: offer.schedule.coverageComplete, existingSponsorCommitments: offer.schedule.existingRequiredAppearances, totalSponsorCommitments: offer.schedule.totalCommitments, obligationsExpiringWithinPeriod: offer.schedule.expiringObligations, scheduleRisk: offer.schedule.risk })) };
+    const contracts = this.getOverview(career).activeContracts;
+    const recentAppearances = career.season.games.filter((item) => item.date <= game.date && qualifyingAppearance(item))
+      .sort((a, b) => b.date.localeCompare(a.date)).slice(0, 3).map((item) => ({
+        date: item.date, points: item.stats!.points, assists: item.stats!.assists, rebounds: item.stats!.rebounds,
+        steals: item.stats!.steals, blocks: item.stats!.blocks, threePointersMade: item.stats!.threePointersMade,
+      }));
+    return { language: "en", playerName: career.profile.name, currentTeam: teamName(career.teams, career.profile.currentTeamId), currentDate: career.currentDate!, triggeringMatch: { id: game.id, date: game.date, opponent: teamName(career.teams, game.opponentId), result: game.teamScore !== undefined && game.opponentScore !== undefined ? (game.teamScore > game.opponentScore ? "win" : "loss") : "unknown", teamScore: game.teamScore ?? null, opponentScore: game.opponentScore ?? null }, offers: group.offers.map((offer) => ({ offerId: offer.id, brandName: offer.brandName, category: offer.category, terms: offer.terms, interestPercentage: offer.interestPercentage, completedMilestones: offer.completedMilestones, recentAppearances, expirationMatchBoundary: offer.expirationMatchBoundary, expirationGameDate: offer.expirationGameDate, minimumEventWindows: offer.schedule.minimumWindows, maximumEventWindows: offer.schedule.maximumWindows, calendarCoverageComplete: offer.schedule.coverageComplete, existingSponsorCommitments: offer.schedule.existingRequiredAppearances, totalSponsorCommitments: offer.schedule.totalCommitments, obligationsExpiringWithinPeriod: offer.schedule.expiringObligations, scheduleRisk: offer.schedule.risk, proposedDates: offer.appearanceSchedule.entries.map((entry) => entry.date), overlaps: offer.appearanceSchedule.entries.flatMap((entry) => { const brands = contracts.filter((contract) => contract.appearanceSchedule.some((date) => date.date === entry.date && date.status !== "cancelled")).map((contract) => contract.brandName); return brands.length ? [{ date: entry.date, brands }] : []; }), renewal: offer.renewal })) };
   }
 
   async ensureApproachText(career: Career, groupId: string, provider?: Provider) {
     const saved = this.db.prepare("SELECT introduction,text_source FROM sponsor_approach_groups WHERE career_id=? AND id=?").get(career.id, groupId);
     if (!saved) return null;
-    if (saved.introduction && saved.text_source) return this.getApproachGroup(career.id, groupId);
+    const missingAiMessages = this.db.prepare("SELECT 1 FROM sponsor_offers WHERE career_id=? AND group_id=? AND (sponsor_message IS NULL OR sponsor_message_source!='ai') LIMIT 1").get(career.id, groupId);
+    if (saved.introduction && saved.text_source && !missingAiMessages) return this.getApproachGroup(career.id, groupId);
     const group = this.getApproachGroup(career.id, groupId)!;
-    let final = fallbackSponsorApproach(group.offers), source: "ai" | "fallback" = "fallback";
-    if (provider?.sponsorApproach) {
-      try { final = validateSponsorApproach(await provider.sponsorApproach(this.approachContext(career, group)), group.offers.map((offer) => offer.id)); source = "ai"; }
-      catch { /* Offers survive and deterministic copy is persisted. */ }
+    const fallback = fallbackSponsorApproach(group.offers);
+    let sponsorMessages: SponsorApproachAIResponse["sponsorMessages"] = fallback.sponsorMessages;
+    let usedAi = false;
+    try {
+      if (provider?.sponsorApproach) {
+        sponsorMessages = validateSponsorApproach(await provider.sponsorApproach(this.approachContext(career, group)), group.offers.map((offer) => offer.id)).sponsorMessages;
+        usedAi = true;
+      }
+    } catch (error) {
+      console.error("Sponsor message generation failed:", error);
+      sponsorMessages = fallback.sponsorMessages;
     }
     this.db.exec("BEGIN IMMEDIATE");
     try {
-      this.db.prepare("UPDATE sponsor_approach_groups SET introduction=?,text_source=? WHERE career_id=? AND id=? AND introduction IS NULL").run(final.introduction, source, career.id, groupId);
-      for (const item of final.offerAdvice) this.db.prepare("UPDATE sponsor_offers SET advice=? WHERE career_id=? AND id=? AND advice IS NULL").run(item.message, career.id, item.offerId);
+      this.db.prepare("UPDATE sponsor_approach_groups SET introduction=?,text_source='fallback' WHERE career_id=? AND id=? AND introduction IS NULL").run(fallback.introduction, career.id, groupId);
+      for (const item of fallback.offerAdvice) this.db.prepare("UPDATE sponsor_offers SET advice=? WHERE career_id=? AND id=? AND advice IS NULL").run(item.message, career.id, item.offerId);
+      for (const item of sponsorMessages) this.db.prepare("UPDATE sponsor_offers SET sponsor_message=?,sponsor_message_source=? WHERE career_id=? AND id=?").run(item.message, usedAi ? "ai" : "fallback", career.id, item.offerId);
       this.db.exec("COMMIT");
     } catch (error) { this.db.exec("ROLLBACK"); throw error; }
     return this.getApproachGroup(career.id, groupId);
@@ -818,17 +1034,30 @@ export class SponsorService {
         const row = this.db.prepare("SELECT * FROM sponsor_offers WHERE career_id=? AND id=?").get(career.id, offerId);
         if (!row) throw new SponsorOfferError("Sponsor offer not found. Refresh sponsor offers.");
         const existingContract = this.db.prepare("SELECT id FROM sponsor_contracts WHERE career_id=? AND source_offer_id=?").get(career.id, offerId);
-        if (mutation.action === "accept" && existingContract) {
+        if (mutation.action === "confirm" && existingContract) {
           // A retry with a fresh request ID still returns the already activated result.
-        } else if (mutation.action !== "pending" && row.status !== "pending") {
+        } else if (row.status !== "pending") {
           throw new SponsorOfferError("This sponsor offer is no longer pending. Refresh sponsor offers.");
-        } else if (mutation.action === "accept") {
+        } else if (mutation.action === "prepare" || mutation.action === "confirm") {
           const offer = this.offerFromRow(row as Record<string, unknown>);
           const boundary = this.completedMatchBoundary(career.id);
           if (boundary >= offer.expirationMatchBoundary)
             throw new SponsorOfferError("This sponsor offer expired. Refresh sponsor offers.");
           if (this.db.prepare("SELECT 1 FROM sponsor_contracts WHERE career_id=? AND category=? AND status='active'").get(career.id, offer.category))
             throw new SponsorOfferError("An active contract already fills this commercial category. Review active contracts and choose another category.");
+          if (mutation.action === "prepare") {
+            const review = this.prepareSigning(career, offer);
+            this.db.prepare("INSERT INTO sponsor_signing_reviews VALUES (?,?,?,?,?,?) ON CONFLICT(offer_id) DO UPDATE SET id=excluded.id,schedule=excluded.schedule,created_at=excluded.created_at,signing_date=excluded.signing_date")
+              .run(review.id, offer.id, career.id, JSON.stringify({ kept: review.kept, replaced: review.replaced, finalSchedule: review.finalSchedule }), now(), career.currentDate!);
+          } else {
+          const savedReview = this.db.prepare("SELECT * FROM sponsor_signing_reviews WHERE offer_id=? AND career_id=?").get(offer.id, career.id);
+          if (!savedReview || savedReview.id !== mutation.reviewId || savedReview.signing_date !== career.currentDate!)
+            throw new SponsorOfferError("The signing review changed. Review the dates again before confirming.");
+          const review = JSON.parse(String(savedReview.schedule)) as Omit<SponsorScheduleReview, "id">;
+          const actualEnd = this.periodEnd(career, career.currentDate!, offer.terms.durationMatches);
+          const valid = actualEnd ? new Set(this.confirmedOffDays(career, career.currentDate!, actualEnd)) : new Set<string>();
+          if (review.finalSchedule.length !== offer.terms.requiredEvents + 1 || review.finalSchedule.some((entry) => !valid.has(entry.date)) || new Set(review.finalSchedule.map((entry) => entry.date)).size !== review.finalSchedule.length)
+            throw new SponsorOfferError("The calendar changed. Review the schedule again before signing.");
           const contractId = randomUUID();
           const timestamp = now();
           const signing = Math.floor(offer.terms.fixedPaymentUsdCents / 5);
@@ -843,6 +1072,7 @@ export class SponsorService {
             remaining, offer.currency, offer.terms.customShoeEntitlement === null ? 0 : 1,
             offer.terms.royaltyRate, timestamp, timestamp,
           );
+          if (offer.renewal) this.db.prepare("UPDATE sponsor_contracts SET renewal_sequence=?,renewal_bonus_usd_cents=? WHERE id=? AND career_id=?").run(offer.renewal.sequence, offer.terms.fixedPaymentUsdCents - offer.renewal.originalTerms.fixedPaymentUsdCents, contractId, career.id);
           this.db.prepare(`INSERT INTO financial_transactions
             (id,career_id,amount_usd_cents,currency,in_game_date,recorded_at,origin_type,origin_reference,reason,brand_id,contract_id,idempotency_key,description)
             VALUES (?,?,?,?,?,?,'brand',?,'contract_sign',?,?,?,?)`).run(
@@ -850,6 +1080,11 @@ export class SponsorService {
             timestamp, offer.id, offer.brandId, contractId,
             `contract:${contractId}:contract_sign`, `Signing installment from ${offer.brandName}`,
           );
+          for (const entry of review.finalSchedule) this.db.prepare("INSERT INTO sponsor_contract_appearances VALUES (?,?,?,?,?,?,?,?,?,?,?)")
+            .run(randomUUID(), contractId, career.id, entry.id, entry.originalDate, entry.date, entry.source, entry.replacedDate, "scheduled", null, timestamp);
+          for (const entry of review.replaced) this.db.prepare("UPDATE sponsor_offer_appearances SET proposed_date=?,selection_kind='signing_replacement',replaced_date=?,replacement_at=? WHERE id=? AND offer_id=?")
+            .run(entry.date, entry.replacedDate, timestamp, entry.id, offer.id);
+          this.db.prepare("DELETE FROM sponsor_signing_reviews WHERE offer_id=?").run(offer.id);
           this.db.prepare("UPDATE sponsor_offers SET status='accepted',awaiting_activation=0,resolution_reason='contract_activated',resolved_at=? WHERE id=?").run(timestamp, offerId);
           const competing = this.db.prepare("SELECT * FROM sponsor_offers WHERE career_id=? AND status='pending'").all(career.id)
             .filter((item) => this.offerFromRow(item as Record<string, unknown>).category === offer.category);
@@ -861,15 +1096,22 @@ export class SponsorService {
             if (brand.category === offer.category && brand.id !== offer.brandId)
               this.reset(career.id, brand.id, reference, "category_filled");
           this.reevaluate(career, reference);
+          }
         }
         if (mutation.action === "refuse" || mutation.action === "block") {
           const brandId = String(row.brand_id), reference = `offer:${offerId}:${mutation.action}`;
           this.db.prepare("UPDATE sponsor_offers SET status='declined',resolution_reason=?,resolved_at=? WHERE id=?").run(mutation.action === "block" ? "player_blocked_brand" : "player_refused", now(), offerId);
           this.reset(career.id, brandId, reference, mutation.action === "block" ? "player_blocked" : "offer_declined");
           if (mutation.action === "block") this.db.prepare("INSERT OR REPLACE INTO sponsor_player_blocks VALUES (?,?,?)").run(career.id, brandId, now());
-          else this.db.prepare("INSERT OR REPLACE INTO sponsor_cooldowns VALUES (?,?,?,'offer_declined',?)").run(career.id, brandId, this.completedMatchBoundary(career.id) + 20, reference);
+          else {
+            const offer = this.offerFromRow(row as Record<string, unknown>);
+            const matches = offer.offerKind === "renewal" ? 10 : 20;
+            this.db.prepare("INSERT OR REPLACE INTO sponsor_cooldowns (career_id,brand_id,until_match_boundary,until_date,reason,reference) VALUES (?,?,?,NULL,'offer_declined',?)").run(career.id, brandId, this.completedMatchBoundary(career.id) + matches, reference);
+          }
           this.reevaluate(career, reference);
         }
+        if (mutation.action === "pending" || mutation.action === "refuse" || mutation.action === "block")
+          this.db.prepare("DELETE FROM sponsor_signing_reviews WHERE offer_id=?").run(offerId);
         this.db.prepare("INSERT INTO sponsor_offer_mutations VALUES (?,?,?,?,?)").run(career.id, mutation.requestId, offerId, mutation.action, now());
       }
       const groupId = this.db.prepare("SELECT group_id FROM sponsor_offers WHERE career_id=? AND id=?").get(career.id, offerId);
@@ -878,11 +1120,65 @@ export class SponsorService {
     } catch (error) { this.db.exec("ROLLBACK"); throw error; }
   }
 
-  processContractMatch(career: Career, game: Game) {
-    if (game.status !== "completed") return;
+  private settlementFromRow(row: Record<string, unknown>) {
+    const contract = this.db.prepare("SELECT brand_name FROM sponsor_contracts WHERE id=?").get(row.contract_id);
+    const failureCount = this.db.prepare("SELECT COUNT(*) count FROM sponsor_attendance_failures WHERE career_id=? AND brand_id=?").get(row.career_id, row.brand_id);
+    const renewal = this.db.prepare("SELECT status,failure_reason FROM sponsor_renewal_evaluations WHERE contract_id=?").get(row.contract_id);
+    return {
+      id: String(row.id), contractId: String(row.contract_id), careerId: String(row.career_id), brandId: String(row.brand_id), brandName: String(contract?.brand_name ?? row.brand_id),
+      expirationDate: String(row.expiration_date), triggeringGameId: String(row.triggering_game_id), fixedPaymentUsdCents: Number(row.fixed_payment_usd_cents),
+      signingInstallmentUsdCents: Number(row.signing_installment_usd_cents), requiredAppearances: Number(row.required_appearances), attendedAppearances: Number(row.attended_appearances),
+      missingAppearances: Number(row.missing_appearances), penaltyPerMissingAppearanceUsdCents: Number(row.penalty_per_missing_usd_cents), attendancePenaltyUsdCents: Number(row.attendance_penalty_usd_cents),
+      originalFinalInstallmentUsdCents: Number(row.original_final_installment_usd_cents), finalInstallmentUsdCents: Number(row.final_installment_usd_cents), totalFixedReceivedUsdCents: Number(row.total_fixed_received_usd_cents),
+      attendanceFailed: Number(row.missing_appearances) > 0, brandFailureCount: Number(failureCount?.count ?? 0),
+      permanentBlockTriggered: !!this.db.prepare("SELECT 1 FROM sponsor_professionalism_blocks WHERE career_id=? AND brand_id=? AND second_failure_contract_id=?").get(row.career_id, row.brand_id, row.contract_id),
+      renewalResult: (renewal?.status ?? "blocked") as "offered" | "failed" | "blocked" | "waiting_for_calendar", renewalFailureReason: renewal?.failure_reason ? String(renewal.failure_reason) : null,
+      settledAt: String(row.settled_at), idempotencyReference: String(row.idempotency_reference),
+    };
+  }
+
+  private addDays(date: string, count: number) { let result = date; for (let index = 0; index < count; index++) result = nextCalendarDate(result); return result; }
+
+  private createRenewalOffer(career: Career, game: Game, contract: Record<string, unknown>, evaluationId: string, processingReference: string) {
+    const brand = sponsorCatalog.brands.find((item) => item.id === contract.brand_id);
+    if (!brand) return { status: "failed" as const, reason: "brand_removed" };
+    const sequence = Number(contract.renewal_sequence) + 1;
+    const bonusPercent = Math.min(sequence * 10, 100);
+    const originalTerms = { ...brand.baseContract, royaltyRate: brand.kind === "footwear" ? brand.royaltyRate : null, customShoeEntitlement: brand.kind === "footwear" ? brand.customShoeEntitlement : null };
+    const increase = (value: number) => Math.floor(value * (100 + bonusPercent) / 100);
+    const terms = { ...originalTerms, fixedPaymentUsdCents: increase(originalTerms.fixedPaymentUsdCents), perMatchUsdCents: increase(originalTerms.perMatchUsdCents), perEventUsdCents: increase(originalTerms.perEventUsdCents) };
+    const end = this.periodEnd(career, game.date, terms.durationMatches);
+    if (!end) return { status: "waiting_for_calendar" as const, reason: "contract_period_unknown" };
+    let coverageComplete = true;
+    for (let date = nextCalendarDate(game.date); date <= end && (!career.season.seasonEndDate || date < career.season.seasonEndDate); date = nextCalendarDate(date))
+      if (!career.coverage.some((month) => month.month === date.slice(0, 7) && month.confirmed)) coverageComplete = false;
+    const candidates = this.confirmedOffDays(career, game.date, end);
+    const needed = terms.requiredEvents + 1;
+    if (candidates.length < needed) return { status: coverageComplete ? "failed" as const : "waiting_for_calendar" as const, reason: coverageComplete ? "schedule_unavailable" : "calendar_coverage_incomplete" };
+    let group = this.db.prepare("SELECT id FROM sponsor_approach_groups WHERE career_id=? AND processing_reference=?").get(career.id, processingReference);
+    if (!group) {
+      const id = randomUUID();
+      this.db.prepare("INSERT INTO sponsor_approach_groups VALUES (?, ?, ?, ?, NULL, NULL, ?)").run(id, career.id, game.id, processingReference, now());
+      group = { id };
+    }
+    const groupId = String(group.id), offerId = randomUUID(), selectedAt = now();
+    const dates = this.selectDates(candidates, needed);
+    const entries = dates.map((date) => ({ id: randomUUID(), offerId, originalDate: date, date, source: "original" as const, replacedDate: null, status: "scheduled" as const }));
+    const boundary = this.completedMatchBoundary(career.id);
+    const expirationGame = career.season.games.filter((item) => item.date > game.date).sort((a,b) => a.date.localeCompare(b.date) || a.id.localeCompare(b.id))[2];
+    const schedule = this.scheduleAdvice(career, terms.durationMatches, terms.requiredEvents);
+    const snapshot = { id: offerId, approachGroupId: groupId, brandId: brand.id, brandName: brand.name, category: brand.category, tier: brand.tier, currency: "USD", moneyUnit: "cents", terms, interestPercentage: 100, completedMilestones: [], triggeringGameId: game.id, createdMatchBoundary: boundary, expirationMatchBoundary: boundary + 3, expirationGameId: expirationGame?.id ?? null, expirationGameDate: expirationGame?.date ?? null, schedule, appearanceSchedule: { entries, selectedAt, triggeringDate: game.date, contractEndDate: end }, offerKind: "renewal", renewal: { previousContractId: String(contract.id), sequence, bonusRate: bonusPercent / 100, originalTerms, offeredTerms: terms, attendedAppearances: Number(contract.attended_appearances), requiredAppearances: Number(contract.required_appearances) } };
+    this.db.prepare("INSERT INTO sponsor_offers (id,career_id,group_id,brand_id,game_id,processing_reference,snapshot,status,created_match_boundary,expiration_match_boundary) VALUES (?,?,?,?,?,?,?,'pending',?,?)").run(offerId, career.id, groupId, brand.id, game.id, processingReference, JSON.stringify(snapshot), boundary, boundary + 3);
+    for (const entry of entries) this.db.prepare("INSERT INTO sponsor_offer_appearances VALUES (?,?,?,?,?,?,?,NULL,NULL)").run(entry.id, offerId, career.id, entry.originalDate, entry.date, selectedAt, "original");
+    this.db.prepare("UPDATE sponsor_renewal_evaluations SET status='offered',offer_id=?,failure_reason=NULL WHERE id=?").run(offerId, evaluationId);
+    return { status: "offered" as const, reason: null };
+  }
+
+  processContractMatch(career: Career, game: Game, processingReference = `postgame:${game.id}`) {
+    if (game.status !== "completed") return [];
     const belongs = this.db.prepare(`SELECT 1 FROM games g JOIN seasons s ON s.id=g.season_id
       WHERE g.id=? AND s.career_id=? AND json_extract(g.data,'$.status')='completed'`).get(game.id, career.id);
-    if (!belongs) return;
+    if (!belongs) return [];
     const boundary = this.completedMatchBoundary(career.id);
     const contracts = this.db.prepare(`SELECT * FROM sponsor_contracts
       WHERE career_id=? AND status='active' AND matches_counted<duration_matches`).all(career.id);
@@ -891,10 +1187,6 @@ export class SponsorService {
       const inserted = this.db.prepare(`INSERT OR IGNORE INTO sponsor_contract_matches
         (contract_id,game_id,career_id,counted_at) VALUES (?,?,?,?)`).run(contract.id, game.id, career.id, now());
       if (!inserted.changes) continue;
-      const changed = this.db.prepare(`UPDATE sponsor_contracts SET matches_counted=matches_counted+1,
-        matches_remaining=MAX(0,duration_matches-(matches_counted+1)),updated_at=?
-        WHERE id=? AND matches_counted<duration_matches`).run(now(), contract.id);
-      if (!changed.changes) continue;
       this.db.prepare(`INSERT OR IGNORE INTO financial_transactions
         (id,career_id,amount_usd_cents,currency,in_game_date,recorded_at,origin_type,origin_reference,reason,brand_id,contract_id,game_id,idempotency_key,description)
         VALUES (?,?,?,?,?,?,'brand',?,'sponsor_match',?,?,?,?,?)`).run(
@@ -903,7 +1195,55 @@ export class SponsorService {
         `contract:${contract.id}:game:${game.id}:sponsor_match`,
         `${contract.brand_name} completed-team-match payment`,
       );
+      const changed = this.db.prepare(`UPDATE sponsor_contracts SET matches_counted=matches_counted+1,
+        matches_remaining=MAX(0,duration_matches-(matches_counted+1)),updated_at=?
+        WHERE id=? AND matches_counted<duration_matches`).run(now(), contract.id);
+      if (!changed.changes) continue;
+      const current = this.db.prepare("SELECT * FROM sponsor_contracts WHERE id=? AND career_id=?").get(contract.id, career.id)!;
+      if (Number(current.matches_counted) < Number(current.duration_matches)) continue;
+      const existing = this.db.prepare("SELECT * FROM sponsor_contract_settlements WHERE career_id=? AND contract_id=?").get(career.id, current.id);
+      if (existing) continue;
+      const timestamp = now(), missing = Math.max(0, Number(current.required_appearances) - Number(current.attended_appearances));
+      const penaltyEach = Math.floor(Number(current.fixed_payment_usd_cents) / 5);
+      const originalFinal = Number(current.fixed_payment_usd_cents) - Number(current.signing_installment_usd_cents);
+      const penalty = missing * penaltyEach, finalInstallment = Math.max(0, originalFinal - penalty);
+      const settlementId = randomUUID(), settlementReference = `contract:${current.id}:settlement`;
+      this.db.prepare(`INSERT INTO sponsor_contract_settlements VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(
+        settlementId, current.id, career.id, current.brand_id, game.date, game.id, current.fixed_payment_usd_cents,
+        current.signing_installment_usd_cents, current.required_appearances, current.attended_appearances, missing, penaltyEach,
+        penalty, originalFinal, finalInstallment, Number(current.signing_installment_usd_cents) + finalInstallment, timestamp, settlementReference);
+      this.db.prepare(`INSERT OR IGNORE INTO financial_transactions
+        (id,career_id,amount_usd_cents,currency,in_game_date,recorded_at,origin_type,origin_reference,reason,brand_id,contract_id,game_id,idempotency_key,description,settlement_metadata)
+        VALUES (?,?,?,?,?,?,'brand',?,'contract_expire',?,?,?,?,?,?,?)`).run(randomUUID(), career.id, finalInstallment, current.currency, game.date, timestamp, settlementReference, current.brand_id, current.id, game.id, `contract:${current.id}:contract_expire`, `${current.brand_name} final contract installment`, JSON.stringify({ settlementId, attendancePenaltyUsdCents: penalty }));
+      this.db.prepare("UPDATE sponsor_contracts SET status='completed',matches_remaining=0,updated_at=? WHERE career_id=? AND id=? AND status='active'").run(timestamp, career.id, current.id);
+      this.db.prepare("UPDATE sponsor_contract_appearances SET status='cancelled',conflict_reason='contract_completed' WHERE career_id=? AND contract_id=? AND status IN ('scheduled','calendar_conflict')").run(career.id, current.id);
+      this.db.prepare("UPDATE daily_invitations SET status='cancelled',resolved_date=?,resolved_at=? WHERE career_id=? AND contract_id=? AND status='pending'").run(game.date, timestamp, career.id, current.id);
+      let blocked = false;
+      if (missing > 0) {
+        const sequence = Number(this.db.prepare("SELECT COUNT(*) count FROM sponsor_attendance_failures WHERE career_id=? AND brand_id=?").get(career.id, current.brand_id)?.count ?? 0) + 1;
+        this.db.prepare("INSERT OR IGNORE INTO sponsor_attendance_failures VALUES (?,?,?,?,?,?,?,?,?,?)").run(randomUUID(), career.id, current.brand_id, current.id, game.date, current.required_appearances, current.attended_appearances, missing, sequence, timestamp);
+        if (sequence >= 2) {
+          const failures = this.db.prepare("SELECT contract_id FROM sponsor_attendance_failures WHERE career_id=? AND brand_id=? ORDER BY failure_sequence LIMIT 2").all(career.id, current.brand_id);
+          this.db.prepare("INSERT OR IGNORE INTO sponsor_professionalism_blocks VALUES (?,?,?,?,?,?,?,?)").run(randomUUID(), career.id, current.brand_id, failures[0].contract_id, failures[1].contract_id, timestamp, game.date, "Two signed contracts ended with required sponsor appearances missed.");
+          blocked = true;
+          this.reset(career.id, String(current.brand_id), `${settlementReference}:professionalism`, "professionalism_blocked");
+          this.db.prepare("DELETE FROM sponsor_cooldowns WHERE career_id=? AND brand_id=?").run(career.id, current.brand_id);
+          this.db.prepare("UPDATE sponsor_offers SET status='invalidated',resolution_reason='professionalism_blocked',resolved_at=? WHERE career_id=? AND brand_id=? AND status='pending'").run(timestamp, career.id, current.brand_id);
+        }
+      }
+      const evaluationId = randomUUID(), probability = Number(current.required_appearances) > 0 ? Math.min(1, Number(current.attended_appearances) / Number(current.required_appearances)) : 1;
+      if (blocked) this.db.prepare("INSERT INTO sponsor_renewal_evaluations VALUES (?,?,?,?,?,?,?,?,?,'blocked','professionalism_blocked',NULL,?,?)").run(evaluationId, career.id, current.brand_id, current.id, current.attended_appearances, current.required_appearances, probability, null, game.date, `${settlementReference}:renewal`, timestamp);
+      else {
+        const randomResult = probability >= 1 ? null : this.random(), passed = probability >= 1 || (probability > 0 && randomResult! < probability);
+        this.db.prepare("INSERT INTO sponsor_renewal_evaluations VALUES (?,?,?,?,?,?,?,?,?,'failed',?,NULL,?,?)").run(evaluationId, career.id, current.brand_id, current.id, current.attended_appearances, current.required_appearances, probability, randomResult, game.date, passed ? "creating_schedule" : "probability_failed", `${settlementReference}:renewal`, timestamp);
+        if (passed) {
+          const result = this.createRenewalOffer(career, game, current as Record<string, unknown>, evaluationId, processingReference);
+          if (result.status !== "offered") this.db.prepare("UPDATE sponsor_renewal_evaluations SET status=?,failure_reason=? WHERE id=?").run(result.status, result.reason, evaluationId);
+          if (result.status === "failed") { this.reset(career.id, String(current.brand_id), `${settlementReference}:renewal_failed`, "renewal_failed"); this.db.prepare("INSERT OR REPLACE INTO sponsor_cooldowns (career_id,brand_id,until_match_boundary,until_date,reason,reference) VALUES (?,?,0,?,'renewal_failed',?)").run(career.id, current.brand_id, this.addDays(game.date, 10), settlementReference); }
+        } else { this.reset(career.id, String(current.brand_id), `${settlementReference}:renewal_failed`, "renewal_failed"); this.db.prepare("INSERT OR REPLACE INTO sponsor_cooldowns (career_id,brand_id,until_match_boundary,until_date,reason,reference) VALUES (?,?,0,?,'renewal_failed',?)").run(career.id, current.brand_id, this.addDays(game.date, 10), settlementReference); }
+      }
     }
+    return this.db.prepare("SELECT * FROM sponsor_contract_settlements WHERE career_id=? AND triggering_game_id=? ORDER BY rowid").all(career.id, game.id).map((row) => this.settlementFromRow(row as Record<string, unknown>));
   }
 
   getOverview(career: Career): SponsorsOverview {
@@ -933,7 +1273,27 @@ export class SponsorService {
       signingPaymentUsdCents: Number(row.signing_installment_usd_cents),
       remainingFixedPaymentUsdCents: Number(row.remaining_fixed_installment_usd_cents),
       renewalBonusUsdCents: Number(row.renewal_bonus_usd_cents),
+      appearanceSchedule: this.contractEntries(String(row.id)),
     }));
+    const completedContracts = this.db.prepare("SELECT c.*,s.id settlement_id FROM sponsor_contracts c JOIN sponsor_contract_settlements s ON s.contract_id=c.id WHERE c.career_id=? AND c.status='completed' ORDER BY s.expiration_date DESC,s.rowid DESC").all(career.id).map((row) => {
+      const settlementRow = this.db.prepare("SELECT * FROM sponsor_contract_settlements WHERE id=? AND career_id=?").get(row.settlement_id, career.id)!;
+      const earnings = this.db.prepare("SELECT COALESCE(SUM(CASE WHEN reason='sponsor_match' THEN amount_usd_cents ELSE 0 END),0) match_total,COALESCE(SUM(CASE WHEN reason='event' THEN amount_usd_cents ELSE 0 END),0) event_total FROM financial_transactions WHERE career_id=? AND contract_id=?").get(career.id, row.id)!;
+      return {
+        id: String(row.id), brandId: String(row.brand_id), brandName: String(row.brand_name), category: String(row.category) as CommercialCategory,
+        startDate: String(row.signing_date), durationMatches: Number(row.duration_matches), fixedPaymentUsdCents: Number(row.fixed_payment_usd_cents),
+        perMatchUsdCents: Number(row.per_match_usd_cents), perEventUsdCents: Number(row.per_event_usd_cents), requiredEvents: Number(row.required_appearances),
+        attendedEvents: Number(row.attended_appearances), matchesRemaining: 0, signingPaymentUsdCents: Number(row.signing_installment_usd_cents),
+        remainingFixedPaymentUsdCents: Number(row.remaining_fixed_installment_usd_cents), renewalBonusUsdCents: Number(row.renewal_bonus_usd_cents),
+        appearanceSchedule: this.contractEntries(String(row.id)), completionDate: String(settlementRow.expiration_date), settlementStatus: "settled" as const,
+        settlement: this.settlementFromRow(settlementRow as Record<string, unknown>), perMatchEarningsUsdCents: Number(earnings.match_total),
+        eventEarningsUsdCents: Number(earnings.event_total), renewalSequence: Number(row.renewal_sequence),
+      };
+    });
+    const professionalismBlocks = this.db.prepare("SELECT * FROM sponsor_professionalism_blocks WHERE career_id=? ORDER BY blocked_at DESC").all(career.id).map((row) => {
+      const failures = this.db.prepare("SELECT f.*,c.brand_name FROM sponsor_attendance_failures f JOIN sponsor_contracts c ON c.id=f.contract_id WHERE f.career_id=? AND f.contract_id IN (?,?) ORDER BY f.failure_sequence").all(career.id, row.first_failure_contract_id, row.second_failure_contract_id);
+      return { brandId: String(row.brand_id), brandName: String(failures[0]?.brand_name ?? row.brand_id), blockedAt: String(row.block_date), reason: String(row.reason), failedContracts: failures.map((failure) => ({ reference: String(failure.contract_id), date: String(failure.expiration_date), requiredAppearances: Number(failure.required_appearances), attendedAppearances: Number(failure.attended_appearances) })) };
+    });
+    const pendingOffers = this.db.prepare("SELECT * FROM sponsor_offers WHERE career_id=? AND status='pending' ORDER BY rowid DESC").all(career.id).map((row) => this.offerFromRow(row as Record<string, unknown>));
     const totals = this.db.prepare(`SELECT
       COALESCE(SUM(amount_usd_cents),0) balance,
       COALESCE(SUM(CASE WHEN origin_type='brand' THEN amount_usd_cents ELSE 0 END),0) sponsor,
@@ -956,6 +1316,8 @@ export class SponsorService {
       }));
     return {
       activeContracts,
+      completedContracts,
+      pendingOffers,
       finances: {
         balanceUsdCents: Number(totals.balance), sponsorEarningsUsdCents: Number(totals.sponsor),
         signingEarningsUsdCents: Number(totals.signing), sponsorMatchEarningsUsdCents: Number(totals.sponsor_match),
@@ -963,7 +1325,7 @@ export class SponsorService {
       },
       potentialSponsors: states.filter((state) => state.eligible),
       playerBlocks,
-      professionalismBlocks: [],
+      professionalismBlocks,
     };
   }
 

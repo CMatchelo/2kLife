@@ -35,7 +35,7 @@ export default function PersonalLife({
             className={`font-semibold ${latest.change > 0 ? "text-court-blue" : latest.change < 0 ? "text-court-red" : "text-muted"}`}
           >
             {latest.change > 0 ? "+" : ""}
-            {format.format(latest.change)} after the latest tracked match
+            {format.format(latest.change)} after the latest tracked activity
           </span>
         )}
       </div>
@@ -45,7 +45,7 @@ export default function PersonalLife({
         </p>
       ) : (
         <p className="text-sm text-muted">
-          No match-related follower changes yet.
+          No follower changes yet.
         </p>
       )}
     </section>

@@ -7,7 +7,11 @@ export type SocialMedia = {
 
 export type FollowerChange = {
   id: string;
-  gameId: string;
+  gameId?: string;
+  sponsorId?: string;
+  contractId?: string;
+  invitationId?: string;
+  idempotencyReference?: string;
   date: string;
   change: number; // Positive = gained; negative = lost
   performanceScore?: number; // -1 to +1, before audience scaling.

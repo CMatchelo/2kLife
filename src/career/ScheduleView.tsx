@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { Game } from "../types/game";
 import type { Team } from "../types/career";
+import type { SponsorActiveContract } from "../types/sponsor";
 import { seasonMonths } from "../domain/career";
 import CalendarView from "./CalendarView";
 import ListView from "./ListView";
@@ -10,14 +11,18 @@ export default function ScheduleView({
   teams,
   year,
   month,
+  currentDate,
   onMonth,
+  sponsorContracts = [],
   onEdit,
 }: {
   games: Game[];
   teams: Team[];
   year: string;
   month: string;
+  currentDate?: string | null;
   onMonth: (month: string) => void;
+  sponsorContracts?: SponsorActiveContract[];
   onEdit?: (game: Game) => void;
 }) {
   const [view, setView] = useState<"month" | "list">("month");
@@ -62,6 +67,8 @@ export default function ScheduleView({
           games={games}
           teams={teams}
           month={month}
+          currentDate={currentDate}
+          sponsorContracts={sponsorContracts}
           onEdit={onEdit}
         />
       ) : (

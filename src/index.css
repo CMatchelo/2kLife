@@ -144,3 +144,16 @@
 .interview-dialog::backdrop {
   background: rgb(0 0 0 / 60%);
 }
+
+.daily-invitation-dialog {
+  position: fixed;
+  inset: 0;
+  margin: auto;
+  width: min(70rem, calc(100vw - 2rem));
+  max-height: calc(100dvh - 2rem);
+  overflow-y: auto;
+  padding: 0;
+}
+.daily-invitation-dialog::backdrop {
+  background: rgb(0 0 0 / 70%);
+}
