@@ -25,16 +25,16 @@ export default function SignatureShoesBoard({
       className="career-card dashboard-card"
       aria-labelledby="signature-shoes-title"
     >
-      <span
-        className="mb-3 block h-1 w-14 rounded-full bg-gold"
-        aria-hidden="true"
-      />
       <h2
         id="signature-shoes-title"
         className="text-2xl font-black uppercase tracking-wide"
       >
         Signature Shoes
       </h2>
+      <span
+        className="mt-3 block h-1 w-14 rounded-full bg-gold"
+        aria-hidden="true"
+      />
       <p className="mt-2 text-sm text-muted">
         Footwear sponsor appearances unlock up to two shoes for each contract.
       </p>
@@ -48,7 +48,7 @@ export default function SignatureShoesBoard({
           {shoes.map((shoe) => (
             <article
               key={shoe.id}
-              className="overflow-hidden rounded-2xl border-2 border-gold/70 bg-[#fff5bf] text-ink shadow-sm"
+              className="overflow-hidden rounded-2xl border border-divider bg-cream text-slate-100 shadow-lg"
             >
               <div className="flex h-48 items-center justify-center bg-[#101b27] p-4">
                 {shoe.imageUrl ? (

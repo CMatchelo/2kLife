@@ -11,16 +11,10 @@ import {
 } from "../domain/career";
 import AIConnection from "../AIConnection";
 import CalendarSetup from "./CalendarSetup";
-import TeamManager from "./TeamManager";
 import { Field, TeamSelect } from "./fields";
 import { api } from "./api";
 
-const steps = [
-  "Player profile",
-  "Season setup",
-  "Calendar creation",
-  "Review and start",
-];
+const steps = ["Player and season", "Calendar creation", "Review and start"];
 const number = (value: string) => (value.trim() === "" ? NaN : Number(value));
 const display = (value: number) => (Number.isFinite(value) ? value : "");
 export default function NewCareer({
@@ -56,7 +50,7 @@ export default function NewCareer({
     games: [],
     coverage: [],
     unresolved: [],
-    teamsConfirmed: false,
+    teamsConfirmed: true,
   }));
   const [step, setStep] = useState(0);
   const [busy, setBusy] = useState(false);
@@ -142,7 +136,7 @@ export default function NewCareer({
         </button>
       </div>
       <ol
-        className="grid grid-cols-2 gap-3 md:grid-cols-4"
+        className="grid grid-cols-2 gap-3 md:grid-cols-3"
         aria-label="Career setup progress"
       >
         {steps.map((label, index) => (
@@ -174,6 +168,16 @@ export default function NewCareer({
               setErrors(["Secondary position must differ from primary."]);
               return;
             }
+            const year = normalizeSeason(draft.season.year);
+            if (!year) {
+              setErrors(["Use a consecutive season such as 2026–27."]);
+              return;
+            }
+            setDraft({
+              ...draft,
+              season: { ...draft.season, year },
+              teamsConfirmed: true,
+            });
             go(1);
           }}
         >
@@ -479,123 +483,50 @@ export default function NewCareer({
                 </Field>
               </div>
             )}
-            <TeamManager
-              teams={draft.teams}
-              onChange={(teams) =>
-                setDraft({ ...draft, teams, teamsConfirmed: false })
-              }
-            />
+            <div className="border-t border-divider pt-6">
+              <h2 className="text-2xl font-bold">Set the starting season</h2>
+              <div className="mt-5 grid gap-5 sm:grid-cols-2">
+                <Field
+                  label="MyNBA era"
+                  hint="Use the era name from your save, including a custom era if needed."
+                >
+                  <input
+                    required
+                    maxLength={80}
+                    value={draft.season.era}
+                    onChange={(e) =>
+                      setDraft({
+                        ...draft,
+                        season: { ...draft.season, era: e.target.value },
+                      })
+                    }
+                  />
+                </Field>
+                <Field
+                  label="Starting season"
+                  hint="For example 2026–27. Calendar spans July through the following June."
+                >
+                  <input
+                    required
+                    placeholder="2026–27"
+                    value={draft.season.year}
+                    onChange={(e) =>
+                      setDraft({
+                        ...draft,
+                        season: { ...draft.season, year: e.target.value },
+                      })
+                    }
+                  />
+                </Field>
+              </div>
+            </div>
             <button type="submit" className="ai-primary">
-              Next: Season setup
+              Next: Calendar creation
             </button>
           </fieldset>
         </form>
       </div>
-      <div hidden={step !== 1}>
-        <form
-          onSubmit={(event) => {
-            event.preventDefault();
-            const year = normalizeSeason(draft.season.year);
-            if (!year) {
-              setErrors(["Use a consecutive season such as 2026–27."]);
-              return;
-            }
-            setDraft({ ...draft, season: { ...draft.season, year } });
-            go(2);
-          }}
-        >
-          <fieldset disabled={busy} className="career-card space-y-6">
-            <h2 className="text-2xl font-bold">Set the starting season</h2>
-            <p className="rounded-lg border border-divider bg-gold/40 p-4">
-              This version begins at the start of a season. Midseason imports
-              are not supported. The initial team-history entry uses this
-              confirmed season boundary; its exact calendar date remains
-              unknown.
-            </p>
-            <div className="grid gap-5 sm:grid-cols-2">
-              <Field
-                label="MyNBA era"
-                hint="Use the era name from your save, including a custom era if needed."
-              >
-                <input
-                  required
-                  maxLength={80}
-                  value={draft.season.era}
-                  onChange={(e) =>
-                    setDraft({
-                      ...draft,
-                      season: { ...draft.season, era: e.target.value },
-                      teamsConfirmed: false,
-                    })
-                  }
-                />
-              </Field>
-              <Field
-                label="Starting season"
-                hint="For example 2026–27. Calendar spans July through the following June."
-              >
-                <input
-                  required
-                  placeholder="2026–27"
-                  value={draft.season.year}
-                  onChange={(e) =>
-                    setDraft({
-                      ...draft,
-                      season: { ...draft.season, year: e.target.value },
-                      teamsConfirmed: false,
-                    })
-                  }
-                />
-              </Field>
-              <Field label="Current team for this season">
-                <TeamSelect
-                  teams={draft.teams}
-                  value={p.currentTeamId}
-                  onChange={(value) => player({ currentTeamId: value })}
-                />
-              </Field>
-            </div>
-            <TeamManager
-              teams={draft.teams}
-              onChange={(teams) =>
-                setDraft({ ...draft, teams, teamsConfirmed: false })
-              }
-            />
-            <label className="flex items-start gap-2">
-              <input
-                type="checkbox"
-                required
-                checked={draft.teamsConfirmed}
-                onChange={(e) =>
-                  setDraft({ ...draft, teamsConfirmed: e.target.checked })
-                }
-              />
-              <span>
-                I have checked the team names for my era and added any missing
-                historical or relocated teams. I will select only teams present
-                in my save.
-              </span>
-            </label>
-            <p className="text-sm text-muted">
-              Changing season or team keeps existing calendar entries so you can
-              correct them rather than lose them.
-            </p>
-            <div className="flex gap-3">
-              <button
-                type="button"
-                className="ai-secondary"
-                onClick={() => go(0)}
-              >
-                Back
-              </button>
-              <button type="submit" className="ai-primary">
-                Next: Calendar creation
-              </button>
-            </div>
-          </fieldset>
-        </form>
-      </div>
-      <div hidden={step !== 2} className="space-y-6">
+      <div hidden={step !== 1} className="space-y-6">
         <CalendarSetup
           draft={draft}
           onChange={setDraft}
@@ -607,7 +538,7 @@ export default function NewCareer({
             type="button"
             className="ai-secondary"
             disabled={busy}
-            onClick={() => go(1)}
+            onClick={() => go(0)}
           >
             Back
           </button>
@@ -615,13 +546,13 @@ export default function NewCareer({
             type="button"
             className="ai-primary"
             disabled={busy}
-            onClick={() => go(3)}
+            onClick={() => go(2)}
           >
             Next: Review career
           </button>
         </div>
       </div>
-      <div hidden={step !== 3} className="career-card space-y-6">
+      <div hidden={step !== 2} className="career-card space-y-6">
         <h2 className="text-2xl font-bold">Review and start your career</h2>
         <dl className="grid gap-4 sm:grid-cols-2">
           {[
@@ -699,7 +630,7 @@ export default function NewCareer({
             type="button"
             className="ai-secondary"
             disabled={busy}
-            onClick={() => go(2)}
+            onClick={() => go(1)}
           >
             Back to calendar
           </button>

@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { sponsorCatalog } from "../domain/sponsors";
 import type { Career } from "../types/career";
@@ -14,9 +14,6 @@ import type {
 } from "../types/sponsor";
 import { api } from "./api";
 import SponsorApproachModal from "./SponsorApproachModal";
-import SignatureShoesBoard from "./SignatureShoesBoard";
-import SignatureShoeLaunchModal from "./SignatureShoeLaunchModal";
-import type { SignatureShoe } from "../types/signature-shoe";
 
 const brandById = new Map(
   sponsorCatalog.brands.map((brand) => [brand.id, brand]),
@@ -310,7 +307,6 @@ export default function Sponsors({ career }: { career: Career }) {
     requestId: string;
   } | null>(null);
   const [saving, setSaving] = useState(false);
-  const [showAllTransactions, setShowAllTransactions] = useState(false);
   const [approaches, setApproaches] = useState<SponsorApproachGroup[]>([]);
   const [openApproach, setOpenApproach] = useState<SponsorApproachGroup | null>(
     null,
@@ -322,9 +318,6 @@ export default function Sponsors({ career }: { career: Career }) {
     chosen: string;
     reviewing: boolean;
   } | null>(null);
-  const [launchingShoe, setLaunchingShoe] = useState<SignatureShoe | null>(
-    null,
-  );
 
   async function reviewReplacement(entryId: string) {
     try {
@@ -480,103 +473,6 @@ export default function Sponsors({ career }: { career: Career }) {
       )}
       <section
         className="career-card dashboard-card"
-        aria-labelledby="sponsor-finances-title"
-      >
-        <span
-          className="mb-3 block h-1 w-14 rounded-full bg-gold"
-          aria-hidden="true"
-        />
-        <h2
-          id="sponsor-finances-title"
-          className="text-2xl font-black uppercase tracking-wide"
-        >
-          Finances
-        </h2>
-        <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <div>
-            <span className="text-sm text-muted">Current balance</span>
-            <strong className="block text-xl">
-              {money(overview?.finances.balanceUsdCents ?? 0)}
-            </strong>
-          </div>
-          <div>
-            <span className="text-sm text-muted">Sponsor earnings</span>
-            <strong className="block text-xl">
-              {money(overview?.finances.sponsorEarningsUsdCents ?? 0)}
-            </strong>
-          </div>
-          <div>
-            <span className="text-sm text-muted">Signing payments</span>
-            <strong className="block text-xl">
-              {money(overview?.finances.signingEarningsUsdCents ?? 0)}
-            </strong>
-          </div>
-          <div>
-            <span className="text-sm text-muted">Match payments</span>
-            <strong className="block text-xl">
-              {money(overview?.finances.sponsorMatchEarningsUsdCents ?? 0)}
-            </strong>
-          </div>
-        </div>
-        <h3 className="mt-5 font-bold">Recent transactions</h3>
-        <div className="mt-2 overflow-x-auto">
-          <table className="w-full text-left text-sm">
-            <thead>
-              <tr>
-                <th className="p-2">Date</th>
-                <th className="p-2">Description</th>
-                <th className="p-2">Reason</th>
-                <th className="p-2 text-right">Amount</th>
-              </tr>
-            </thead>
-            <tbody>
-              {overview?.finances.recentTransactions
-                .slice(0, showAllTransactions ? undefined : 5)
-                .map((transaction) => (
-                  <tr
-                    key={transaction.id}
-                    className="border-t border-divider/60"
-                  >
-                    <td className="p-2">{transaction.inGameDate}</td>
-                    <td className="p-2">
-                      {transaction.description ?? transaction.originReference}
-                    </td>
-                    <td className="p-2 capitalize">
-                      {transaction.reason.replaceAll("_", " ")}
-                    </td>
-                    <td className="p-2 text-right font-bold">
-                      {money(transaction.amountUsdCents)}
-                    </td>
-                  </tr>
-                ))}
-              {!loading &&
-                overview?.finances.recentTransactions.length === 0 && (
-                  <tr>
-                    <td colSpan={4} className="p-4 text-center text-muted">
-                      No financial transactions recorded.
-                    </td>
-                  </tr>
-                )}
-            </tbody>
-          </table>
-        </div>
-        {(overview?.finances.recentTransactions.length ?? 0) > 5 && (
-          <button
-            type="button"
-            className="ai-primary mt-4"
-            aria-expanded={showAllTransactions}
-            onClick={() => setShowAllTransactions((value) => !value)}
-          >
-            {showAllTransactions ? "Show less" : "Show all"}
-          </button>
-        )}
-      </section>
-      <SignatureShoesBoard
-        shoes={overview?.signatureShoes ?? []}
-        onLaunch={setLaunchingShoe}
-      />
-      <section
-        className="career-card dashboard-card"
         aria-labelledby="active-contracts-title"
       >
         <h2
@@ -592,272 +488,316 @@ export default function Sponsors({ career }: { career: Career }) {
         <p className="mt-2 text-sm text-muted">
           Projected if no more sponsor events are attended.
         </p>
-        <div className="mt-5 overflow-x-auto">
-          <table className="min-w-[76rem] w-full text-left text-sm">
-            <thead className="bg-gold">
-              <tr>
-                {[
-                  "Brand",
-                  "Logo",
-                  "Commercial category",
-                  "Total fixed payment",
-                  "Payment per match",
-                  "Payment per event",
-                  "Remaining mandatory appearances",
-                  "Matches remaining",
-                  "Projected final installment",
-                ].map((heading) => (
-                  <th key={heading} scope="col" className="p-3">
-                    {heading}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {overview?.activeContracts.map((contract) => {
-                const isExpanded = expandedContract === contract.id;
-                return (
-                  <Fragment key={contract.id}>
-                    <tr className="border-b border-divider/60">
-                      <th scope="row" className="p-3">
-                        {contract.brandName}
-                        {contract.appearanceSchedule.some(
-                          (entry) => entry.status === "calendar_conflict",
-                        ) && (
-                          <span className="mt-1 block text-xs font-bold text-red-700">
-                            Calendar conflict — open contract details
-                          </span>
-                        )}
-                      </th>
-                      <td className="p-3">
-                        <Logo
-                          brandId={contract.brandId}
-                          brandName={contract.brandName}
-                        />
-                      </td>
-                      <td className="p-3">{labels[contract.category]}</td>
-                      <td className="p-3">
+        <div className="mt-5 grid gap-5 xl:grid-cols-2">
+          {overview?.activeContracts.map((contract) => {
+            const isExpanded = expandedContract === contract.id;
+            const remainingAppearances = Math.max(
+              0,
+              contract.requiredEvents - contract.attendedEvents,
+            );
+            const attendanceProgress = contract.requiredEvents
+              ? Math.min(
+                  100,
+                  (contract.attendedEvents / contract.requiredEvents) * 100,
+                )
+              : 100;
+            const matchesCompleted = Math.max(
+              0,
+              contract.durationMatches - contract.matchesRemaining,
+            );
+            const matchProgress = contract.durationMatches
+              ? Math.min(
+                  100,
+                  (matchesCompleted / contract.durationMatches) * 100,
+                )
+              : 100;
+            const hasConflict = contract.appearanceSchedule.some(
+              (entry) => entry.status === "calendar_conflict",
+            );
+            return (
+              <article
+                key={contract.id}
+                className="overflow-hidden rounded-2xl border border-slate-600 bg-[#0d161f] shadow-xl"
+              >
+                <div className="border-b border-slate-700 bg-[#121f2b] p-5">
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex min-w-0 items-center gap-4">
+                      <Logo
+                        brandId={contract.brandId}
+                        brandName={contract.brandName}
+                        large
+                      />
+                      <div className="min-w-0">
+                        <p className="text-xs font-black uppercase tracking-[0.18em] text-sky-300">
+                          {labels[contract.category]}
+                        </p>
+                        <h3 className="truncate text-2xl font-black sm:text-3xl">
+                          {contract.brandName}
+                        </h3>
+                      </div>
+                    </div>
+                    <span className="rounded-full border border-emerald-400/50 bg-emerald-400/10 px-3 py-1 text-xs font-black uppercase tracking-wide text-emerald-300">
+                      Active
+                    </span>
+                  </div>
+                  {hasConflict && (
+                    <p className="mt-4 rounded-lg border border-red-400/40 bg-red-950/50 p-3 text-sm font-bold text-red-200">
+                      Calendar conflict — open contract details to choose a
+                      replacement date.
+                    </p>
+                  )}
+                </div>
+                <div className="space-y-5 p-5">
+                  <dl className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                    <div className="rounded-xl border border-slate-700 bg-slate-900/70 p-3 sm:col-span-2">
+                      <dt className="text-xs font-bold uppercase tracking-wide text-slate-400">
+                        Fixed contract
+                      </dt>
+                      <dd className="mt-1 text-2xl font-black text-gold">
                         {money(contract.fixedPaymentUsdCents)}
-                      </td>
-                      <td className="p-3">
+                      </dd>
+                    </div>
+                    <div className="rounded-xl border border-slate-700 bg-slate-900/70 p-3">
+                      <dt className="text-xs font-bold uppercase tracking-wide text-slate-400">
+                        Per game
+                      </dt>
+                      <dd className="mt-1 text-lg font-black">
                         {money(contract.perMatchUsdCents)}
-                      </td>
-                      <td className="p-3">
+                      </dd>
+                    </div>
+                    <div className="rounded-xl border border-slate-700 bg-slate-900/70 p-3">
+                      <dt className="text-xs font-bold uppercase tracking-wide text-slate-400">
+                        Per event
+                      </dt>
+                      <dd className="mt-1 text-lg font-black">
                         {money(contract.perEventUsdCents)}
-                      </td>
-                      <td className="p-3">
-                        {Math.max(
-                          0,
-                          contract.requiredEvents - contract.attendedEvents,
-                        )}{" "}
-                        remaining / {contract.requiredEvents} required
-                      </td>
-                      <td className="p-3">{contract.matchesRemaining}</td>
-                      <td className="p-3 font-bold">
+                      </dd>
+                    </div>
+                  </dl>
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div>
+                      <div className="flex justify-between gap-3 text-sm">
+                        <span className="font-bold">Contract progress</span>
+                        <span className="text-slate-300">
+                          {matchesCompleted} / {contract.durationMatches} games
+                        </span>
+                      </div>
+                      <div className="mt-2 h-2 overflow-hidden rounded-full bg-slate-700">
+                        <div
+                          className="h-full rounded-full bg-sky-400"
+                          style={{ width: `${matchProgress}%` }}
+                        />
+                      </div>
+                      <p className="mt-2 text-xs text-slate-400">
+                        {contract.matchesRemaining} games remaining
+                      </p>
+                    </div>
+                    <div>
+                      <div className="flex justify-between gap-3 text-sm">
+                        <span className="font-bold">Sponsor appearances</span>
+                        <span className="text-slate-300">
+                          {contract.attendedEvents} / {contract.requiredEvents}
+                        </span>
+                      </div>
+                      <div className="mt-2 h-2 overflow-hidden rounded-full bg-slate-700">
+                        <div
+                          className="h-full rounded-full bg-gold"
+                          style={{ width: `${attendanceProgress}%` }}
+                        />
+                      </div>
+                      <p className="mt-2 text-xs text-slate-400">
+                        {remainingAppearances} mandatory appearances remaining
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap items-end justify-between gap-4 border-t border-slate-700 pt-4">
+                    <div>
+                      <p className="text-xs font-bold uppercase tracking-wide text-slate-400">
+                        Projected final installment
+                      </p>
+                      <p className="mt-1 text-xl font-black">
                         {money(projectedInstallment(contract))}
-                        <button
-                          type="button"
-                          className="ai-link mt-2 block font-normal"
-                          aria-expanded={isExpanded}
-                          aria-controls={`contract-${contract.id}`}
-                          onClick={() =>
-                            setExpandedContract(isExpanded ? null : contract.id)
-                          }
-                        >
-                          {isExpanded ? "Hide details" : "Contract details"}
-                        </button>
-                      </td>
-                    </tr>
-                    {isExpanded && (
-                      <tr id={`contract-${contract.id}`}>
-                        <td colSpan={9} className="p-3">
-                          <div className="grid gap-3 rounded-xl border border-divider bg-cream p-4 sm:grid-cols-2 lg:grid-cols-4">
-                            <div>
-                              <strong className="block">
-                                Start and duration
-                              </strong>
-                              <time dateTime={contract.startDate}>
-                                {contract.startDate}
-                              </time>{" "}
-                              · {contract.durationMatches} matches
-                            </div>
-                            <div>
-                              <strong className="block">
-                                Attendance progress
-                              </strong>
-                              {contract.attendedEvents} attended ·{" "}
-                              {Math.max(
-                                0,
-                                contract.requiredEvents -
-                                  contract.attendedEvents,
-                              )}{" "}
-                              remaining
-                            </div>
-                            <div className="sm:col-span-2 lg:col-span-4">
-                              <strong className="block">
-                                Confirmed appearance dates
-                              </strong>
-                              <ol className="mt-1 list-decimal pl-5">
-                                {contract.appearanceSchedule.map((entry) => (
-                                  <li
-                                    key={entry.id}
-                                    className={
-                                      entry.status === "calendar_conflict"
-                                        ? "text-red-700"
-                                        : ""
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      className="ai-primary"
+                      aria-expanded={isExpanded}
+                      aria-controls={`contract-${contract.id}`}
+                      onClick={() =>
+                        setExpandedContract(isExpanded ? null : contract.id)
+                      }
+                    >
+                      {isExpanded ? "Hide contract" : "View contract"}
+                    </button>
+                  </div>
+                </div>
+                {isExpanded && (
+                  <div
+                    id={`contract-${contract.id}`}
+                    className="border-t border-slate-600 bg-[#101b27] p-5"
+                  >
+                    <dl className="grid gap-4 text-sm sm:grid-cols-2">
+                      <div>
+                        <dt className="text-slate-400">Start and duration</dt>
+                        <dd className="font-bold">
+                          <time dateTime={contract.startDate}>
+                            {contract.startDate}
+                          </time>{" "}
+                          · {contract.durationMatches} matches
+                        </dd>
+                      </div>
+                      <div>
+                        <dt className="text-slate-400">
+                          Signing / renewal bonus
+                        </dt>
+                        <dd className="font-bold">
+                          {money(contract.signingPaymentUsdCents)} /{" "}
+                          {money(contract.renewalBonusUsdCents)}
+                        </dd>
+                      </div>
+                      <div className="sm:col-span-2">
+                        <dt className="text-slate-400">
+                          Settlement projection
+                        </dt>
+                        <dd className="font-bold">
+                          80% fixed:{" "}
+                          {money(contract.remainingFixedPaymentUsdCents)} ·
+                          missed-appearance deduction:{" "}
+                          {money(
+                            remainingAppearances *
+                              contract.signingPaymentUsdCents,
+                          )}{" "}
+                          · projected: {money(projectedInstallment(contract))}
+                        </dd>
+                      </div>
+                    </dl>
+                    <div className="mt-5">
+                      <h4 className="font-black">Confirmed appearance dates</h4>
+                      <ol className="mt-2 space-y-2">
+                        {contract.appearanceSchedule.map((entry, index) => (
+                          <li
+                            key={entry.id}
+                            className={`rounded-lg border p-3 text-sm ${entry.status === "calendar_conflict" ? "border-red-400/50 bg-red-950/40 text-red-100" : "border-slate-700 bg-slate-900/50"}`}
+                          >
+                            <span className="mr-2 font-black text-gold">
+                              {index + 1}.
+                            </span>
+                            {entry.date}
+                            {entry.status === "calendar_conflict"
+                              ? ` — calendar conflict (${entry.conflictReason?.replaceAll("_", " ")})`
+                              : entry.status === "cancelled"
+                                ? " — cancelled (attendance requirement fulfilled)"
+                                : entry.status === "attended"
+                                  ? " — attended"
+                                  : entry.status === "refused"
+                                    ? " — refused"
+                                    : " — scheduled"}
+                            {entry.replacedDate
+                              ? ` (replaced ${entry.replacedDate})`
+                              : ""}
+                            {entry.status === "calendar_conflict" && (
+                              <button
+                                type="button"
+                                className="ml-2 font-bold text-sky-300 underline"
+                                onClick={() => void reviewReplacement(entry.id)}
+                              >
+                                Choose replacement
+                              </button>
+                            )}
+                          </li>
+                        ))}
+                      </ol>
+                    </div>
+                    {replacement &&
+                      contract.appearanceSchedule.some(
+                        (entry) => entry.id === replacement.entryId,
+                      ) && (
+                        <div className="mt-4 rounded-xl border border-sky-500/60 bg-slate-900 p-4">
+                          <label
+                            className="block font-bold"
+                            htmlFor={`replacement-${replacement.entryId}`}
+                          >
+                            Replacement for {replacement.oldDate}
+                          </label>
+                          {replacement.choices.length ? (
+                            <>
+                              <select
+                                id={`replacement-${replacement.entryId}`}
+                                className="mt-3 rounded-lg border border-slate-600 bg-[#182633] p-2 text-white"
+                                value={replacement.chosen}
+                                onChange={(event) =>
+                                  setReplacement({
+                                    ...replacement,
+                                    chosen: event.target.value,
+                                    reviewing: false,
+                                  })
+                                }
+                              >
+                                {replacement.choices.map((date) => (
+                                  <option key={date} value={date}>
+                                    {date}
+                                  </option>
+                                ))}
+                              </select>
+                              <div className="mt-3 flex flex-wrap gap-2">
+                                {replacement.reviewing ? (
+                                  <>
+                                    <p className="w-full text-sm">
+                                      Confirm {replacement.oldDate} →{" "}
+                                      {replacement.chosen}. The original date
+                                      remains in schedule history.
+                                    </p>
+                                    <button
+                                      type="button"
+                                      className="ai-primary"
+                                      onClick={() => void confirmReplacement()}
+                                    >
+                                      Confirm change
+                                    </button>
+                                  </>
+                                ) : (
+                                  <button
+                                    type="button"
+                                    className="ai-primary"
+                                    onClick={() =>
+                                      setReplacement({
+                                        ...replacement,
+                                        reviewing: true,
+                                      })
                                     }
                                   >
-                                    {entry.date}
-                                    {entry.status === "calendar_conflict"
-                                      ? ` — calendar conflict (${entry.conflictReason?.replaceAll("_", " ")})`
-                                      : entry.status === "cancelled"
-                                        ? " — cancelled (attendance requirement fulfilled)"
-                                        : entry.status === "attended"
-                                          ? " — attended"
-                                          : entry.status === "refused"
-                                            ? " — refused"
-                                            : ""}
-                                    {entry.replacedDate
-                                      ? ` (replaced ${entry.replacedDate})`
-                                      : ""}
-                                    {entry.status === "calendar_conflict" && (
-                                      <button
-                                        type="button"
-                                        className="ai-link ml-2"
-                                        onClick={() =>
-                                          void reviewReplacement(entry.id)
-                                        }
-                                      >
-                                        Choose replacement
-                                      </button>
-                                    )}
-                                  </li>
-                                ))}
-                              </ol>
-                              {replacement &&
-                                contract.appearanceSchedule.some(
-                                  (entry) => entry.id === replacement.entryId,
-                                ) && (
-                                  <div className="mt-3 rounded-lg border-2 border-blue-500 bg-white p-3">
-                                    <label
-                                      className="block font-bold"
-                                      htmlFor={`replacement-${replacement.entryId}`}
-                                    >
-                                      Replacement for {replacement.oldDate}
-                                    </label>
-                                    {replacement.choices.length ? (
-                                      <>
-                                        <select
-                                          id={`replacement-${replacement.entryId}`}
-                                          className="mt-2 rounded border p-2 text-ink"
-                                          value={replacement.chosen}
-                                          onChange={(event) =>
-                                            setReplacement({
-                                              ...replacement,
-                                              chosen: event.target.value,
-                                              reviewing: false,
-                                            })
-                                          }
-                                        >
-                                          {replacement.choices.map((date) => (
-                                            <option key={date} value={date}>
-                                              {date}
-                                            </option>
-                                          ))}
-                                        </select>
-                                        <div className="mt-2 flex flex-wrap gap-2">
-                                          {replacement.reviewing ? (
-                                            <>
-                                              <p className="w-full">
-                                                Confirm {replacement.oldDate} →{" "}
-                                                {replacement.chosen}. The
-                                                original date remains in
-                                                schedule history.
-                                              </p>
-                                              <button
-                                                type="button"
-                                                className="ai-primary"
-                                                onClick={() =>
-                                                  void confirmReplacement()
-                                                }
-                                              >
-                                                Confirm change
-                                              </button>
-                                            </>
-                                          ) : (
-                                            <button
-                                              type="button"
-                                              className="ai-primary"
-                                              onClick={() =>
-                                                setReplacement({
-                                                  ...replacement,
-                                                  reviewing: true,
-                                                })
-                                              }
-                                            >
-                                              Review change
-                                            </button>
-                                          )}
-                                          <button
-                                            type="button"
-                                            className="ai-secondary"
-                                            onClick={() => setReplacement(null)}
-                                          >
-                                            Cancel
-                                          </button>
-                                        </div>
-                                      </>
-                                    ) : (
-                                      <p className="mt-2 text-red-700">
-                                        No confirmed off days remain in this
-                                        contract period. Confirm more calendar
-                                        coverage or add future games, then
-                                        retry.
-                                      </p>
-                                    )}
-                                  </div>
+                                    Review change
+                                  </button>
                                 )}
-                            </div>
-                            <div>
-                              <strong className="block">
-                                Signing / renewal
-                              </strong>
-                              {money(contract.signingPaymentUsdCents)} /{" "}
-                              {money(contract.renewalBonusUsdCents)}
-                            </div>
-                            <div>
-                              <strong className="block">
-                                Settlement projection
-                              </strong>
-                              80% fixed:{" "}
-                              {money(contract.remainingFixedPaymentUsdCents)} ·
-                              missed-appearance deduction:{" "}
-                              {money(
-                                Math.max(
-                                  0,
-                                  contract.requiredEvents -
-                                    contract.attendedEvents,
-                                ) * contract.signingPaymentUsdCents,
-                              )}{" "}
-                              · projected:{" "}
-                              {money(projectedInstallment(contract))}
-                            </div>
-                          </div>
-                        </td>
-                      </tr>
-                    )}
-                  </Fragment>
-                );
-              })}
-              {!loading && overview?.activeContracts.length === 0 && (
-                <tr>
-                  <td colSpan={9} className="p-5 text-center text-muted">
-                    No active sponsor contracts are recorded for this career.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+                                <button
+                                  type="button"
+                                  className="ai-secondary"
+                                  onClick={() => setReplacement(null)}
+                                >
+                                  Cancel
+                                </button>
+                              </div>
+                            </>
+                          ) : (
+                            <p className="mt-2 text-red-300">
+                              No confirmed off days remain in this contract
+                              period. Confirm more calendar coverage or add
+                              future games, then retry.
+                            </p>
+                          )}
+                        </div>
+                      )}
+                  </div>
+                )}
+              </article>
+            );
+          })}
+          {!loading && overview?.activeContracts.length === 0 && (
+            <p className="rounded-xl border border-slate-700 bg-[#0d161f] p-6 text-center text-muted xl:col-span-2">
+              No active sponsor contracts are recorded for this career.
+            </p>
+          )}
         </div>
       </section>
 
@@ -1334,16 +1274,6 @@ export default function Sponsors({ career }: { career: Career }) {
           onChanged={() => void load()}
           onClose={() => {
             setOpenApproach(null);
-            void load();
-          }}
-        />
-      )}
-      {launchingShoe && (
-        <SignatureShoeLaunchModal
-          careerId={careerId}
-          shoe={launchingShoe}
-          onLaunched={() => {
-            setLaunchingShoe(null);
             void load();
           }}
         />

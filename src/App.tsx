@@ -2,9 +2,99 @@ import AIConnection from "./AIConnection";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import NewCareer from "./career/NewCareer";
-import CareerDashboard from "./career/CareerDashboard";
+import CareerDashboard, { type CareerView } from "./career/CareerDashboard";
 import { api } from "./career/api";
 import type { Career, CareerSummary } from "./types/career";
+
+const careerViews: { value: CareerView; label: string }[] = [
+  { value: "progress", label: "Season progress" },
+  { value: "info", label: "Player info" },
+  { value: "sponsors", label: "Sponsors" },
+  { value: "finances", label: "Finances" },
+  { value: "config", label: "Settings" },
+];
+
+function CareerViewIcon({ view }: { view: CareerView }) {
+  const shared = {
+    className: "h-4 w-4 shrink-0",
+    viewBox: "0 0 24 24",
+    fill: "none",
+    stroke: "currentColor",
+    strokeWidth: 1.8,
+    "aria-hidden": true,
+  } as const;
+  if (view === "progress")
+    return (
+      <svg {...shared}>
+        <path d="M4 19V9m5 10V5m5 14v-7m5 7V3" />
+      </svg>
+    );
+  if (view === "info")
+    return (
+      <svg {...shared}>
+        <circle cx="12" cy="8" r="3.5" />
+        <path d="M5 20c.7-4 3-6 7-6s6.3 2 7 6" />
+      </svg>
+    );
+  if (view === "sponsors")
+    return (
+      <svg {...shared}>
+        <path d="M8 4h8v4a4 4 0 0 1-8 0V4Z" />
+        <path d="M8 6H4v2a4 4 0 0 0 4 4m8-6h4v2a4 4 0 0 1-4 4M12 12v5m-4 3h8" />
+      </svg>
+    );
+  if (view === "finances")
+    return (
+      <svg {...shared}>
+        <circle cx="12" cy="12" r="9" />
+        <path d="M15.5 8.5c-.8-.7-1.8-1-3.1-1-1.7 0-2.9.8-2.9 2s1.1 1.8 2.8 2.1c1.8.3 3.2.8 3.2 2.4s-1.4 2.5-3.3 2.5c-1.5 0-2.8-.5-3.7-1.4M12 5.5v13" />
+      </svg>
+    );
+  return (
+    <svg {...shared}>
+      <path d="M4 6h10M18 6h2M4 12h2m4 0h10M4 18h8m4 0h4" />
+      <circle cx="16" cy="6" r="2" />
+      <circle cx="8" cy="12" r="2" />
+      <circle cx="14" cy="18" r="2" />
+    </svg>
+  );
+}
+
+function CareerNavigation({
+  view,
+  onSelect,
+  mobile = false,
+}: {
+  view: CareerView;
+  onSelect: (view: CareerView) => void;
+  mobile?: boolean;
+}) {
+  return (
+    <nav
+      aria-label="Career views"
+      className={
+        mobile ? "flex flex-col" : "hidden items-stretch md:flex lg:gap-2"
+      }
+    >
+      {careerViews.map((item) => (
+        <button
+          key={item.value}
+          type="button"
+          aria-current={view === item.value ? "page" : undefined}
+          className={`flex cursor-pointer items-center gap-2 border-b-2 bg-transparent px-1 py-3 text-left text-sm font-semibold transition-colors hover:border-gold hover:text-white lg:px-2 ${
+            view === item.value
+              ? "border-gold text-white"
+              : "border-transparent text-slate-300"
+          }`}
+          onClick={() => onSelect(item.value)}
+        >
+          <CareerViewIcon view={item.value} />
+          {item.label}
+        </button>
+      ))}
+    </nav>
+  );
+}
 
 function DeleteCareerDialog({
   career,
@@ -107,6 +197,8 @@ function App() {
   const [error, setError] = useState("");
   const [revision, setRevision] = useState(0);
   const [deleting, setDeleting] = useState<CareerSummary | null>(null);
+  const [careerView, setCareerView] = useState<CareerView>("progress");
+  const [menuOpen, setMenuOpen] = useState(false);
   useEffect(() => {
     let active = true;
     api<CareerSummary[]>("careers")
@@ -129,7 +221,7 @@ function App() {
   return (
     <div className="min-h-screen">
       <header className="border-b border-divider">
-        <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4 px-6 py-6">
+        <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-x-5 px-6 py-4">
           <a
             href="/"
             aria-label="2kLife home"
@@ -137,10 +229,67 @@ function App() {
           >
             2k<span className="text-court-red">Life</span>
           </a>
+          {career && (
+            <CareerNavigation view={careerView} onSelect={setCareerView} />
+          )}
+          {career && (
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                className="cursor-pointer rounded-lg bg-court-red px-4 py-2 font-semibold text-white transition-opacity hover:opacity-90"
+                onClick={() => {
+                  setCareer(null);
+                  setCareerView("progress");
+                  setMenuOpen(false);
+                  setRevision((value) => value + 1);
+                }}
+              >
+                Leave
+              </button>
+              <button
+                type="button"
+                className="cursor-pointer rounded-lg border border-divider bg-transparent p-2 text-slate-100 md:hidden"
+                aria-expanded={menuOpen}
+                aria-controls="mobile-career-navigation"
+                aria-label={menuOpen ? "Close career menu" : "Open career menu"}
+                onClick={() => setMenuOpen((open) => !open)}
+              >
+                <svg
+                  aria-hidden="true"
+                  className="h-6 w-6"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                >
+                  {menuOpen ? (
+                    <path d="m6 6 12 12M18 6 6 18" />
+                  ) : (
+                    <path d="M4 7h16M4 12h16M4 17h16" />
+                  )}
+                </svg>
+              </button>
+            </div>
+          )}
           {!career && (
             <span className="text-xs font-semibold uppercase tracking-widest text-muted">
               Your career. Your story.
             </span>
+          )}
+          {career && menuOpen && (
+            <div
+              id="mobile-career-navigation"
+              className="w-full border-t border-divider pt-2 md:hidden"
+            >
+              <CareerNavigation
+                mobile
+                view={careerView}
+                onSelect={(nextView) => {
+                  setCareerView(nextView);
+                  setMenuOpen(false);
+                }}
+              />
+            </div>
           )}
         </div>
       </header>
@@ -150,19 +299,14 @@ function App() {
             onCancel={() => setCreating(false)}
             onSaved={(saved) => {
               setCareer(saved);
+              setCareerView("progress");
+              setMenuOpen(false);
               setCreating(false);
               setRevision((value) => value + 1);
             }}
           />
         ) : career ? (
-          <CareerDashboard
-            key={career.id}
-            career={career}
-            onHome={() => {
-              setCareer(null);
-              setRevision((value) => value + 1);
-            }}
-          />
+          <CareerDashboard key={career.id} career={career} view={careerView} />
         ) : (
           <>
             <p className="mb-4 text-sm font-bold uppercase tracking-[0.2em] text-court-red">
@@ -248,6 +392,8 @@ function App() {
                               setCareer(
                                 await api<Career>(`careers/${save.id}`),
                               );
+                              setCareerView("progress");
+                              setMenuOpen(false);
                               setError("");
                             } catch {
                               setError(
