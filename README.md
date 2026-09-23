@@ -312,6 +312,12 @@ spec/                Historical planning documents
 - Provider output is validated before it can affect the interface.
 - The backend is intended for a trusted, single-user local machine. Do not expose it through a public tunnel.
 
+## License
+
+The original 2kLife source code is available under the [MIT License](LICENSE). You may use, copy, modify, distribute, and fork the code under its terms. Contributions to this repository remain subject to the repository owner's review and approval before they are merged.
+
+The MIT License applies only to the original source code of 2kLife. NBA, NBA 2K, Take-Two Interactive, Visual Concepts, team and player names, logos, sponsor and brand names, trademarks, screenshots, game artwork, and all other third-party materials remain the property of their respective owners and are not licensed under the MIT License.
+
 ## Official AI references
 
 - [Codex CLI authentication](https://developers.openai.com/codex/cli/reference)
