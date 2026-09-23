@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import type { Career } from "../types/career";
 import type { Game } from "../types/game";
 import type { BoxScore } from "../types/stats";
@@ -43,10 +44,10 @@ export default function MatchEditor({
     node.showModal();
     return () => node.close();
   }, []);
-  return (
+  return createPortal(
     <dialog
       ref={dialog}
-      className="ai-dialog rounded-2xl bg-butter text-ink"
+      className="ai-dialog match-dialog rounded-2xl bg-butter text-ink"
       aria-labelledby="match-title"
       onCancel={(e) => {
         e.preventDefault();
@@ -88,7 +89,7 @@ export default function MatchEditor({
           {teamName(career.teams, game.opponentId)}
         </p>
         <fieldset disabled={saving || extracting} className="space-y-4">
-          {/* Temporary shortcut for testing records and postgame interviews. */}
+          {/* Temporary shortcut for testing records and postgame interviews.
           <div className="flex flex-wrap gap-3">
             <button
               type="button"
@@ -281,6 +282,7 @@ export default function MatchEditor({
               Fill bad match (temporary)
             </button>
           </div>
+          */}
           <label className="career-field">
             <span>Status</span>
             <select
@@ -548,6 +550,7 @@ export default function MatchEditor({
           </button>
         </div>
       </form>
-    </dialog>
+    </dialog>,
+    document.body,
   );
 }

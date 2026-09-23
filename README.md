@@ -4,7 +4,7 @@
 
 2kLife adds the career context that happens around the games: interviews, personality development, followers, sponsors, off-day decisions, signature shoes, finances, records, and postseason progression.
 
-> 2kLife does not connect to NBA 2K or read its save files. Match results and career changes must be mirrored in the app, either manually or through the supported screenshot-import flow. It is meant as a role-playing companion, so using it requires some imagination to connect the events in both experiences.
+> 2kLife does not connect to NBA 2K or read its save files. You enter game results and career changes manually. The optional screenshot-import flow is only for building the calendar from NBA 2K calendar screenshots. It is meant as a role-playing companion, so using it requires some imagination to connect the events in both experiences.
 
 This project began as a personal idea and was built and refined with AI assistance. You are welcome to fork it, modify it, and run your own version.
 
@@ -26,20 +26,20 @@ This app is still in development and testing. Feel free to report any bugs you e
 
 ### Statistics and records
 
-- Keep record season and career statistics from saved matches.
+- Keep season and career statistics from saved games.
 - Track single-game records for each season and across the full career.
 - Display season progress, schedules, results, player information, and records.
 
 ### Interviews and personality
 
-- Answer to post-game interviews according to your general and recent perfomances.
+- Answer post-game interview questions based on your overall and recent performances.
 - Develop three personality traits through interview choices
 
 ![Interviews and personality](public/prints/4.png)
 
 ### Followers and personal life
 
-- Gain or lose followers from match performance.
+- Gain or lose followers from game performance.
 - Track follower changes from games and off-day activities.
 - Create relationships with selected players and teammates.
 - Create affinity with teams.
@@ -51,7 +51,7 @@ In Version 1, affinity is tracked and displayed but does not yet affect trades o
 
 - Track sponsor interest based on followers, personality, and performance milestones.
 - Receive approaches from footwear and general commercial brands.
-- Review contract length, fixed payment, payment per match, appearance obligations, event payments, and penalties.
+- Review contract length, fixed payment, payment per game, appearance obligations, event payments, and penalties.
 - Schedule sponsor appearances when a contract is signed.
 - Attend or refuse sponsor invitations alongside other off-day opportunities.
 - Process contract expiration, settlement, renewals, cooldowns, and permanent professionalism blocks.
@@ -73,10 +73,10 @@ In Version 1, affinity is tracked and displayed but does not yet affect trades o
 
 ### Signature shoes
 
-- Lauch your own shoe and profit from its sales.
+- Launch your own shoe and profit from its sales.
 - Name each shoe and upload an image of the shoe created inside NBA 2K.
 - Track units sold, revenue, launch status, and player royalties.
-- Win royalties after every eligible match.
+- Win royalties after every eligible game.
 
 ![Signature shoes](public/prints/6.png)
 
@@ -94,7 +94,7 @@ These are ideas still to be implemented on this companion. Feel free to help or 
 - Use your network to arrange the creation of a super team.
 - Add trade discussions and contract negotiations.
 - Add NBA player-contract and free-agency negotiations.
-- Active finaltial live, with houses, cars, and luxury itens to spend money on
+- Manage finances, with houses, cars, and luxury items to spend money on.
 - Use data from previous seasons in AI generated interviews
 - Executable so anyone can run, without needing to clone a repository and installing.
 
