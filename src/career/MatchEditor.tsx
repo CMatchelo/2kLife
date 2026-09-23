@@ -208,6 +208,44 @@ export default function MatchEditor({
                 setError("");
                 setFields({
                   status: "completed",
+                  teamScore: 108,
+                  opponentScore: 101,
+                  currentPosition: 18,
+                  opponentPosition: 16,
+                  played: true,
+                  injured: false,
+                  starter: false,
+                  stats: {
+                    minutes: 22,
+                    points: 9,
+                    assists: 3,
+                    offensiveRebounds: 1,
+                    defensiveRebounds: 2,
+                    rebounds: 3,
+                    steals: 1,
+                    blocks: 0,
+                    turnovers: 2,
+                    personalFouls: 2,
+                    fieldGoalsMade: 4,
+                    fieldGoalsAttempted: 9,
+                    threePointersMade: 1,
+                    threePointersAttempted: 3,
+                    freeThrowsMade: 0,
+                    freeThrowsAttempted: 0,
+                    plusMinus: 4,
+                  },
+                });
+              }}
+            >
+              Fill common rookie win (temporary)
+            </button>
+            <button
+              type="button"
+              className="ai-secondary"
+              onClick={() => {
+                setError("");
+                setFields({
+                  status: "completed",
                   teamScore: 89,
                   opponentScore: 113,
                   currentPosition: 12,

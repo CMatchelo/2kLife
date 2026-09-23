@@ -26,7 +26,7 @@ const stats = [
   "minutes",
 ];
 const tierRules = {
-  entry: { minimumFollowers: 0, footwearRoyaltyRate: 0.2 },
+  entry: { minimumFollowers: 1_000, footwearRoyaltyRate: 0.2 },
   middle: { minimumFollowers: 50_000, footwearRoyaltyRate: 0.3 },
   top: { minimumFollowers: 200_000, footwearRoyaltyRate: 0.5 },
 } as const;

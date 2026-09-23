@@ -28,7 +28,11 @@ export default function ScheduleView({
       <div className="flex flex-wrap items-end justify-between gap-3">
         <label className="career-field">
           <span>Calendar month</span>
-          <select value={month} onChange={(e) => onMonth(e.target.value)}>
+          <select
+            className="cursor-pointer! border-court-blue! bg-court-blue! text-white!"
+            value={month}
+            onChange={(e) => onMonth(e.target.value)}
+          >
             {months.map((value) => (
               <option key={value}>{value}</option>
             ))}
@@ -37,7 +41,7 @@ export default function ScheduleView({
         <div className="flex gap-2" aria-label="Calendar view">
           <button
             type="button"
-            className="ai-secondary"
+            className="career-nav-button"
             aria-pressed={view === "month"}
             onClick={() => setView("month")}
           >
@@ -45,7 +49,7 @@ export default function ScheduleView({
           </button>
           <button
             type="button"
-            className="ai-secondary"
+            className="career-nav-button"
             aria-pressed={view === "list"}
             onClick={() => setView("list")}
           >
@@ -61,11 +65,7 @@ export default function ScheduleView({
           onEdit={onEdit}
         />
       ) : (
-        <ListView
-          games={games}
-          teams={teams}
-          onEdit={onEdit}
-        />
+        <ListView games={games} teams={teams} onEdit={onEdit} />
       )}
     </section>
   );

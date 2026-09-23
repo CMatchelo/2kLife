@@ -10,6 +10,7 @@ import {
 import { parseGameDetails } from "../src/domain/gameDetails.ts";
 import { DatabaseSync } from "node:sqlite";
 import { migrateProgression } from "./progression.ts";
+import { SponsorService } from "./sponsors.ts";
 import { calendarDate } from "../src/domain/calendarDate.ts";
 import { seasonMonths } from "../src/domain/career.ts";
 import { randomUUID } from "node:crypto";
@@ -83,6 +84,7 @@ export function parseDraft(raw: unknown): CareerDraft {
 }
 export class CareerStore {
   db: DatabaseSync;
+  sponsors: SponsorService;
   constructor(file: string) {
     this.db = new DatabaseSync(file);
     this.db.exec(`PRAGMA foreign_keys = ON; PRAGMA journal_mode = WAL;
@@ -100,6 +102,20 @@ export class CareerStore {
     INSERT OR IGNORE INTO interview_evaluations (game_id, career_id, interview_id)
       SELECT g.id, s.career_id, g.id FROM games g JOIN seasons s ON s.id = g.season_id WHERE json_extract(g.data, '$.status') = 'completed';`);
     migrateProgression(this.db);
+    this.sponsors = new SponsorService(this.db);
+    for (const row of this.db.prepare("SELECT id FROM careers").all()) {
+      const career = this.get(String(row.id));
+      if (
+        career &&
+        !this.db
+          .prepare("SELECT 1 FROM sponsor_tracking WHERE career_id=? LIMIT 1")
+          .get(career.id)
+      )
+        this.sponsors.reevaluate(
+          career,
+          `baseline:${career.currentDate ?? "undated"}`,
+        );
+    }
   }
   create(raw: unknown): Career {
     const draft = parseDraft(raw);
@@ -220,6 +236,8 @@ export class CareerStore {
       this.db.exec("ROLLBACK");
       throw error;
     }
+    const created = this.get(id)!;
+    this.sponsors.reevaluate(created, `career:${id}:created`);
     return this.get(id)!;
   }
   get(id: string): Career | null {
@@ -486,6 +504,8 @@ export class CareerStore {
     this.db.exec("BEGIN IMMEDIATE");
     try {
       if (game.status === "scheduled" && updated.status === "completed")
+        this.sponsors.capturePregame(career, gameId);
+      if (game.status === "scheduled" && updated.status === "completed")
         this.db
           .prepare(
             "INSERT OR IGNORE INTO interview_evaluations (game_id, career_id, session_id, context, interview_id) VALUES (?, ?, ?, ?, ?)",
@@ -521,6 +541,10 @@ export class CareerStore {
       this.db
         .prepare("UPDATE players SET data = ? WHERE career_id = ?")
         .run(JSON.stringify(player), careerId);
+      const savedCareer = this.get(careerId)!;
+      this.sponsors.recalculateAffected(savedCareer, gameId);
+      if (game.status === "completed")
+        this.sponsors.reevaluate(savedCareer, `correction:${gameId}`);
       this.db.exec("COMMIT");
     } catch (error) {
       this.db.exec("ROLLBACK");
@@ -540,6 +564,61 @@ export class CareerStore {
         playerName: JSON.parse(String(row.player)).name,
         seasonYear: JSON.parse(String(row.season)).year,
       }));
+  }
+  delete(id: string): boolean {
+    if (!this.db.prepare("SELECT 1 FROM careers WHERE id = ?").get(id))
+      return false;
+    this.db.exec("BEGIN IMMEDIATE");
+    try {
+      this.db
+        .prepare(
+          "DELETE FROM sponsor_milestone_progress WHERE period_id IN (SELECT id FROM sponsor_eligibility_periods WHERE career_id = ?)",
+        )
+        .run(id);
+      for (const table of [
+        "sponsor_game_boundaries",
+        "sponsor_reset_history",
+        "sponsor_mutation_requests",
+        "sponsor_player_blocks",
+        "sponsor_tracking",
+        "sponsor_eligibility_periods",
+        "interview_rewards",
+        "interview_evaluations",
+        "day_requests",
+        "day_transitions",
+        "career_progression",
+      ])
+        this.db.prepare(`DELETE FROM ${table} WHERE career_id = ?`).run(id);
+      this.db
+        .prepare(
+          "DELETE FROM postgame_processing WHERE game_id IN (SELECT g.id FROM games g JOIN seasons s ON s.id = g.season_id WHERE s.career_id = ?)",
+        )
+        .run(id);
+      this.db
+        .prepare(
+          "DELETE FROM offday_processing WHERE season_id IN (SELECT id FROM seasons WHERE career_id = ?)",
+        )
+        .run(id);
+      this.db
+        .prepare(
+          "DELETE FROM coverage WHERE season_id IN (SELECT id FROM seasons WHERE career_id = ?)",
+        )
+        .run(id);
+      this.db
+        .prepare(
+          "DELETE FROM games WHERE season_id IN (SELECT id FROM seasons WHERE career_id = ?)",
+        )
+        .run(id);
+      this.db.prepare("DELETE FROM team_history WHERE career_id = ?").run(id);
+      this.db.prepare("DELETE FROM players WHERE career_id = ?").run(id);
+      this.db.prepare("DELETE FROM seasons WHERE career_id = ?").run(id);
+      this.db.prepare("DELETE FROM careers WHERE id = ?").run(id);
+      this.db.exec("COMMIT");
+      return true;
+    } catch (error) {
+      this.db.exec("ROLLBACK");
+      throw error;
+    }
   }
   close() {
     this.db.close();

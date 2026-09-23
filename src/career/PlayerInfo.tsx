@@ -26,15 +26,23 @@ export default function PlayerInfo({ career }: { career: Career }) {
   ];
 
   return (
-    <section className="career-card" aria-labelledby="player-info-title">
-      <p className="text-sm font-bold uppercase tracking-[0.2em] text-court-red">
+    <section
+      className="career-card dashboard-card"
+      aria-labelledby="player-info-title"
+    >
+      <h2
+        id="player-info-title"
+        className="text-2xl font-black uppercase tracking-wide"
+      >
         Player profile
-      </p>
+      </h2>
+      <span
+        className="mt-3 block h-1 w-14 rounded-full bg-gold"
+        aria-hidden="true"
+      />
       <div className="mt-2 flex flex-wrap items-end justify-between gap-3 border-b border-divider pb-5">
         <div>
-          <h2 id="player-info-title" className="text-3xl font-black">
-            {player.name}
-          </h2>
+          <h3 className="text-3xl font-black">{player.name}</h3>
           <p className="mt-1 font-semibold text-court-blue">
             {teamName(career.teams, player.currentTeamId)} ·{" "}
             {player.jerseyNumber
@@ -46,9 +54,12 @@ export default function PlayerInfo({ career }: { career: Career }) {
           {career.season.era}
         </span>
       </div>
-      <dl className="mt-5 grid gap-px overflow-hidden rounded-xl bg-divider sm:grid-cols-2 lg:grid-cols-4">
+      <dl className="mt-5 grid gap-px overflow-hidden rounded-xl bg-transparent sm:grid-cols-2 lg:grid-cols-4">
         {details.map(([label, value]) => (
-          <div key={label} className="bg-cream p-4">
+          <div
+            key={label}
+            className="border border-slate-600 bg-transparent p-4"
+          >
             <dt className="text-xs font-bold uppercase tracking-wide text-muted">
               {label}
             </dt>

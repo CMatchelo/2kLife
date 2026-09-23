@@ -1,14 +1,33 @@
 export const pageSession = crypto.randomUUID();
-window.addEventListener('pagehide', () => {
-  void fetch('/api/interviews/abandon', { method: 'POST', headers: { 'X-2kLife-Client': '1', 'X-2kLife-Session': pageSession, 'Content-Type': 'application/json' }, body: '{}', keepalive: true }).catch(() => {});
+window.addEventListener("pagehide", () => {
+  void fetch("/api/interviews/abandon", {
+    method: "POST",
+    headers: {
+      "X-2kLife-Client": "1",
+      "X-2kLife-Session": pageSession,
+      "Content-Type": "application/json",
+    },
+    body: "{}",
+    keepalive: true,
+  }).catch(() => {});
 });
 // BFCache restoration is a new page visit too; do not revive an unanswered interview.
-window.addEventListener('pageshow', event => { if (event.persisted) window.location.reload(); });
-export async function api<T>(path: string, body?: unknown): Promise<T> {
+window.addEventListener("pageshow", (event) => {
+  if (event.persisted) window.location.reload();
+});
+export async function api<T>(
+  path: string,
+  body?: unknown,
+  method: "GET" | "POST" | "DELETE" = body === undefined ? "GET" : "POST",
+): Promise<T> {
   try {
     const response = await fetch(`/api/${path}`, {
-      method: body === undefined ? "GET" : "POST",
-      headers: { "X-2kLife-Client": "1", "X-2kLife-Session": pageSession, "Content-Type": "application/json" },
+      method,
+      headers: {
+        "X-2kLife-Client": "1",
+        "X-2kLife-Session": pageSession,
+        "Content-Type": "application/json",
+      },
       body: body === undefined ? undefined : JSON.stringify(body),
       signal: AbortSignal.timeout(155000),
     });

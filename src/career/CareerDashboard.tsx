@@ -16,6 +16,7 @@ import GameEditor from "./GameEditor";
 import { api } from "./api";
 import { teamName } from "../domain/teams";
 import AIConnection from "../AIConnection";
+import Sponsors from "./Sponsors";
 export default function CareerDashboard({
   career,
   onHome,
@@ -25,7 +26,9 @@ export default function CareerDashboard({
   onHome: () => void;
   dayMenu: HTMLDivElement | null;
 }) {
-  const [view, setView] = useState<"progress" | "info" | "config">("progress");
+  const [view, setView] = useState<"progress" | "info" | "sponsors" | "config">(
+    "progress",
+  );
   const [current, setCurrent] = useState(career);
   const [month, setMonth] = useState(
     current.currentDate?.slice(0, 7) ??
@@ -246,7 +249,7 @@ export default function CareerDashboard({
       <nav aria-label="Career views" className="flex flex-wrap gap-3">
         <button
           type="button"
-          className="ai-secondary"
+          className="career-nav-button"
           aria-pressed={view === "progress"}
           onClick={() => setView("progress")}
         >
@@ -254,7 +257,7 @@ export default function CareerDashboard({
         </button>
         <button
           type="button"
-          className="ai-secondary"
+          className="career-nav-button"
           aria-pressed={view === "info"}
           onClick={() => setView("info")}
         >
@@ -262,7 +265,15 @@ export default function CareerDashboard({
         </button>
         <button
           type="button"
-          className="ai-secondary"
+          className="career-nav-button"
+          aria-pressed={view === "sponsors"}
+          onClick={() => setView("sponsors")}
+        >
+          Sponsors
+        </button>
+        <button
+          type="button"
+          className="career-nav-button"
           aria-pressed={view === "config"}
           onClick={() => setView("config")}
         >
@@ -277,16 +288,18 @@ export default function CareerDashboard({
           <PlayerRecords career={current} />
           <PersonalLife socialMedia={current.profile.socialMedia} />
         </div>
+      ) : view === "sponsors" ? (
+        <Sponsors career={current} />
       ) : (
         <div className="space-y-8">
-          <section className="career-card">
+          <section className="career-card dashboard-card">
             <h2 className="text-2xl font-bold">AI configuration</h2>
             <p className="mt-2 text-muted">
               Choose and check the AI provider used for career interviews.
             </p>
             <AIConnection />
           </section>
-          <section className="career-card">
+          <section className="career-card dashboard-card">
             <h2 className="mb-5 text-2xl font-bold">Calendar settings</h2>
             <CalendarSettings
               career={current}
@@ -298,9 +311,17 @@ export default function CareerDashboard({
         </div>
       )}
       {view === "progress" && (
-        <section className="career-card">
+        <section className="career-card dashboard-card">
           <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
-            <h2 className="text-2xl font-bold">Season schedule</h2>
+            <div>
+              <h2 className="text-2xl font-black uppercase tracking-wide">
+                Season schedule
+              </h2>
+              <span
+                className="mt-3 block h-1 w-14 rounded-full bg-gold"
+                aria-hidden="true"
+              />
+            </div>
             {!adding && (
               <button
                 type="button"

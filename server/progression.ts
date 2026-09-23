@@ -284,11 +284,18 @@ export function advanceCareerDay(
           .get(game.id);
         const result: SponsorProcessingResult = saved
           ? JSON.parse(String(saved.result))
-          : processPostgameSponsorOffers({
-              career,
-              game,
-              processingKey: `postgame:${game.id}`,
-            });
+          : (() => {
+              const processingKey = `postgame:${game.id}`;
+              // The persisted pregame boundary decides whether this performance
+              // belongs to the period. Final eligibility includes interview and
+              // follower changes and is evaluated before the future offer hook.
+              store.sponsors.processPostgame(career, game, processingKey);
+              return processPostgameSponsorOffers({
+                career,
+                game,
+                processingKey,
+              });
+            })();
         if (!saved) {
           db.prepare("INSERT INTO postgame_processing VALUES (?, ?)").run(
             game.id,

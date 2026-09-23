@@ -1,5 +1,5 @@
 import type { IdentityType } from "./identity.ts";
-import type { BoxScore, StatsSummary } from "./stats.ts";
+import type { BoxScore } from "./stats.ts";
 
 export type Percentage = number;
 export type UsdDollars = number;
@@ -60,10 +60,7 @@ export type PermanentMilestone = MilestoneInterest &
 /** Made / attempted from current regular-season totals, never averages of game percentages. */
 export type DynamicMilestone = MilestoneInterest & {
   readonly kind: "seasonShootingPercentage";
-  readonly stat: keyof Pick<
-    StatsSummary,
-    "fieldGoalPercentage" | "freeThrowPercentage"
-  >;
+  readonly stat: "fieldGoalsPercentage" | "freeThrowsPercentage";
   readonly threshold: Percentage;
   readonly minimumAttempts: number;
   readonly season: "current";
@@ -113,4 +110,99 @@ export type SponsorCatalog = {
   readonly percentageUnit: "fraction";
   readonly tiers: Readonly<Record<SponsorTier, SponsorTierDefinition>>;
   readonly brands: readonly SponsorBrand[];
+};
+
+export type SponsorMilestoneId = string;
+export type SponsorIneligibilityReason =
+  | { code: "followers"; required: number; actual: number }
+  | { code: "identity_unestablished" }
+  | { code: "excluded_identity"; identity: IdentityType; score: number }
+  | { code: "category_occupied"; category: CommercialCategory }
+  | { code: "player_blocked" }
+  | { code: "professionalism_blocked" }
+  | { code: "match_cooldown"; completedMatchesRemaining: number }
+  | { code: "day_cooldown"; calendarDaysRemaining: number }
+  | { code: "administrative_reset"; reason: string };
+export type SponsorCompletionEvidence = {
+  gameId: string;
+  date: string;
+  value?: number;
+  gameIds?: string[];
+};
+export type SponsorPermanentMilestoneProgress = {
+  milestoneId: SponsorMilestoneId;
+  definition: PermanentMilestone;
+  completed: boolean;
+  streakProgress: number;
+  evidence: SponsorCompletionEvidence | null;
+};
+export type SponsorDynamicMilestoneProgress = {
+  milestoneId: SponsorMilestoneId;
+  definition: DynamicMilestone;
+  made: number;
+  attempts: number;
+  percentage: number | null;
+  displayPercentage: number | null;
+  completed: boolean;
+};
+export type SponsorEligibilityPeriodReference = {
+  id: string;
+  startedAt: string;
+} | null;
+export type SponsorBrandState = {
+  brandId: string;
+  eligible: boolean;
+  reasons: SponsorIneligibilityReason[];
+  eligibilityPeriod: SponsorEligibilityPeriodReference;
+  permanentMilestones: SponsorPermanentMilestoneProgress[];
+  dynamicMilestone: SponsorDynamicMilestoneProgress;
+  interestPercentage: 0 | 20 | 40 | 60 | 80 | 100;
+  actionableInterest: boolean;
+  lastEvaluationReference: string;
+};
+export type SponsorEligibilityInputs = {
+  occupiedCategories?: readonly CommercialCategory[];
+  playerBlockedBrandIds?: readonly string[];
+  professionalismBlockedBrandIds?: readonly string[];
+  matchCooldowns?: Readonly<Record<string, number>>;
+  dayCooldowns?: Readonly<Record<string, number>>;
+};
+
+/** A deliberately small boundary for contract data supplied by a future lifecycle service. */
+export type SponsorActiveContract = {
+  id: string;
+  brandId: string;
+  startDate: string;
+  durationMatches: number;
+  fixedPaymentUsd: number;
+  perMatchUsd: number;
+  perEventUsd: number;
+  requiredEvents: number;
+  attendedEvents: number;
+  matchesRemaining: number;
+  signingPaymentUsd?: number;
+  renewalBonusUsd?: number;
+};
+
+export type SponsorPlayerBlock = {
+  brandId: string;
+  blockedAt: string | null;
+};
+
+export type SponsorProfessionalismBlock = {
+  brandId: string;
+  reason: string;
+  failedContracts: readonly { reference: string; date: string | null }[];
+};
+
+export type SponsorsOverview = {
+  activeContracts: SponsorActiveContract[];
+  potentialSponsors: SponsorBrandState[];
+  playerBlocks: SponsorPlayerBlock[];
+  professionalismBlocks: SponsorProfessionalismBlock[];
+};
+
+export type SponsorBlockMutation = {
+  requestId: string;
+  brandId: string;
 };

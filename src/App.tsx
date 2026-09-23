@@ -1,9 +1,104 @@
 import AIConnection from "./AIConnection";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import NewCareer from "./career/NewCareer";
 import CareerDashboard from "./career/CareerDashboard";
 import { api } from "./career/api";
 import type { Career, CareerSummary } from "./types/career";
+
+function DeleteCareerDialog({
+  career,
+  onCancel,
+  onDeleted,
+}: {
+  career: CareerSummary;
+  onCancel: () => void;
+  onDeleted: (id: string) => void;
+}) {
+  const ref = useRef<HTMLDialogElement>(null);
+  const lock = useRef(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  useEffect(() => {
+    const dialog = ref.current!;
+    dialog.showModal();
+    return () => dialog.close();
+  }, []);
+  return createPortal(
+    <dialog
+      ref={ref}
+      className="ai-dialog rounded-2xl border border-divider bg-butter text-ink"
+      aria-labelledby="delete-career-title"
+      onCancel={(event) => {
+        event.preventDefault();
+        if (!saving) onCancel();
+      }}
+    >
+      <div className="space-y-5 p-6">
+        <div>
+          <p className="text-sm font-bold uppercase tracking-widest text-court-red">
+            Permanent action
+          </p>
+          <h2 id="delete-career-title" className="mt-2 text-2xl font-bold">
+            Delete {career.saveName}?
+          </h2>
+        </div>
+        <p>
+          This permanently deletes {career.playerName}’s career, including its
+          profile, seasons, games, interviews, progression, and sponsor data.
+          This cannot be undone.
+        </p>
+        {error && (
+          <p role="alert" className="text-court-red">
+            {error}
+          </p>
+        )}
+        {saving && <p role="status">Deleting career…</p>}
+        <div className="flex flex-wrap gap-3">
+          <button
+            type="button"
+            className="cursor-pointer rounded-lg bg-court-red px-4 py-2 font-semibold text-white disabled:cursor-wait disabled:opacity-50"
+            disabled={saving}
+            onClick={async () => {
+              if (lock.current) return;
+              lock.current = true;
+              setSaving(true);
+              setError("");
+              try {
+                await api<{ deleted: true }>(
+                  `careers/${career.id}`,
+                  undefined,
+                  "DELETE",
+                );
+                onDeleted(career.id);
+              } catch (cause) {
+                setError(
+                  cause instanceof Error
+                    ? cause.message
+                    : "Could not delete this career. Retry.",
+                );
+              } finally {
+                lock.current = false;
+                setSaving(false);
+              }
+            }}
+          >
+            Delete career
+          </button>
+          <button
+            type="button"
+            className="ai-secondary"
+            disabled={saving}
+            onClick={onCancel}
+          >
+            Keep career
+          </button>
+        </div>
+      </div>
+    </dialog>,
+    document.body,
+  );
+}
 
 function App() {
   const [creating, setCreating] = useState(false);
@@ -12,6 +107,7 @@ function App() {
   const [error, setError] = useState("");
   const [revision, setRevision] = useState(0);
   const [dayMenu, setDayMenu] = useState<HTMLDivElement | null>(null);
+  const [deleting, setDeleting] = useState<CareerSummary | null>(null);
   useEffect(() => {
     let active = true;
     api<CareerSummary[]>("careers")
@@ -109,7 +205,7 @@ function App() {
                 ].map(([number, title, description]) => (
                   <div
                     key={number}
-                    className="rounded-2xl border border-divider bg-butter p-6 md:p-8"
+                    className="rounded-2xl border border-divider bg-butter p-6 text-ink md:p-8"
                   >
                     <span className="text-sm font-black text-court-blue">
                       {number}
@@ -147,32 +243,56 @@ function App() {
                 <ul className="grid gap-4 sm:grid-cols-2">
                   {saves.map((save) => (
                     <li key={save.id}>
-                      <button
-                        className="career-card w-full text-left hover:border-court-blue"
-                        onClick={async () => {
-                          try {
-                            setCareer(await api<Career>(`careers/${save.id}`));
-                            setError("");
-                          } catch {
-                            setError(
-                              "Could not open this career. Retry after checking the backend.",
-                            );
-                          }
-                        }}
-                      >
-                        <strong className="block text-xl">
-                          {save.saveName}
-                        </strong>
-                        <span className="text-sm text-muted">
-                          {save.playerName} · {save.seasonYear}
-                        </span>
-                      </button>
+                      <div className="career-card flex items-center justify-between gap-4">
+                        <button
+                          className="min-w-0 flex-1 cursor-pointer text-left"
+                          onClick={async () => {
+                            try {
+                              setCareer(
+                                await api<Career>(`careers/${save.id}`),
+                              );
+                              setError("");
+                            } catch {
+                              setError(
+                                "Could not open this career. Retry after checking the backend.",
+                              );
+                            }
+                          }}
+                        >
+                          <strong className="block text-xl">
+                            {save.saveName}
+                          </strong>
+                          <span className="text-sm text-muted">
+                            {save.playerName} · {save.seasonYear}
+                          </span>
+                        </button>
+                        <button
+                          type="button"
+                          className="ai-secondary shrink-0 text-court-red"
+                          onClick={() => setDeleting(save)}
+                        >
+                          Delete
+                        </button>
+                      </div>
                     </li>
                   ))}
                 </ul>
               </section>
             )}
             <AIConnection />
+            {deleting && (
+              <DeleteCareerDialog
+                career={deleting}
+                onCancel={() => setDeleting(null)}
+                onDeleted={(id) => {
+                  setSaves((current) =>
+                    current.filter((save) => save.id !== id),
+                  );
+                  setDeleting(null);
+                  setError("");
+                }}
+              />
+            )}
           </>
         )}
       </main>
