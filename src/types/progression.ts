@@ -1,7 +1,8 @@
 import type { Career } from "./career.ts";
 import type { Game } from "./game.ts";
+import type { SponsorApproachGroup } from "./sponsor.ts";
 
-export type SponsorOfferReference = { id: string };
+export type SponsorOfferReference = { id: string; approachGroupId: string };
 export type InvitationWindowReference = { id: string; date: string };
 export type SponsorProcessingResult = { offers: SponsorOfferReference[] };
 export type OffDayProcessingResult = {
@@ -20,7 +21,9 @@ export type AdvanceDayOutcome =
   | {
       kind: "sponsor_offers";
       transitionId: string;
+      approachGroupId: string;
       offers: SponsorOfferReference[];
+      approach?: SponsorApproachGroup;
     }
   | { kind: "off_day_invitations"; invitationWindow: InvitationWindowReference }
   | { kind: "advanced_date"; date: string }

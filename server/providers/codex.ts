@@ -7,6 +7,7 @@ import { tmpdir } from 'node:os';
 import { TEST_PROMPT } from './shared.ts';
 import type { Provider } from './shared.ts';
 import { extractionPrompt, extractionSchema } from '../../src/domain/import.ts';
+import { sponsorApproachPrompt, sponsorApproachSchema } from '../../src/domain/sponsorApproach.ts';
 
 export type Run = (args: string[], cwd?: string) => Promise<string>;
 async function executable(): Promise<{ file: string; prefix: string[] }> {
@@ -33,6 +34,15 @@ export const runCodex: Run = async (args, cwd) => {
 };
 export function codexProvider(run: Run = runCodex): Provider {
   return {
+    async sponsorApproach(context) {
+      const directory = await mkdtemp(join(tmpdir(), '2klife-sponsor-'));
+      try {
+        const schemaFile = join(directory, 'schema.json'); const outputFile = join(directory, 'result.json');
+        await writeFile(schemaFile, JSON.stringify(sponsorApproachSchema), { mode: 0o600 });
+        await run(['exec', '--ignore-user-config', '--ephemeral', '--skip-git-repo-check', '--sandbox', 'read-only', '--json', '--output-schema', schemaFile, '--output-last-message', outputFile, sponsorApproachPrompt(context)], directory);
+        return JSON.parse(await readFile(outputFile, 'utf8'));
+      } finally { await rm(directory, { recursive: true, force: true }); }
+    },
     async interview(context) {
       const directory = await mkdtemp(join(tmpdir(), '2klife-interview-'));
       try {

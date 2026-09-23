@@ -107,24 +107,13 @@ export function migrateProgression(db: DatabaseSync) {
   }
 }
 
-export type PostgameContext = {
-  career: Career;
-  game: Game;
-  processingKey: string;
-};
 export type OffDayContext = {
   career: Career;
   date: string;
   processingKey: string;
 };
-// These hooks are pure, synchronous no-ops. Their results and completion markers
-// commit together. Future external work must run outside the transaction and use
-// processingKey for durable idempotency before saving its result.
-export function processPostgameSponsorOffers(
-  _context: PostgameContext,
-): SponsorProcessingResult {
-  return { offers: [] };
-}
+// Off-day invitations remain a future synchronous extension hook. Sponsor offer
+// selection is owned by SponsorService and commits before any AI writing occurs.
 export function processOffDayInvitations(
   _context: OffDayContext,
 ): OffDayProcessingResult {
@@ -288,13 +277,10 @@ export function advanceCareerDay(
               const processingKey = `postgame:${game.id}`;
               // The persisted pregame boundary decides whether this performance
               // belongs to the period. Final eligibility includes interview and
-              // follower changes and is evaluated before the future offer hook.
+              // follower changes and is evaluated before the offer check.
+              store.sponsors.processContractMatch(career, game);
               store.sponsors.processPostgame(career, game, processingKey);
-              return processPostgameSponsorOffers({
-                career,
-                game,
-                processingKey,
-              });
+              return { offers: store.sponsors.processOfferCheck(career, game, processingKey) };
             })();
         if (!saved) {
           db.prepare("INSERT INTO postgame_processing VALUES (?, ?)").run(
@@ -325,6 +311,7 @@ export function advanceCareerDay(
             kind: "sponsor_offers",
             career,
             transitionId: String(transition.id),
+            approachGroupId: offers[0].approachGroupId,
             offers,
           });
           db.exec("COMMIT");

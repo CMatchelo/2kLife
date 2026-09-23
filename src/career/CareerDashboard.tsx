@@ -17,6 +17,8 @@ import { api } from "./api";
 import { teamName } from "../domain/teams";
 import AIConnection from "../AIConnection";
 import Sponsors from "./Sponsors";
+import SponsorApproachModal from "./SponsorApproachModal";
+import type { SponsorApproachGroup } from "../types/sponsor";
 export default function CareerDashboard({
   career,
   onHome,
@@ -48,11 +50,12 @@ export default function CareerDashboard({
   const [calendarSaving, setCalendarSaving] = useState(false);
   const [dayError, setDayError] = useState("");
   const [dayMessage, setDayMessage] = useState("");
+  const [sponsorApproach, setSponsorApproach] = useState<{ group: SponsorApproachGroup; transitionId: string } | null>(null);
   const dayLock = useRef(false);
   const requestKey = `2klife:advance:${career.id}`;
   const pendingRequest = useRef<AdvanceDayRequest | null>(null);
 
-  async function nextDay() {
+  async function nextDay(resumeTransitionId?: string) {
     if (dayLock.current) return;
     dayLock.current = true;
     setDayLoading(true);
@@ -72,6 +75,7 @@ export default function CareerDashboard({
       const request = pendingRequest.current ?? {
         requestId: crypto.randomUUID(),
         expectedDate: current.currentDate,
+        ...(resumeTransitionId ? { resumeTransitionId } : {}),
       };
       pendingRequest.current = request;
       try {
@@ -112,9 +116,8 @@ export default function CareerDashboard({
           break;
         // No screens are implemented for extension results in this release.
         case "sponsor_offers":
-          setDayMessage(
-            "Sponsor offer presentation is not available in this version.",
-          );
+          if (result.approach) setSponsorApproach({ group: result.approach, transitionId: result.transitionId });
+          else setDayError("The sponsor offers were saved, but their presentation could not be loaded. Open Sponsors to review them.");
           break;
         case "off_day_invitations":
           setDayMessage(
@@ -410,6 +413,17 @@ export default function CareerDashboard({
             setInterview(null);
             setInterviewGame(null);
             setInterviewError("");
+          }}
+        />
+      )}
+      {sponsorApproach && (
+        <SponsorApproachModal
+          careerId={current.id}
+          initial={sponsorApproach.group}
+          onClose={() => {
+            const transitionId = sponsorApproach.transitionId;
+            setSponsorApproach(null);
+            void nextDay(transitionId);
           }}
         />
       )}

@@ -2,7 +2,7 @@ import type { IdentityType } from "./identity.ts";
 import type { BoxScore } from "./stats.ts";
 
 export type Percentage = number;
-export type UsdDollars = number;
+export type UsdCents = number;
 export type SponsorTier = "entry" | "middle" | "top";
 export type SponsorTierDefinition = {
   readonly minimumFollowers: number;
@@ -69,9 +69,9 @@ export type DynamicMilestone = MilestoneInterest & {
 };
 export type BaseContractTerms = {
   readonly durationMatches: number;
-  readonly fixedPaymentUsd: UsdDollars;
-  readonly perMatchUsd: UsdDollars;
-  readonly perEventUsd: UsdDollars;
+  readonly fixedPaymentUsdCents: UsdCents;
+  readonly perMatchUsdCents: UsdCents;
+  readonly perEventUsdCents: UsdCents;
   readonly requiredEvents: number;
 };
 type SponsorBrandBase = {
@@ -106,7 +106,7 @@ export type SponsorBrand = FootwearSponsor | GeneralSponsor;
 export type SponsorCatalog = {
   readonly schemaVersion: 1;
   readonly currency: "USD";
-  readonly moneyUnit: "dollars";
+  readonly moneyUnit: "cents";
   readonly percentageUnit: "fraction";
   readonly tiers: Readonly<Record<SponsorTier, SponsorTierDefinition>>;
   readonly brands: readonly SponsorBrand[];
@@ -172,16 +172,51 @@ export type SponsorEligibilityInputs = {
 export type SponsorActiveContract = {
   id: string;
   brandId: string;
+  brandName: string;
+  category: CommercialCategory;
   startDate: string;
   durationMatches: number;
-  fixedPaymentUsd: number;
-  perMatchUsd: number;
-  perEventUsd: number;
+  fixedPaymentUsdCents: number;
+  perMatchUsdCents: number;
+  perEventUsdCents: number;
   requiredEvents: number;
   attendedEvents: number;
   matchesRemaining: number;
-  signingPaymentUsd?: number;
-  renewalBonusUsd?: number;
+  signingPaymentUsdCents: number;
+  remainingFixedPaymentUsdCents: number;
+  renewalBonusUsdCents: number;
+};
+
+export type FinancialTransactionReason =
+  | "salary"
+  | "sponsor_match"
+  | "event"
+  | "contract_sign"
+  | "contract_expire"
+  | "royalties";
+export type FinancialTransaction = {
+  id: string;
+  amountUsdCents: number;
+  currency: "USD";
+  inGameDate: string;
+  recordedAt: string;
+  originType: "brand" | "salary";
+  originReference: string;
+  reason: FinancialTransactionReason;
+  brandId: string | null;
+  contractId: string | null;
+  gameId: string | null;
+  invitationReference: string | null;
+  shoeReference: string | null;
+  description: string | null;
+  settlementMetadata: Record<string, unknown> | null;
+};
+export type CareerFinancialSummary = {
+  balanceUsdCents: number;
+  sponsorEarningsUsdCents: number;
+  signingEarningsUsdCents: number;
+  sponsorMatchEarningsUsdCents: number;
+  recentTransactions: FinancialTransaction[];
 };
 
 export type SponsorPlayerBlock = {
@@ -197,6 +232,7 @@ export type SponsorProfessionalismBlock = {
 
 export type SponsorsOverview = {
   activeContracts: SponsorActiveContract[];
+  finances: CareerFinancialSummary;
   potentialSponsors: SponsorBrandState[];
   playerBlocks: SponsorPlayerBlock[];
   professionalismBlocks: SponsorProfessionalismBlock[];
@@ -205,4 +241,94 @@ export type SponsorsOverview = {
 export type SponsorBlockMutation = {
   requestId: string;
   brandId: string;
+};
+
+export type SponsorOfferStatus =
+  | "pending"
+  | "accepted"
+  | "declined"
+  | "expired"
+  | "invalidated";
+export type SponsorScheduleRisk =
+  | "comfortable"
+  | "risky"
+  | "overcommitted"
+  | "incomplete";
+export type SponsorOfferTerms = BaseContractTerms & {
+  royaltyRate: number | null;
+  customShoeEntitlement: number | null;
+};
+export type SponsorOffer = {
+  id: string;
+  approachGroupId: string;
+  brandId: string;
+  brandName: string;
+  category: CommercialCategory;
+  tier: SponsorTier;
+  currency: "USD";
+  moneyUnit: "cents";
+  status: SponsorOfferStatus;
+  resolutionReason: string | null;
+  awaitingContractActivation: boolean;
+  activatedContractId: string | null;
+  signingPaymentUsdCents: number | null;
+  terms: SponsorOfferTerms;
+  interestPercentage: 60 | 80 | 100;
+  completedMilestones: Array<{ milestoneId: string; description: string }>;
+  triggeringGameId: string;
+  createdMatchBoundary: number;
+  expirationMatchBoundary: number;
+  expirationGameId: string | null;
+  expirationGameDate: string | null;
+  schedule: {
+    minimumWindows: number;
+    maximumWindows: number;
+    coverageComplete: boolean;
+    requiredAppearances: number;
+    existingRequiredAppearances: number;
+    totalCommitments: number;
+    expiringObligations: string[];
+    risk: SponsorScheduleRisk;
+  };
+  advice: string;
+};
+export type SponsorApproachGroup = {
+  id: string;
+  processingReference: string;
+  triggeringGameId: string;
+  introduction: string;
+  textSource: "ai" | "fallback";
+  offers: SponsorOffer[];
+};
+export type SponsorApproachAIContext = {
+  language: string;
+  playerName: string;
+  currentTeam: string;
+  currentDate: string;
+  triggeringMatch: Record<string, unknown>;
+  offers: Array<{
+    offerId: string;
+    brandName: string;
+    category: CommercialCategory;
+    terms: SponsorOfferTerms;
+    interestPercentage: number;
+    completedMilestones: Array<{ milestoneId: string; description: string }>;
+    expirationMatchBoundary: number;
+    expirationGameDate: string | null;
+    minimumEventWindows: number;
+    maximumEventWindows: number;
+    calendarCoverageComplete: boolean;
+    existingSponsorCommitments: number;
+    totalSponsorCommitments: number;
+    obligationsExpiringWithinPeriod: string[];
+    scheduleRisk: SponsorScheduleRisk;
+  }>;
+};
+export type SponsorApproachAIResponse = {
+  introduction: string;
+  offerAdvice: Array<{ offerId: string; message: string }>;
+};
+export type SponsorOfferMutation = {
+  requestId: string;
+  action: "accept" | "refuse" | "block" | "pending";
 };

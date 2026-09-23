@@ -8,6 +8,7 @@ import type { Provider } from './shared.ts';
 import { TEST_PROMPT } from './shared.ts';
 import { runProcess } from './process.ts';
 import { extractionPrompt, extractionSchema } from '../../src/domain/import.ts';
+import { sponsorApproachPrompt, sponsorApproachSchema } from '../../src/domain/sponsorApproach.ts';
 
 export type RunClaude = (args: string[], cwd?: string) => Promise<string>;
 
@@ -62,6 +63,25 @@ export function claudeProvider(
 ): Provider {
   const hasKey = () => !!env.ANTHROPIC_API_KEY?.trim();
   return {
+    async sponsorApproach(context) {
+      if (hasKey()) {
+        const reply = await makeClient(env.ANTHROPIC_API_KEY!).messages.create({
+          model: env.ANTHROPIC_MODEL?.trim() || 'claude-haiku-4-5-20251001', max_tokens: 1800,
+          tools: [{ name: 'sponsor_approach', description: 'Write the agent introduction and advice for exactly the supplied sponsor offers.', input_schema: sponsorApproachSchema as unknown as Anthropic.Tool.InputSchema }],
+          tool_choice: { type: 'tool', name: 'sponsor_approach' }, messages: [{ role: 'user', content: sponsorApproachPrompt(context) }],
+        }, { timeout: 120000 });
+        const block = reply.content.find(item => item.type === 'tool_use' && item.name === 'sponsor_approach');
+        if (!block || block.type !== 'tool_use') throw new Error('Missing structured sponsor approach.');
+        return block.input;
+      }
+      const directory = await mkdtemp(join(tmpdir(), '2klife-sponsor-'));
+      try {
+        const output = await run(['-p', sponsorApproachPrompt(context), '--output-format', 'json', '--tools', '', '--permission-mode', 'default'], directory);
+        const json = firstJsonObject(parseCliResult(output));
+        if (!json) throw new Error('No sponsor approach JSON returned.');
+        return JSON.parse(json);
+      } finally { await rm(directory, { recursive: true, force: true }); }
+    },
     async interview(context) {
       if (hasKey()) {
         const reply = await makeClient(env.ANTHROPIC_API_KEY!).messages.create({
