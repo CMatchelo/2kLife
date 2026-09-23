@@ -209,14 +209,14 @@ export default function AIConnection({
             request to reply “OK”; it sends no career data.
           </p>
           <fieldset disabled={busy}>
-            <legend className="mb-2 font-bold">
-              Choose a provider to configure
+            <legend className="mb-2 text-lg font-bold">
+              1. Choose a provider
             </legend>
             <div className="flex flex-wrap gap-4">
               {(["codex", "claude"] as const).map((id) => (
                 <label
                   key={id}
-                  className="flex cursor-pointer items-center gap-2 rounded-lg border border-divider bg-butter px-4 py-3"
+                  className={`flex min-w-52 cursor-pointer items-start gap-3 rounded-xl border px-4 py-3 ${view === id ? "border-gold bg-gold/10" : "border-divider bg-butter"}`}
                 >
                   <input
                     type="radio"
@@ -225,8 +225,17 @@ export default function AIConnection({
                     checked={view === id}
                     onChange={() => setView(id)}
                   />
-                  {names[id]}
-                  {selected === id ? " · Active" : ""}
+                  <span>
+                    <strong className="block">
+                      {names[id]}
+                      {selected === id ? " · Active" : ""}
+                    </strong>
+                    <span className="mt-1 block text-xs text-muted">
+                      {id === "codex"
+                        ? "OpenAI Codex CLI"
+                        : "Claude Code CLI or Anthropic API"}
+                    </span>
+                  </span>
                 </label>
               ))}
             </div>
@@ -251,77 +260,12 @@ export default function AIConnection({
               . A previous test does not prove current connectivity.
             </p>
           </div>
-          <div className="border-y border-divider py-4">
-            <h3 className="mb-2 font-bold">Test connection</h3>
-            <p className="mb-3 text-sm">
-              {view === "codex"
-                ? "Test connection makes a small AI request and consumes Codex usage."
-                : "Test connection makes a minimal text request. It uses your Claude subscription allowance, or incurs a small API charge when an API key is set."}{" "}
-              No test runs automatically.
-            </p>
-            <div className="flex flex-wrap gap-3">
-              <button
-                className="ai-secondary"
-                disabled={busy}
-                onClick={refresh}
-              >
-                Check configuration
-              </button>
-              <button
-                className="ai-secondary"
-                disabled={busy || selected === view || !snapshot}
-                onClick={() =>
-                  operate(async () => {
-                    await request(`${view}/select`, "POST");
-                    setSnapshot((previous) =>
-                      previous
-                        ? { ...previous, selectedProvider: view }
-                        : previous,
-                    );
-                    setNotice(
-                      `${names[view]} selected. Selecting does not verify the connection.`,
-                    );
-                  })
-                }
-              >
-                Use {names[view]}
-              </button>
-              <button
-                className="ai-primary"
-                disabled={busy || !status?.configured}
-                onClick={() =>
-                  operate(async () => {
-                    const result = await request<ProviderStatus>(
-                      `${view}/test`,
-                      "POST",
-                    );
-                    setSnapshot((previous) =>
-                      previous
-                        ? {
-                            ...previous,
-                            providers: {
-                              ...previous.providers,
-                              [view]: result,
-                            },
-                          }
-                        : previous,
-                    );
-                    setNotice(result.message);
-                  })
-                }
-              >
-                {busy ? "Please wait…" : "Test connection"}
-              </button>
-            </div>
-            <p className="mt-3 text-sm text-muted">
-              Both providers can stay configured. Only the active provider will
-              be used for future AI features; no automatic fallback. Testing
-              checks the provider shown above.
-            </p>
-          </div>
           {view === "codex" ? (
-            <div>
-              <h3 className="font-bold">Sign in with the official Codex CLI</h3>
+            <div className="rounded-xl border border-divider bg-butter p-4 sm:p-5">
+              <h3 className="text-lg font-bold">2. Configure Codex</h3>
+              <p className="mt-1 font-semibold">
+                Sign in with the official Codex CLI
+              </p>
               <p className="mt-2 text-sm">
                 Subscription authentication uses your available Codex allowance.
                 If your CLI uses API-key authentication, API billing applies
@@ -359,10 +303,11 @@ export default function AIConnection({
               </a>
             </div>
           ) : (
-            <div>
-              <h3 className="font-bold">
+            <div className="rounded-xl border border-divider bg-butter p-4 sm:p-5">
+              <h3 className="text-lg font-bold">2. Configure Claude</h3>
+              <h4 className="mt-1 font-semibold">
                 Use your Claude subscription, or an API key
-              </h3>
+              </h4>
               <p className="mt-2 rounded-lg border border-divider bg-butter p-3 text-sm">
                 If ANTHROPIC_API_KEY is set in .env the backend calls the
                 Anthropic API (separate API billing). If it is not set, the
@@ -435,6 +380,73 @@ export default function AIConnection({
               </ol>
             </div>
           )}
+          <div className="border-y border-divider py-5">
+            <h3 className="mb-2 text-lg font-bold">3. Verify and activate</h3>
+            <p className="mb-3 text-sm">
+              {view === "codex"
+                ? "Testing makes a small AI request and consumes Codex usage."
+                : "Testing makes a minimal text request using your Claude subscription allowance, or a small API charge when an API key is set."}{" "}
+              No test runs automatically.
+            </p>
+            <div className="flex flex-wrap gap-3">
+              <button
+                className="ai-secondary"
+                disabled={busy}
+                onClick={refresh}
+              >
+                Check configuration
+              </button>
+              <button
+                className="ai-secondary"
+                disabled={busy || selected === view || !snapshot}
+                onClick={() =>
+                  operate(async () => {
+                    await request(`${view}/select`, "POST");
+                    setSnapshot((previous) =>
+                      previous
+                        ? { ...previous, selectedProvider: view }
+                        : previous,
+                    );
+                    setNotice(
+                      `${names[view]} selected. Selecting does not verify the connection.`,
+                    );
+                  })
+                }
+              >
+                Use {names[view]}
+              </button>
+              <button
+                className="ai-primary"
+                disabled={busy || !status?.configured}
+                onClick={() =>
+                  operate(async () => {
+                    const result = await request<ProviderStatus>(
+                      `${view}/test`,
+                      "POST",
+                    );
+                    setSnapshot((previous) =>
+                      previous
+                        ? {
+                            ...previous,
+                            providers: {
+                              ...previous.providers,
+                              [view]: result,
+                            },
+                          }
+                        : previous,
+                    );
+                    setNotice(result.message);
+                  })
+                }
+              >
+                {busy ? "Please wait…" : "Test connection"}
+              </button>
+            </div>
+            <p className="mt-3 text-sm text-muted">
+              Both providers can stay configured. Only the active provider is
+              used for future AI features; there is no automatic fallback.
+            </p>
+          </div>
           <p role="status" aria-live="polite" className="text-sm">
             {notice}
           </p>
@@ -447,7 +459,7 @@ export default function AIConnection({
             className="ai-secondary"
             onClick={() => dialog.current?.close()}
           >
-            Continue without AI
+            Close
           </button>
         </div>
       </dialog>

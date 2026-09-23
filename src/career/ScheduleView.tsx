@@ -3,6 +3,7 @@ import type { Game } from "../types/game";
 import type { Team } from "../types/career";
 import type { SponsorActiveContract } from "../types/sponsor";
 import { seasonMonths } from "../domain/career";
+import { teamName } from "../domain/teams";
 import CalendarView from "./CalendarView";
 import ListView from "./ListView";
 
@@ -27,9 +28,46 @@ export default function ScheduleView({
 }) {
   const [view, setView] = useState<"month" | "list">("month");
   const months = seasonMonths(year);
+  const upcoming = [...games]
+    .filter(
+      (game) =>
+        game.status !== "notNeeded" &&
+        (!currentDate || game.date >= currentDate),
+    )
+    .sort((a, b) => a.date.localeCompare(b.date))
+    .slice(0, 3);
 
   return (
     <section aria-label="Season schedule" className="space-y-4">
+      {!!upcoming.length && (
+        <div>
+          <h3 className="text-sm font-black uppercase tracking-wider text-muted">
+            Coming up
+          </h3>
+          <div className="mt-2 grid gap-2 sm:grid-cols-3">
+            {upcoming.map((game) => (
+              <button
+                key={game.id}
+                type="button"
+                disabled={!onEdit}
+                className="cursor-pointer rounded-lg border border-divider bg-cream p-3 text-left transition-colors hover:border-gold disabled:cursor-default"
+                onClick={() => onEdit?.(game)}
+              >
+                <time
+                  className="text-xs font-bold text-gold"
+                  dateTime={game.date}
+                >
+                  {game.date}
+                </time>
+                <strong className="mt-1 block truncate">
+                  {game.location === "home" ? "vs" : "at"}{" "}
+                  {teamName(teams, game.opponentId)}
+                </strong>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
       <div className="flex flex-wrap items-end justify-between gap-3">
         <label className="career-field">
           <span>Calendar month</span>

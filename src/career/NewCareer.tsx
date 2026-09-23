@@ -182,9 +182,15 @@ export default function NewCareer({
           }}
         >
           <fieldset disabled={busy} className="career-card space-y-6">
-            <h2 className="text-2xl font-bold">Create your player</h2>
+            <div>
+              <h2 className="text-2xl font-bold">Create your player</h2>
+              <p className="mt-1 text-sm text-muted">
+                Fields marked with <span className="text-court-red">*</span> are
+                required.
+              </p>
+            </div>
             <div className="grid gap-5 sm:grid-cols-2">
-              <Field label="Career save name">
+              <Field label="Career save name" required>
                 <input
                   required
                   maxLength={100}
@@ -196,6 +202,7 @@ export default function NewCareer({
               </Field>
               <Field
                 label="Player name"
+                required
                 hint="Matching the NBA2K player name helps future screenshot imports."
               >
                 <input
@@ -205,7 +212,7 @@ export default function NewCareer({
                   onChange={(e) => player({ name: e.target.value })}
                 />
               </Field>
-              <Field label="Primary position">
+              <Field label="Primary position" required>
                 <select
                   value={p.position}
                   onChange={(e) =>
@@ -235,6 +242,7 @@ export default function NewCareer({
               </Field>
               <Field
                 label="Age at the start of the season"
+                required
                 hint={`Stored as your age in ${draft.season.year}; no birth date is invented.`}
               >
                 <input
@@ -259,7 +267,7 @@ export default function NewCareer({
                   onChange={(e) => player({ jerseyNumber: e.target.value })}
                 />
               </Field>
-              <Field label="Height unit">
+              <Field label="Height unit" required>
                 <select
                   value={heightUnit}
                   onChange={(e) => {
@@ -284,7 +292,7 @@ export default function NewCareer({
                 </select>
               </Field>
               {heightUnit === "cm" ? (
-                <Field label="Height (cm)">
+                <Field label="Height (cm)" required>
                   <input
                     type="number"
                     required
@@ -299,7 +307,7 @@ export default function NewCareer({
                 </Field>
               ) : (
                 <div className="grid grid-cols-2 gap-3">
-                  <Field label="Height (feet)">
+                  <Field label="Height (feet)" required>
                     <input
                       type="number"
                       required
@@ -318,7 +326,7 @@ export default function NewCareer({
                       }}
                     />
                   </Field>
-                  <Field label="Height (inches)">
+                  <Field label="Height (inches)" required>
                     <input
                       type="number"
                       required
@@ -339,7 +347,7 @@ export default function NewCareer({
                   </Field>
                 </div>
               )}
-              <Field label="Weight unit">
+              <Field label="Weight unit" required>
                 <select
                   value={weightUnit}
                   onChange={(e) => {
@@ -359,7 +367,7 @@ export default function NewCareer({
                 </select>
               </Field>
               {weightUnit === "kg" ? (
-                <Field label="Weight (kg)">
+                <Field label="Weight (kg)" required>
                   <input
                     type="number"
                     required
@@ -373,7 +381,7 @@ export default function NewCareer({
                   />
                 </Field>
               ) : (
-                <Field label="Weight (lb)">
+                <Field label="Weight (lb)" required>
                   <input
                     type="number"
                     required
@@ -388,14 +396,14 @@ export default function NewCareer({
                   />
                 </Field>
               )}
-              <Field label="Current team">
+              <Field label="Current team" required>
                 <TeamSelect
                   teams={draft.teams}
                   value={p.currentTeamId}
                   onChange={(value) => player({ currentTeamId: value })}
                 />
               </Field>
-              <Field label="Draft year">
+              <Field label="Draft year" required>
                 <input
                   type="number"
                   required
@@ -433,7 +441,7 @@ export default function NewCareer({
             </label>
             {!p.draft.undrafted && (
               <div className="grid gap-5 sm:grid-cols-3">
-                <Field label="Draft round">
+                <Field label="Draft round" required>
                   <input
                     type="number"
                     required
@@ -451,6 +459,7 @@ export default function NewCareer({
                 </Field>
                 <Field
                   label="Overall draft pick"
+                  required
                   hint="Overall selection, not the pick within a round."
                 >
                   <input
@@ -470,6 +479,7 @@ export default function NewCareer({
                 </Field>
                 <Field
                   label="Draft team"
+                  required
                   hint="May differ from your current team."
                 >
                   <TeamSelect
@@ -488,6 +498,7 @@ export default function NewCareer({
               <div className="mt-5 grid gap-5 sm:grid-cols-2">
                 <Field
                   label="MyNBA era"
+                  required
                   hint="Use the era name from your save, including a custom era if needed."
                 >
                   <input
@@ -504,6 +515,7 @@ export default function NewCareer({
                 </Field>
                 <Field
                   label="Starting season"
+                  required
                   hint="For example 2026–27. Calendar spans July through the following June."
                 >
                   <input

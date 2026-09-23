@@ -4,14 +4,24 @@ export function Field({
   label,
   children,
   hint,
+  required = false,
 }: {
   label: string;
   children: ReactNode;
   hint?: string;
+  required?: boolean;
 }) {
   return (
     <label className="career-field">
-      <span>{label}</span>
+      <span>
+        {label}
+        {required && (
+          <span className="ml-1 text-court-red" aria-hidden="true">
+            *
+          </span>
+        )}
+        {required && <span className="sr-only"> (required)</span>}
+      </span>
       {children}
       {hint && <small className="font-normal text-muted">{hint}</small>}
     </label>

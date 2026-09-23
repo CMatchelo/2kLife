@@ -74,14 +74,14 @@ export default function InterviewModal({
               </button>
               <button
                 type="button"
-                className="ai-secondary text-ink"
+                className="ai-secondary"
                 onClick={() => setShowConnection(!showConnection)}
               >
                 AI connection
               </button>
             </div>
             {showConnection && (
-              <div className="rounded-lg bg-butter p-3 text-ink">
+              <div className="rounded-lg bg-butter p-3 text-slate-100">
                 <AIConnection />
               </div>
             )}
@@ -93,7 +93,10 @@ export default function InterviewModal({
             {total ? (
               <dl className="grid grid-cols-3 gap-3">
                 {(["star", "team", "fan"] as const).map((key) => (
-                  <div key={key} className="rounded-lg bg-cream p-3 text-ink">
+                  <div
+                    key={key}
+                    className="rounded-lg bg-cream p-3 text-slate-100"
+                  >
                     <dt className="capitalize">{key}</dt>
                     <dd className="text-xl font-bold">
                       {((100 * scores![key]) / total).toFixed(1)}%
@@ -115,7 +118,7 @@ export default function InterviewModal({
                 key={choice}
                 type="button"
                 disabled={saving}
-                className="ai-secondary block w-full p-4 text-left text-ink"
+                className="block w-full cursor-pointer rounded-lg border border-slate-500 bg-slate-950/85 p-4 text-left font-semibold leading-relaxed text-slate-100 transition-colors hover:border-gold hover:bg-slate-900 focus-visible:border-gold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold/50 disabled:cursor-wait disabled:opacity-60"
                 onClick={async () => {
                   if (lock.current) return;
                   lock.current = true;
@@ -148,7 +151,7 @@ export default function InterviewModal({
         {!result && !loading && (
           <button
             type="button"
-            className="ai-secondary text-ink"
+            className="ai-secondary"
             disabled={saving}
             onClick={async () => {
               if (lock.current) return;

@@ -48,12 +48,12 @@ export default function SponsorFinances({ career }: { career: Career }) {
       >
         <h2
           id="career-finances-title"
-          className="text-2xl font-black uppercase tracking-wide"
+          className="screen-title"
         >
           Finances
         </h2>
         <span
-          className="mt-3 block h-1 w-14 rounded-full bg-gold"
+          className="screen-accent"
           aria-hidden="true"
         />
         {loading && (

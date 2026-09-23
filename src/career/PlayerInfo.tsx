@@ -19,19 +19,59 @@ export default function PlayerInfo({ career }: { career: Career }) {
   const identityPercentage = (score: number) =>
     identityTotal ? `${((score / identityTotal) * 100).toFixed(1)}%` : "0.0%";
   const details = [
-    { label: "Position", value: `${player.position}${player.secondaryPosition ? ` / ${player.secondaryPosition}` : ""}` },
+    {
+      label: "Position",
+      value: `${player.position}${player.secondaryPosition ? ` / ${player.secondaryPosition}` : ""}`,
+    },
     { label: "Age", value: String(age) },
-    { label: "Height and weight", value: `${player.heightCm} cm · ${player.weightKg} kg` },
+    {
+      label: "Height and weight",
+      value: `${player.heightCm} cm · ${player.weightKg} kg`,
+    },
     {
       label: "Followers",
-      value: <><span className="block">{number.format(player.socialMedia.currentFollowers)}</span><span className={`block text-xs font-semibold ${latestFollowers > 0 ? "text-sky-300" : latestFollowers < 0 ? "text-red-300" : "text-muted"}`}>{latestFollowers > 0 ? "+" : ""}{number.format(latestFollowers)} from last {latestFollowerChange?.gameId ? "match" : "activity"}</span></>,
+      value: (
+        <>
+          <span className="block">
+            {number.format(player.socialMedia.currentFollowers)}
+          </span>
+          <span
+            className={`block text-xs font-semibold ${latestFollowers > 0 ? "text-sky-300" : latestFollowers < 0 ? "text-red-300" : "text-muted"}`}
+          >
+            {latestFollowers > 0 ? "+" : ""}
+            {number.format(latestFollowers)} from last{" "}
+            {latestFollowerChange?.gameId ? "match" : "activity"}
+          </span>
+        </>
+      ),
     },
-    { label: "Jersey", value: player.jerseyNumber ? `#${player.jerseyNumber}` : "Not set" },
-    { label: "Current team", value: teamName(career.teams, player.currentTeamId) },
+    {
+      label: "Jersey",
+      value: player.jerseyNumber ? `#${player.jerseyNumber}` : "Not set",
+    },
+    {
+      label: "Current team",
+      value: teamName(career.teams, player.currentTeamId),
+    },
     { label: "Current season", value: career.season.year },
     {
       label: "Personality traits",
-      value: <span className="grid grid-cols-3 gap-2 text-xs"><span><b className="block text-sm">{identityPercentage(identity.star)}</b>Star</span><span><b className="block text-sm">{identityPercentage(identity.team)}</b>Team</span><span><b className="block text-sm">{identityPercentage(identity.fan)}</b>Fan</span></span>,
+      value: (
+        <span className="grid grid-cols-3 gap-2 text-xs">
+          <span>
+            <b className="block text-sm">{identityPercentage(identity.star)}</b>
+            Star
+          </span>
+          <span>
+            <b className="block text-sm">{identityPercentage(identity.team)}</b>
+            Team
+          </span>
+          <span>
+            <b className="block text-sm">{identityPercentage(identity.fan)}</b>
+            Fan
+          </span>
+        </span>
+      ),
     },
   ];
 
@@ -40,16 +80,10 @@ export default function PlayerInfo({ career }: { career: Career }) {
       className="career-card dashboard-card"
       aria-labelledby="player-info-title"
     >
-      <h2
-        id="player-info-title"
-        className="text-2xl font-black uppercase tracking-wide"
-      >
+      <h2 id="player-info-title" className="screen-title">
         Player profile
       </h2>
-      <span
-        className="mt-3 block h-1 w-14 rounded-full bg-gold"
-        aria-hidden="true"
-      />
+      <span className="screen-accent" aria-hidden="true" />
       <div className="mt-2 flex flex-wrap items-end justify-between gap-3 pb-5">
         <div>
           <h3 className="text-3xl font-black">{player.name}</h3>

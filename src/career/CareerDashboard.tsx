@@ -35,6 +35,9 @@ import type {
 import BasketballNetworkSettings from "./BasketballNetworkSettings";
 import SignatureShoeLaunchModal from "./SignatureShoeLaunchModal";
 import type { SignatureShoe } from "../types/signature-shoe";
+import FinalStandingsModal from "./FinalStandingsModal";
+import PostseasonScheduleModal from "./PostseasonScheduleModal";
+import PostseasonProgress from "./PostseasonProgress";
 
 function SponsorMessageLoading({
   error,
@@ -226,6 +229,9 @@ export default function CareerDashboard({
   view: CareerView;
 }) {
   const [current, setCurrent] = useState(career);
+  const [settingsSection, setSettingsSection] = useState<
+    "network" | "ai" | "calendar"
+  >("network");
   const [month, setMonth] = useState(
     current.currentDate?.slice(0, 7) ??
       current.season.games[0]?.date.slice(0, 7) ??
@@ -244,6 +250,10 @@ export default function CareerDashboard({
   const [calendarSaving, setCalendarSaving] = useState(false);
   const [dayError, setDayError] = useState("");
   const [dayMessage, setDayMessage] = useState("");
+  const [standingsOpen, setStandingsOpen] = useState(false);
+  const [dismissedSchedule, setDismissedSchedule] = useState<string | null>(
+    null,
+  );
   const [sponsorApproach, setSponsorApproach] = useState<{
     group: SponsorApproachGroup;
     transitionId: string;
@@ -393,6 +403,15 @@ export default function CareerDashboard({
         case "season_end":
           setDayMessage(result.message);
           break;
+        case "standings_required":
+          setStandingsOpen(true);
+          break;
+        case "postseason_schedule_required":
+          setDismissedSchedule(null);
+          break;
+        case "season_completed":
+          setDayMessage(result.message);
+          break;
         case "error":
           setDayError(result.message);
           if (result.month) setMonth(result.month);
@@ -515,32 +534,68 @@ export default function CareerDashboard({
       ) : view === "finances" ? (
         <SponsorFinances career={current} />
       ) : (
-        <div className="space-y-8">
-          <BasketballNetworkSettings career={current} />
+        <div className="space-y-6">
           <section className="career-card dashboard-card">
-            <h2 className="text-2xl font-bold">AI configuration</h2>
-            <span
-              className="mt-3 block h-1 w-14 rounded-full bg-gold"
-              aria-hidden="true"
-            />
-            <p className="mt-2 text-muted">
-              Choose and check the AI provider used for career interviews.
+            <h2 className="screen-title">Settings</h2>
+            <span className="screen-accent" aria-hidden="true" />
+            <p className="supporting-detail mt-2">
+              Choose one area to configure.
             </p>
-            <AIConnection />
+            <div
+              className="mt-5 grid gap-3 sm:grid-cols-3"
+              role="tablist"
+              aria-label="Settings categories"
+            >
+              {(
+                [
+                  ["network", "Basketball Network", "Teams and relationships"],
+                  ["ai", "AI Provider", "Interviews and connection"],
+                  ["calendar", "Calendar", "Season boundary and off days"],
+                ] as const
+              ).map(([value, label, description]) => (
+                <button
+                  key={value}
+                  type="button"
+                  role="tab"
+                  aria-selected={settingsSection === value}
+                  className={`nested-panel cursor-pointer p-4 text-left transition-colors hover:border-gold ${
+                    settingsSection === value
+                      ? "border-gold bg-gold/10"
+                      : "border-divider bg-cream"
+                  }`}
+                  onClick={() => setSettingsSection(value)}
+                >
+                  <strong className="block">{label}</strong>
+                  <span className="mt-1 block text-sm text-muted">
+                    {description}
+                  </span>
+                </button>
+              ))}
+            </div>
           </section>
-          <section className="career-card dashboard-card">
-            <h2 className="text-2xl font-bold">Calendar settings</h2>
-            <span
-              className="mt-3 mb-5 block h-1 w-14 rounded-full bg-gold"
-              aria-hidden="true"
-            />
-            <CalendarSettings
-              career={current}
-              month={month}
-              disabled={dayLoading || calendarSaving || adding}
-              onSave={saveCalendar}
-            />
-          </section>
+          {settingsSection === "network" && (
+            <BasketballNetworkSettings career={current} />
+          )}
+          {settingsSection === "ai" && (
+            <section className="career-card dashboard-card">
+              <h2 className="section-title">AI configuration</h2>
+              <p className="supporting-detail mt-2">
+                Choose and check the AI provider used for career interviews.
+              </p>
+              <AIConnection />
+            </section>
+          )}
+          {settingsSection === "calendar" && (
+            <section className="career-card dashboard-card">
+              <h2 className="section-title mb-5">Calendar settings</h2>
+              <CalendarSettings
+                career={current}
+                month={month}
+                disabled={dayLoading || calendarSaving || adding}
+                onSave={saveCalendar}
+              />
+            </section>
+          )}
         </div>
       )}
       {view === "progress" && (
@@ -548,16 +603,10 @@ export default function CareerDashboard({
           <section className="career-card dashboard-card">
             <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
               <div>
-                <h2 className="text-2xl font-black uppercase tracking-wide">
-                  Season schedule
-                </h2>
-                <span
-                  className="mt-3 block h-1 w-14 rounded-full bg-gold"
-                  aria-hidden="true"
-                />
+                <h2 className="section-title">Season schedule</h2>
               </div>
               <div className="flex flex-wrap items-center gap-3">
-                {!adding && (
+                {!adding && current.season.phase === "regularSeason" && (
                   <button
                     type="button"
                     className="ai-primary"
@@ -635,13 +684,12 @@ export default function CareerDashboard({
               }
             />
           </section>
+          {current.season.postseason && (
+            <PostseasonProgress career={current} onSaved={setCurrent} />
+          )}
           {!current.season.seasonEndDate && (
             <section className="career-card dashboard-card">
-              <h2 className="text-2xl font-bold">Calendar settings</h2>
-              <span
-                className="mt-3 mb-5 block h-1 w-14 rounded-full bg-gold"
-                aria-hidden="true"
-              />
+              <h2 className="section-title mb-5">Calendar settings</h2>
               <CalendarSettings
                 career={current}
                 month={month}
@@ -666,6 +714,42 @@ export default function CareerDashboard({
           }}
         />
       )}
+      {standingsOpen && current.season.phase !== "postseason" && (
+        <FinalStandingsModal
+          career={current}
+          onClose={() => setStandingsOpen(false)}
+          onSaved={(updated) => {
+            setCurrent(updated);
+            setStandingsOpen(false);
+            setDismissedSchedule(null);
+            const standing = updated.season.finalStandings?.find(
+              (item) => item.teamId === updated.profile.currentTeamId,
+            );
+            setDayMessage(
+              standing && standing.position > 10
+                ? "Your team has been eliminated from postseason contention. Complete the Play-In and playoff brackets in Season Progress to finalize the season."
+                : standing && standing.position > 6
+                  ? "Your team has qualified for the Play-In Tournament. Add the next Play-In game to your calendar and follow the postseason bracket in Season Progress."
+                  : "Your team has qualified directly for the playoffs. Complete the Play-In results when needed, add your playoff schedule, and follow the bracket in Season Progress.",
+            );
+          }}
+        />
+      )}
+      {current.season.postseason?.pendingSchedule &&
+        dismissedSchedule !== current.season.postseason.pendingSchedule.id && (
+          <PostseasonScheduleModal
+            career={current}
+            onClose={() =>
+              setDismissedSchedule(
+                current.season.postseason!.pendingSchedule!.id,
+              )
+            }
+            onSaved={(updated) => {
+              setCurrent(updated);
+              setDismissedSchedule(null);
+            }}
+          />
+        )}
       {interviewGame && (
         <InterviewModal
           offer={interview?.offer ?? null}

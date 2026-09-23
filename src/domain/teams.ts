@@ -67,4 +67,17 @@ export const modernTeams: Team[] = [
   ["TOR", "Toronto Raptors"],
   ["UTA", "Utah Jazz"],
   ["WAS", "Washington Wizards"],
-].map(([id, name]) => ({ id, name, source: "modern" }));
+].map(([id, name]) => ({
+  id,
+  name,
+  source: "modern",
+  conference: ([
+    "ATL", "BOS", "BKN", "CHA", "CHI", "CLE", "DET", "IND", "MIA",
+    "MIL", "NYK", "ORL", "PHI", "TOR", "WAS",
+  ].includes(id) ? "east" : "west") as "east" | "west",
+}));
+
+export const teamConference = (teams: Team[], id: string) =>
+  teams.find((team) => team.id === id)?.conference ??
+  modernTeams.find((team) => team.id === id)?.conference ??
+  null;

@@ -2,7 +2,13 @@ import type { Game } from "./game.ts";
 import type { MyProfile, Position } from "./profile.ts";
 import type { Season } from "./season.ts";
 
-export type Team = { id: string; name: string; source: "modern" | "custom" };
+export type TeamConference = "east" | "west";
+export type Team = {
+  id: string;
+  name: string;
+  source: "modern" | "custom";
+  conference?: TeamConference;
+};
 export type PlayerSetup = {
   name: string;
   position: Position;
