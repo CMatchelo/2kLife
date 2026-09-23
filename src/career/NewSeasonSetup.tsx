@@ -11,6 +11,8 @@ import CalendarSetup from "./CalendarSetup";
 import { Field, TeamSelect } from "./fields";
 import { api } from "./api";
 import AIConnection from "../AIConnection";
+import SalaryFields from "./SalaryFields";
+import { money } from "./money";
 
 const steps = [
   "Season details",
@@ -18,6 +20,36 @@ const steps = [
   "Calendar review",
   "Confirmation",
 ];
+
+function normalizeLegacyDraft(
+  draft: NewSeasonDraft | null | undefined,
+  career: Career,
+): NewSeasonDraft | null {
+  if (!draft) return null;
+  const source =
+    career.seasons.find((season) => season.id === draft.sourceSeasonId) ??
+    career.season;
+  return {
+    ...draft,
+    salaryTerms:
+      draft.salaryTerms ??
+      (source.salaryTerms
+        ? {
+            annualSalaryUsdCents: source.salaryTerms.annualSalaryUsdCents,
+            remainingContractSeasons: Math.max(
+              source.salaryTerms.remainingContractSeasons - 1,
+              0,
+            ),
+            regularSeasonGameCount: source.salaryTerms.regularSeasonGameCount,
+          }
+        : {
+            annualSalaryUsdCents: Number.NaN,
+            remainingContractSeasons: 0,
+            regularSeasonGameCount: 82,
+          }),
+    incompleteCalendarConfirmed: draft.incompleteCalendarConfirmed ?? false,
+  };
+}
 
 export default function NewSeasonSetup({
   career,
@@ -27,7 +59,7 @@ export default function NewSeasonSetup({
   onStarted: (career: Career) => void;
 }) {
   const [draft, setDraft] = useState<NewSeasonDraft | null>(
-    career.newSeasonDraft ?? null,
+    normalizeLegacyDraft(career.newSeasonDraft, career),
   );
   const [busy, setBusy] = useState(!draft);
   const [error, setError] = useState("");
@@ -46,8 +78,9 @@ export default function NewSeasonSetup({
     api<NewSeasonDraft>(`careers/${career.id}/new-season`)
       .then((value) => {
         if (active) {
-          latest.current = value;
-          setDraft(value);
+          const normalized = normalizeLegacyDraft(value, career)!;
+          latest.current = normalized;
+          setDraft(normalized);
           setError("");
         }
       })
@@ -133,7 +166,12 @@ export default function NewSeasonSetup({
               jerseyNumber: career.profile.jerseyNumber,
               draft: career.profile.draft,
             },
-            season: { era: source.era, year: draft.seasonYear },
+            season: {
+              era: source.era,
+              year: draft.seasonYear,
+              salaryTerms: draft.salaryTerms,
+            },
+            incompleteCalendarConfirmed: draft.incompleteCalendarConfirmed,
             teams: career.teams,
             games: draft.games,
             coverage: draft.coverage,
@@ -174,6 +212,7 @@ export default function NewSeasonSetup({
       ),
       unresolved: value.unresolved,
       coverage: value.coverage,
+      incompleteCalendarConfirmed: value.incompleteCalendarConfirmed,
     });
   };
 
@@ -210,8 +249,9 @@ export default function NewSeasonSetup({
               const fresh = await api<NewSeasonDraft>(
                 `careers/${career.id}/new-season`,
               );
-              latest.current = fresh;
-              setDraft(fresh);
+              const normalized = normalizeLegacyDraft(fresh, career)!;
+              latest.current = normalized;
+              setDraft(normalized);
               setReviewed(false);
             } catch (cause) {
               setError(
@@ -325,6 +365,23 @@ export default function NewSeasonSetup({
               />
               NBA Cup games count toward regular-season totals by default
             </label>
+            {draft.salaryTerms.remainingContractSeasons === 0 && (
+              <p className="sm:col-span-2 rounded-lg border border-gold/60 p-4 text-gold">
+                Your previous NBA contract has ended. Enter your salary and
+                remaining contract duration for the new season. Contract
+                negotiations will be added in a future version.
+              </p>
+            )}
+            <SalaryFields
+              value={draft.salaryTerms}
+              onChange={(salaryTerms) =>
+                change({
+                  ...draft,
+                  salaryTerms,
+                  incompleteCalendarConfirmed: false,
+                })
+              }
+            />
           </div>
           <button
             type="button"
@@ -389,6 +446,25 @@ export default function NewSeasonSetup({
               ["Current team", teamName(career.teams, draft.currentTeamId)],
               ["Starting date", draft.startDate],
               ["Regular-season end", draft.regularSeasonEndDate],
+              [
+                "Annual NBA salary",
+                money(draft.salaryTerms.annualSalaryUsdCents / 100),
+              ],
+              [
+                "Contract remaining",
+                `${draft.salaryTerms.remainingContractSeasons} season${draft.salaryTerms.remainingContractSeasons === 1 ? "" : "s"}`,
+              ],
+              [
+                "Regular-season games",
+                String(draft.salaryTerms.regularSeasonGameCount),
+              ],
+              [
+                "Counted calendar games",
+                String(
+                  draft.games.filter((game) => game.countsTowardRegularSeason)
+                    .length,
+                ),
+              ],
               [
                 "NBA Cup preference",
                 draft.nbaCupCountsTowardRegularSeason

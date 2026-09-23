@@ -5,11 +5,13 @@ export function Field({
   children,
   hint,
   required = false,
+  error,
 }: {
   label: string;
   children: ReactNode;
   hint?: string;
   required?: boolean;
+  error?: string;
 }) {
   return (
     <label className="career-field">
@@ -24,6 +26,7 @@ export function Field({
       </span>
       {children}
       {hint && <small className="font-normal text-muted">{hint}</small>}
+      {error && <small className="font-normal text-court-red">{error}</small>}
     </label>
   );
 }

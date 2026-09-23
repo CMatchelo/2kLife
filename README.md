@@ -10,6 +10,8 @@ This project began as a personal idea and was built and refined with AI assistan
 
 2kLife is an unofficial, fan-made project. It is not affiliated with, endorsed by, or sponsored by the NBA, NBA 2K, Take-Two Interactive, Visual Concepts, any NBA team, player, sponsor, or brand shown in the app. All names, logos, and trademarks belong to their respective owners.
 
+![2kLife overview](public/prints/2.png)
+
 ## Features
 
 ### Career and calendar
@@ -17,6 +19,8 @@ This project began as a personal idea and was built and refined with AI assistan
 - Create a local career with the player's profile, team, draft information, season, and starting date.
 - Build the NBA 2K calendar manually or import calendar screenshots through the configured AI provider.
 - Track home and away games, opponents, game categories, rankings, injuries, starts, final scores, and box scores.
+
+![Career and calendar](public/prints/3.png)
 
 ### Statistics and records
 
@@ -28,6 +32,8 @@ This project began as a personal idea and was built and refined with AI assistan
 
 - Answer to post-game interviews according to your general and recent perfomances.
 - Develop three personality traits through interview choices
+
+![Interviews and personality](public/prints/4.png)
 
 ### Followers and personal life
 
@@ -49,10 +55,19 @@ In Version 1, affinity is tracked and displayed but does not yet affect trades o
 - Process contract expiration, settlement, renewals, cooldowns, and permanent professionalism blocks.
 - Track all sponsor income and expenses in an append-only financial ledger.
 
+<table>
+  <tr>
+    <td width="50%"><img src="public/prints/5.png" alt="Sponsor overview"></td>
+    <td width="50%"><img src="public/prints/7.png" alt="Sponsor details"></td>
+  </tr>
+</table>
+
 ### Off-day events
 
 - Receive sponsor, team, player, fan, and charity invitations on eligible off days.
 - Choose one invitation when several events compete for the same date, or refuse all.
+
+![Off-day events](public/prints/1.png)
 
 ### Signature shoes
 
@@ -60,6 +75,8 @@ In Version 1, affinity is tracked and displayed but does not yet affect trades o
 - Name each shoe and upload an image of the shoe created inside NBA 2K.
 - Track units sold, revenue, launch status, and player royalties.
 - Win royalties after every eligible match.
+
+![Signature shoes](public/prints/6.png)
 
 ### Postseason
 
@@ -73,7 +90,7 @@ These are ideas still to be implemented on this companion. Feel free to help or 
 
 - Make player relationships and team affinity affect future career events.
 - Use your network to arrange the creation of a super team.
-- Add trade discussions and trade negotiations.
+- Add trade discussions and contract negotiations.
 - Add NBA player-contract and free-agency negotiations.
 - Active finaltial live, with houses, cars, and luxury itens to spend money on
 - Use data from previous seasons in AI generated interviews

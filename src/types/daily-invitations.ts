@@ -147,6 +147,7 @@ export type DailyEventResult = {
   decisionGroupId: string;
   invitationId: string;
   invitationType: DailyInvitationType;
+  outcome: "attended" | "refused";
   eventType: DailyEventType | null;
   sponsorId: string | null;
   sponsorName: string | null;
@@ -177,6 +178,7 @@ export type DailyEventResult = {
 export type DailyInvitationResolution = {
   group: DailyDecisionGroup;
   result: DailyEventResult | null;
+  results: DailyEventResult[];
   career: import("./career.ts").Career;
 };
 export type DailyInvitationMutation = {

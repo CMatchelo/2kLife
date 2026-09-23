@@ -50,9 +50,18 @@ function draft(): CareerDraft {
       currentTeamId: "LAL",
       draft: { undrafted: true, year: 2026 },
     },
-    season: { era: "Modern", year: "2026-27" },
+    season: {
+      era: "Modern",
+      year: "2026-27",
+      salaryTerms: {
+        annualSalaryUsdCents: 0,
+        remainingContractSeasons: 1,
+        regularSeasonGameCount: 82,
+      },
+    },
     teams,
     teamsConfirmed: true,
+    incompleteCalendarConfirmed: true,
     games: [
       scheduledGame({
         date: "2026-10-15",

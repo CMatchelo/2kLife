@@ -1,7 +1,18 @@
+import { useRef, useState } from "react";
 import type { Career } from "../types/career";
 import { teamName } from "../domain/teams";
+import type { SeasonSalaryTerms } from "../types/season";
+import SalaryFields from "./SalaryFields";
+import { money } from "./money";
+import { api } from "./api";
 
-export default function PlayerInfo({ career }: { career: Career }) {
+export default function PlayerInfo({
+  career,
+  onCareerChange,
+}: {
+  career: Career;
+  onCareerChange?: (career: Career) => void;
+}) {
   const player = career.profile;
   const seasonStart = Number(career.season.year.slice(0, 4));
   const age =
@@ -20,6 +31,20 @@ export default function PlayerInfo({ career }: { career: Career }) {
   const identityTotal = identity.star + identity.team + identity.fan;
   const identityPercentage = (score: number) =>
     identityTotal ? `${((score / identityTotal) * 100).toFixed(1)}%` : "0.0%";
+  const salary = career.season.salaryTerms;
+  const progress = career.season.salaryProgress ?? {
+    paymentCount: 0,
+    amountPaidUsdCents: 0,
+  };
+  const [setupTerms, setSetupTerms] = useState<SeasonSalaryTerms>({
+    annualSalaryUsdCents: Number.NaN,
+    remainingContractSeasons: 1,
+    regularSeasonGameCount: 82,
+  });
+  const [confirmIncomplete, setConfirmIncomplete] = useState(false);
+  const [setupError, setSetupError] = useState("");
+  const [saving, setSaving] = useState(false);
+  const requestId = useRef<string | null>(null);
   const details = [
     {
       label: "Position",
@@ -118,6 +143,147 @@ export default function PlayerInfo({ career }: { career: Career }) {
           Draft
         </p>
         <p className="mt-1 font-semibold">{draft}</p>
+      </div>
+      {salary ? (
+        <div className="mt-4 rounded-xl border border-divider p-4">
+          <h3 className="font-bold">Current NBA contract</h3>
+          <dl className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            <div>
+              <dt className="text-xs text-muted">Annual salary</dt>
+              <dd className="font-bold">
+                {money(salary.annualSalaryUsdCents / 100)}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-xs text-muted">Contract remaining</dt>
+              <dd className="font-bold">
+                {salary.remainingContractSeasons} season
+                {salary.remainingContractSeasons === 1 ? "" : "s"}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-xs text-muted">Regular-season games</dt>
+              <dd className="font-bold">{salary.regularSeasonGameCount}</dd>
+            </div>
+            <div>
+              <dt className="text-xs text-muted">Season payments</dt>
+              <dd className="font-bold">
+                {progress.paymentCount} of {salary.regularSeasonGameCount}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-xs text-muted">Earned this season</dt>
+              <dd className="font-bold">
+                {money(progress.amountPaidUsdCents / 100)}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-xs text-muted">Remaining</dt>
+              <dd className="font-bold">
+                {money(
+                  Math.max(
+                    0,
+                    salary.annualSalaryUsdCents - progress.amountPaidUsdCents,
+                  ) / 100,
+                )}
+              </dd>
+            </div>
+          </dl>
+        </div>
+      ) : career.hasActiveSeason ? (
+        <form
+          className="mt-4 rounded-xl border border-gold/60 p-4"
+          onSubmit={async (event) => {
+            event.preventDefault();
+            setSaving(true);
+            setSetupError("");
+            requestId.current ??= crypto.randomUUID();
+            try {
+              const updated = await api<Career>(
+                `careers/${career.id}/nba-salary-setup`,
+                {
+                  requestId: requestId.current,
+                  salaryTerms: setupTerms,
+                  incompleteCalendarConfirmed: confirmIncomplete,
+                },
+              );
+              requestId.current = null;
+              onCareerChange?.(updated);
+            } catch (cause) {
+              setSetupError(
+                cause instanceof Error
+                  ? cause.message
+                  : "Could not save NBA salary terms.",
+              );
+            } finally {
+              setSaving(false);
+            }
+          }}
+        >
+          <h3 className="font-bold">NBA salary setup required</h3>
+          <p className="mt-2 text-sm text-muted">
+            This career predates salary tracking. Enter terms before completing
+            the next counted regular-season game. No earlier games will be paid
+            retroactively.
+          </p>
+          <div className="mt-4 grid gap-4 sm:grid-cols-3">
+            <SalaryFields value={setupTerms} onChange={setSetupTerms} />
+          </div>
+          <label className="mt-4 flex items-start gap-2">
+            <input
+              type="checkbox"
+              checked={confirmIncomplete}
+              onChange={(event) => setConfirmIncomplete(event.target.checked)}
+            />
+            <span>I confirm the current calendar may be incomplete.</span>
+          </label>
+          {setupError && (
+            <p className="mt-3 text-court-red" role="alert">
+              {setupError}
+            </p>
+          )}
+          <button className="ai-primary mt-4" disabled={saving}>
+            {saving ? "Saving…" : "Save salary terms"}
+          </button>
+        </form>
+      ) : null}
+      <div className="mt-4 rounded-xl border border-divider p-4">
+        <h3 className="font-bold">NBA salary history</h3>
+        <div className="mt-3 space-y-3">
+          {career.seasons.map((season) => (
+            <div
+              key={season.id}
+              className="grid gap-2 rounded-lg border border-divider/60 p-3 sm:grid-cols-5"
+            >
+              <strong>{season.year}</strong>
+              {season.salaryTerms ? (
+                <>
+                  <span>
+                    {money(season.salaryTerms.annualSalaryUsdCents / 100)}
+                  </span>
+                  <span>
+                    {season.salaryTerms.remainingContractSeasons} season
+                    {season.salaryTerms.remainingContractSeasons === 1
+                      ? ""
+                      : "s"}
+                  </span>
+                  <span>
+                    {season.salaryProgress?.paymentCount ?? 0} of{" "}
+                    {season.salaryTerms.regularSeasonGameCount} payments
+                  </span>
+                  <span>
+                    {money(
+                      (season.salaryProgress?.amountPaidUsdCents ?? 0) / 100,
+                    )}{" "}
+                    earned
+                  </span>
+                </>
+              ) : (
+                <span className="sm:col-span-4 text-muted">Not recorded</span>
+              )}
+            </div>
+          ))}
+        </div>
       </div>
     </section>
   );

@@ -272,7 +272,7 @@ export default function CareerDashboard({
   } | null>(null);
   const [invitationGroup, setInvitationGroup] =
     useState<DailyDecisionGroup | null>(null);
-  const [eventResult, setEventResult] = useState<DailyEventResult | null>(null);
+  const [eventResults, setEventResults] = useState<DailyEventResult[]>([]);
   const [launchingShoe, setLaunchingShoe] = useState<SignatureShoe | null>(
     null,
   );
@@ -527,7 +527,13 @@ export default function CareerDashboard({
         <SeasonProgress current={current} />
       ) : view === "info" ? (
         <div className="space-y-8">
-          <PlayerInfo career={current} />
+          <PlayerInfo
+            career={current}
+            onCareerChange={(updated) => {
+              setCurrent(updated);
+              onCareerChange?.(updated);
+            }}
+          />
           <PlayerRecords career={current} />
           <PersonalLife socialMedia={current.profile.socialMedia} />
         </div>
@@ -815,26 +821,28 @@ export default function CareerDashboard({
       {invitationGroup && (
         <DailyInvitationModal
           careerId={current.id}
+          currentFollowers={current.profile.socialMedia.currentFollowers}
           initial={invitationGroup}
           onResolved={(resolution) => {
             setCurrent(resolution.career);
             setInvitationGroup(null);
-            if (resolution.result) setEventResult(resolution.result);
-            else setDayMessage("All invitations for today were refused.");
+            setEventResults(resolution.results);
+            if (!resolution.result)
+              setDayMessage("All invitations for today were refused.");
           }}
         />
       )}
-      {eventResult && (
+      {eventResults[0] && (
         <DailyEventResultModal
-          result={eventResult}
+          result={eventResults[0]}
           onClose={() => {
-            if (eventResult.unlockedShoe)
-              setLaunchingShoe(eventResult.unlockedShoe);
-            setEventResult(null);
+            if (eventResults[0].unlockedShoe)
+              setLaunchingShoe(eventResults[0].unlockedShoe);
+            setEventResults((currentResults) => currentResults.slice(1));
           }}
         />
       )}
-      {launchingShoe && !invitationGroup && !eventResult && (
+      {launchingShoe && !invitationGroup && !eventResults.length && (
         <SignatureShoeLaunchModal
           careerId={current.id}
           shoe={launchingShoe}

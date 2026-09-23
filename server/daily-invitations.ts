@@ -147,7 +147,7 @@ export class DailyInvitationService {
   }
   private quantity() {
     const roll = Math.min(0.9999999999999999, Math.max(0, this.random()));
-    return roll < 0.6 ? 1 : roll < 0.9 ? 2 : 3;
+    return roll < 0.65 ? 1 : roll < 0.95 ? 2 : 3;
   }
 
   ensureCurrent(career: Career) {
@@ -345,7 +345,6 @@ export class DailyInvitationService {
         "Invitation group not found. Reload the career.",
         404,
       );
-    const balance = this.balance(careerId);
     const invitations = this.db
       .prepare(
         "SELECT * FROM daily_invitations WHERE career_id=? AND group_id=? ORDER BY CASE invitation_type WHEN 'sponsor' THEN 0 WHEN 'team' THEN 1 WHEN 'player' THEN 2 WHEN 'fan' THEN 3 ELSE 4 END,source_name,id",
@@ -386,11 +385,8 @@ export class DailyInvitationService {
               : null,
             targetRole: data.targetRole ?? null,
             targetAffinityAtCreation: data.targetAffinityAtCreation ?? null,
-            canAttend: item.invitation_type !== "charity" || balance >= 500000,
-            cannotAttendReason:
-              item.invitation_type === "charity" && balance < 500000
-                ? "A $5,000 balance is required to attend this charity event."
-                : null,
+            canAttend: true,
+            cannotAttendReason: null,
           } as NonSponsorDailyInvitation;
         const contract = this.db
           .prepare("SELECT * FROM sponsor_contracts WHERE career_id=? AND id=?")
@@ -526,7 +522,7 @@ export class DailyInvitationService {
   result(careerId: string, resultId: string): DailyEventResult {
     const row = this.db
       .prepare(
-        "SELECT r.*,i.source_name FROM daily_event_results r JOIN daily_invitations i ON i.id=r.invitation_id WHERE r.career_id=? AND r.id=?",
+        "SELECT r.*,i.source_name,i.status invitation_status FROM daily_event_results r JOIN daily_invitations i ON i.id=r.invitation_id WHERE r.career_id=? AND r.id=?",
       )
       .get(careerId, resultId);
     if (!row) throw new DailyInvitationError("Event result not found.", 404);
@@ -537,6 +533,7 @@ export class DailyInvitationService {
       invitationType: String(
         row.invitation_type,
       ) as DailyEventResult["invitationType"],
+      outcome: String(row.invitation_status) as DailyEventResult["outcome"],
       eventType: row.event_type
         ? (String(row.event_type) as DailyEventResult["eventType"])
         : null,
@@ -622,6 +619,7 @@ export class DailyInvitationService {
           result: prior.result_id
             ? this.result(career.id, String(prior.result_id))
             : null,
+          results: this.resultsForGroup(career.id, groupId),
           career: this.store.get(career.id)!,
         };
         this.db.exec("COMMIT");
@@ -642,10 +640,6 @@ export class DailyInvitationService {
           : undefined;
       if (mutation.action === "attend" && !selected)
         throw new DailyInvitationError("Choose an available invitation.");
-      if (selected?.type === "charity" && this.balance(career.id) < 500000)
-        throw new DailyInvitationError(
-          "A $5,000 balance is required to attend this charity event.",
-        );
       if (
         mutation.eventType != null &&
         (!selected ||
@@ -668,8 +662,31 @@ export class DailyInvitationService {
             )
             .run(status, career.id, item.scheduledAppearanceId);
       }
-      let result: DailyEventResult | null = selected
-        ? this.applySelected(career, group, selected, mutation, timestamp)
+      const results: DailyEventResult[] = [];
+      const followerBaseline = career.profile.socialMedia.currentFollowers;
+      for (const item of pending) {
+        if (item.type === "sponsor" && item.id !== selected?.id) continue;
+        results.push(
+          this.applyEffect(
+            career,
+            group,
+            item,
+            item.id === selected?.id,
+            mutation,
+            timestamp,
+            followerBaseline,
+          ),
+        );
+      }
+      results.sort((left, right) =>
+        left.outcome === right.outcome
+          ? 0
+          : left.outcome === "attended"
+            ? -1
+            : 1,
+      );
+      const result = selected
+        ? (results.find((item) => item.invitationId === selected.id) ?? null)
         : null;
       this.db
         .prepare(
@@ -694,6 +711,7 @@ export class DailyInvitationService {
       return {
         group: this.group(career.id, groupId),
         result,
+        results,
         career: this.store.get(career.id)!,
       };
     } catch (error) {
@@ -702,12 +720,23 @@ export class DailyInvitationService {
     }
   }
 
-  private applySelected(
+  private resultsForGroup(careerId: string, groupId: string) {
+    return this.db
+      .prepare(
+        "SELECT r.id FROM daily_event_results r JOIN daily_invitations i ON i.id=r.invitation_id WHERE r.career_id=? AND r.group_id=? ORDER BY CASE i.status WHEN 'attended' THEN 0 ELSE 1 END,r.rowid",
+      )
+      .all(careerId, groupId)
+      .map((row) => this.result(careerId, String(row.id)));
+  }
+
+  private applyEffect(
     career: Career,
     group: DailyDecisionGroup,
     selected: DailyInvitation,
+    attended: boolean,
     mutation: DailyInvitationMutation,
     timestamp: string,
+    followerBaseline: number,
   ) {
     const reference = `invitation:${selected.id}:attendance`,
       resultId = randomUUID();
@@ -799,54 +828,67 @@ export class DailyInvitationService {
         }
       }
     } else if (selected.type === "team") {
-      teamAffinity = 1;
+      teamAffinity = attended ? 1 : -1;
+      if (attended) identities.team = 1;
       updatedTeamAffinity = this.adjustAffinity(
         "team",
         career.id,
         selected.targetTeamId!,
-        1,
+        teamAffinity,
         `${reference}:affinity`,
         timestamp,
       );
     } else if (selected.type === "player") {
-      playerAffinity = 1;
-      identities.star = 1;
-      followers = -this.integer(100, 300);
+      playerAffinity = attended ? 1 : -1;
+      if (attended) identities.star = 1;
       updatedPlayerAffinity = this.adjustAffinity(
         "player",
         career.id,
         selected.targetNetworkPlayerId!,
-        1,
+        playerAffinity,
         `${reference}:affinity`,
         timestamp,
       );
     } else if (selected.type === "fan") {
-      identities.fan = 1;
-      followers = this.integer(1000, 3000);
+      if (attended) identities.fan = 1;
     } else {
-      identities.fan = 1;
-      followers = this.integer(750, 2000);
-      payment = -500000;
-      this.db
-        .prepare(
-          `INSERT OR IGNORE INTO financial_transactions (id,career_id,amount_usd_cents,currency,in_game_date,recorded_at,origin_type,origin_reference,reason,invitation_reference,idempotency_key,description) VALUES (?,?,?,'USD',?,?,'charity',?,'event_expense',?,?,?)`,
-        )
-        .run(
-          randomUUID(),
-          career.id,
-          payment,
-          group.inGameDate,
-          timestamp,
-          selected.id,
-          selected.id,
-          `${reference}:payment`,
-          `${eventTitle} charity contribution`,
-        );
+      if (attended) {
+        identities.fan = 1;
+        followers = this.integer(750, 2000);
+      } else {
+        payment = -500000;
+        this.db
+          .prepare(
+            `INSERT OR IGNORE INTO financial_transactions (id,career_id,amount_usd_cents,currency,in_game_date,recorded_at,origin_type,origin_reference,reason,invitation_reference,idempotency_key,description) VALUES (?,?,?,'USD',?,?,'charity',?,'event_expense',?,?,?)`,
+          )
+          .run(
+            randomUUID(),
+            career.id,
+            payment,
+            group.inGameDate,
+            timestamp,
+            selected.id,
+            selected.id,
+            `${reference}:payment`,
+            `$5,000 donation sent to compensate for missing ${eventTitle}`,
+          );
+      }
     }
     const playerRow = this.db
       .prepare("SELECT data FROM players WHERE career_id=?")
       .get(career.id)!;
     const player = JSON.parse(String(playerRow.data));
+    if (selected.type === "fan") {
+      followers = attended
+        ? Math.min(
+            this.integer(1000, 15000),
+            Math.max(1000, Math.floor(followerBaseline * 0.3)),
+          )
+        : -Math.min(
+            this.integer(100, 10000),
+            Math.floor(followerBaseline * 0.1),
+          );
+    }
     if (followers) {
       const currentFollowers = Number(player.socialMedia.currentFollowers);
       const applied = Math.min(
@@ -859,7 +901,7 @@ export class DailyInvitationService {
         id: `followers-${selected.id}`,
         date: group.inGameDate,
         change: applied,
-        reason: `${eventTitle}.`,
+        reason: `${attended ? eventTitle : `Declined ${eventTitle}`}.`,
         invitationId: selected.id,
         ...(selected.type === "sponsor"
           ? { sponsorId: selected.sponsorId, contractId: selected.contractId }

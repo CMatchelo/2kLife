@@ -12,6 +12,8 @@ import {
 import AIConnection from "../AIConnection";
 import CalendarSetup from "./CalendarSetup";
 import { Field, TeamSelect } from "./fields";
+import SalaryFields from "./SalaryFields";
+import { money } from "./money";
 import { api } from "./api";
 
 const steps = ["Player and season", "Calendar creation", "Review and start"];
@@ -45,12 +47,18 @@ export default function NewCareer({
     season: {
       era: "Modern",
       year: `${new Date().getFullYear()}-${String((new Date().getFullYear() + 1) % 100).padStart(2, "0")}`,
+      salaryTerms: {
+        annualSalaryUsdCents: Number.NaN,
+        remainingContractSeasons: 1,
+        regularSeasonGameCount: 82,
+      },
     },
     teams: [...modernTeams],
     games: [],
     coverage: [],
     unresolved: [],
     teamsConfirmed: true,
+    incompleteCalendarConfirmed: false,
   }));
   const [step, setStep] = useState(0);
   const [busy, setBusy] = useState(false);
@@ -403,6 +411,16 @@ export default function NewCareer({
                   onChange={(value) => player({ currentTeamId: value })}
                 />
               </Field>
+              <SalaryFields
+                value={draft.season.salaryTerms}
+                onChange={(salaryTerms) =>
+                  setDraft({
+                    ...draft,
+                    season: { ...draft.season, salaryTerms },
+                    incompleteCalendarConfirmed: false,
+                  })
+                }
+              />
               <Field label="Draft year" required>
                 <input
                   type="number"
@@ -580,6 +598,25 @@ export default function NewCareer({
             ],
             ["Jersey", p.jerseyNumber || "Not set"],
             ["Era / season", `${draft.season.era} · ${draft.season.year}`],
+            [
+              "Annual NBA salary",
+              money(draft.season.salaryTerms.annualSalaryUsdCents / 100),
+            ],
+            [
+              "Contract remaining",
+              `${draft.season.salaryTerms.remainingContractSeasons} season${draft.season.salaryTerms.remainingContractSeasons === 1 ? "" : "s"}`,
+            ],
+            [
+              "Regular-season games",
+              String(draft.season.salaryTerms.regularSeasonGameCount),
+            ],
+            [
+              "Counted calendar games",
+              String(
+                draft.games.filter((game) => game.countsTowardRegularSeason)
+                  .length,
+              ),
+            ],
             ["Current team", teamName(draft.teams, p.currentTeamId)],
             [
               "Draft",

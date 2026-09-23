@@ -1,7 +1,12 @@
 export type { BoxScore, StatsSummary } from "./stats";
 export type { Game, GameCategory } from "./game";
 export type { StandingsSnapshot, TeamRecord, TeamStint } from "./team";
-export type { Season } from "./season";
+export type {
+  Season,
+  NbaContractTerms,
+  SeasonSalaryTerms,
+  SeasonSalaryProgress,
+} from "./season";
 export type {
   IdentityAction,
   IdentityScores,

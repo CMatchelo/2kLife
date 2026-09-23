@@ -16,9 +16,9 @@ import { BasketballNetworkService } from "./basketball-network.ts";
 import { SignatureShoeService } from "./signature-shoes.ts";
 import { modernTeams } from "../src/domain/teams.ts";
 import { calendarDate } from "../src/domain/calendarDate.ts";
-import { seasonMonths } from "../src/domain/career.ts";
 import { randomUUID } from "node:crypto";
 import { migratePostseason, PostseasonService } from "./postseason.ts";
+import { SalaryService } from "./salary.ts";
 import type {
   Career,
   CareerDraft,
@@ -31,13 +31,17 @@ import type {
 import type { MyProfile } from "../src/types/profile.ts";
 import type { Season } from "../src/types/season.ts";
 import {
+  calendarSalaryErrors,
+  countedRegularSeasonGames,
   emptyStats,
   gameWarnings,
   normalizeSeason,
   nextSeasonYear,
   scheduledGame,
+  salaryTermsErrors,
   validateCareer,
   validateNewSeasonDraft,
+  seasonMonths,
 } from "../src/domain/career.ts";
 
 export class ValidationError extends Error {}
@@ -99,6 +103,7 @@ export class CareerStore {
   basketballNetwork: BasketballNetworkService;
   signatureShoes: SignatureShoeService;
   postseason: PostseasonService;
+  salary: SalaryService;
   constructor(file: string) {
     this.db = new DatabaseSync(file);
     this.db.exec(`PRAGMA foreign_keys = ON; PRAGMA journal_mode = WAL;
@@ -131,6 +136,7 @@ export class CareerStore {
     migratePostseason(this.db);
     this.basketballNetwork = new BasketballNetworkService(this.db);
     this.sponsors = new SponsorService(this.db);
+    this.salary = new SalaryService(this.db);
     this.signatureShoes = new SignatureShoeService(this.db);
     this.invitations = new DailyInvitationService(this);
     this.postseason = new PostseasonService(this.db, (id) => this.get(id));
@@ -158,6 +164,11 @@ export class CareerStore {
     const seasonId = randomUUID();
     const year = normalizeSeason(draft.season.year)!;
     const profile: MyProfile = {
+      nbaContract: {
+        annualSalaryUsdCents: draft.season.salaryTerms.annualSalaryUsdCents,
+        remainingContractSeasons:
+          draft.season.salaryTerms.remainingContractSeasons,
+      },
       id: randomUUID(),
       name: draft.player.name.trim(),
       startingAge: { age: draft.player.age, seasonYear: year },
@@ -190,6 +201,7 @@ export class CareerStore {
       careerStats: { regularSeason: emptyStats(), playoffs: emptyStats() },
     };
     const season: Season = {
+      salaryTerms: { ...draft.season.salaryTerms },
       id: seasonId,
       year,
       era: draft.season.era.trim(),
@@ -310,6 +322,10 @@ export class CareerStore {
           )
           .all(String(seasonRow.id))
           .map((g) => JSON.parse(String(g.data)));
+        season.salaryProgress = this.salary?.progress(season.id) ?? {
+          paymentCount: 0,
+          amountPaidUsdCents: 0,
+        };
         season.matchRecords ??= emptyMatchRecords();
         this.calculateSeasonStats(season);
         return season;
@@ -463,7 +479,32 @@ export class CareerStore {
     const row = this.db
       .prepare("SELECT data FROM new_season_drafts WHERE career_id=?")
       .get(careerId);
-    return row ? (JSON.parse(String(row.data)) as NewSeasonDraft) : null;
+    if (!row) return null;
+    const draft = JSON.parse(String(row.data)) as NewSeasonDraft;
+    if (!draft.salaryTerms) {
+      const sourceRow = this.db
+        .prepare("SELECT data FROM seasons WHERE id=?")
+        .get(draft.sourceSeasonId);
+      const source = sourceRow
+        ? (JSON.parse(String(sourceRow.data)) as Season)
+        : null;
+      draft.salaryTerms = source?.salaryTerms
+        ? {
+            annualSalaryUsdCents: source.salaryTerms.annualSalaryUsdCents,
+            remainingContractSeasons: Math.max(
+              source.salaryTerms.remainingContractSeasons - 1,
+              0,
+            ),
+            regularSeasonGameCount: source.salaryTerms.regularSeasonGameCount,
+          }
+        : {
+            annualSalaryUsdCents: Number.NaN,
+            remainingContractSeasons: 0,
+            regularSeasonGameCount: 82,
+          };
+    }
+    draft.incompleteCalendarConfirmed ??= false;
+    return draft;
   }
   newSeasonDraft(careerId: string): NewSeasonDraft {
     const saved = this.readNewSeasonDraft(careerId);
@@ -492,6 +533,23 @@ export class CareerStore {
       regularSeasonEndDate: `${startYear + 1}-04-15`,
       nbaCupCountsTowardRegularSeason:
         career.season.nbaCupCountsTowardRegularSeason ?? true,
+      salaryTerms: career.season.salaryTerms
+        ? {
+            annualSalaryUsdCents:
+              career.season.salaryTerms.annualSalaryUsdCents,
+            remainingContractSeasons: Math.max(
+              career.season.salaryTerms.remainingContractSeasons - 1,
+              0,
+            ),
+            regularSeasonGameCount:
+              career.season.salaryTerms.regularSeasonGameCount,
+          }
+        : {
+            annualSalaryUsdCents: Number.NaN,
+            remainingContractSeasons: 0,
+            regularSeasonGameCount: 82,
+          },
+      incompleteCalendarConfirmed: false,
       games: [],
       unresolved: [],
       coverage: [],
@@ -642,6 +700,7 @@ export class CareerStore {
     const seasonId = randomUUID();
     const year = normalizeSeason(draft.seasonYear)!;
     const season: Season = {
+      salaryTerms: { ...draft.salaryTerms },
       id: seasonId,
       year,
       era: career.season.era,
@@ -738,6 +797,10 @@ export class CareerStore {
       }
       profile.currentAge = draft.age;
       profile.currentTeamId = draft.currentTeamId;
+      profile.nbaContract = {
+        annualSalaryUsdCents: draft.salaryTerms.annualSalaryUsdCents,
+        remainingContractSeasons: draft.salaryTerms.remainingContractSeasons,
+      };
       this.db
         .prepare("UPDATE players SET data=? WHERE career_id=?")
         .run(JSON.stringify(profile), careerId);
@@ -756,17 +819,15 @@ export class CareerStore {
               .run(JSON.stringify(stint), currentStint.rowid);
           }
         }
-        this.db
-          .prepare("INSERT INTO team_history VALUES (?,?)")
-          .run(
-            careerId,
-            JSON.stringify({
-              teamId: draft.currentTeamId,
-              startDate: draft.startDate,
-              startSeason: year,
-              endDate: null,
-            }),
-          );
+        this.db.prepare("INSERT INTO team_history VALUES (?,?)").run(
+          careerId,
+          JSON.stringify({
+            teamId: draft.currentTeamId,
+            startDate: draft.startDate,
+            startSeason: year,
+            endDate: null,
+          }),
+        );
         this.basketballNetwork.processCurrentTeamChange(
           careerId,
           formerTeamId,
@@ -804,6 +865,92 @@ export class CareerStore {
           requestId,
           "start",
           JSON.stringify({ seasonId }),
+          timestamp,
+        );
+      this.db.exec("COMMIT");
+    } catch (error) {
+      this.db.exec("ROLLBACK");
+      throw error;
+    }
+    return this.get(careerId)!;
+  }
+  setupSalary(careerId: string, raw: unknown): Career {
+    const request = raw as {
+      requestId?: unknown;
+      salaryTerms?: unknown;
+      incompleteCalendarConfirmed?: unknown;
+    };
+    const requestId = this.validateMutationRequest(request);
+    const existing = this.db
+      .prepare(
+        "SELECT kind FROM new_season_mutations WHERE career_id=? AND request_id=?",
+      )
+      .get(careerId, requestId);
+    if (existing) {
+      if (existing.kind !== "salary_setup")
+        throw new ValidationError(
+          "This request ID was already used for another operation.",
+        );
+      const retried = this.get(careerId);
+      if (!retried) throw new ValidationError("Career not found.");
+      return retried;
+    }
+    const career = this.get(careerId);
+    if (!career || !career.hasActiveSeason)
+      throw new ValidationError("An active season is required.");
+    if (career.season.salaryTerms)
+      throw new ValidationError(
+        "NBA salary terms are already recorded for this season.",
+      );
+    let terms;
+    try {
+      terms = this.salary.validateTerms(request.salaryTerms);
+    } catch (error) {
+      throw new ValidationError(
+        error instanceof Error ? error.message : "Invalid NBA salary terms.",
+      );
+    }
+    const months = seasonMonths(career.season.year);
+    const allMonthsConfirmed = months.every((month) =>
+      career.coverage.some((item) => item.month === month && item.confirmed),
+    );
+    const calendarErrors = calendarSalaryErrors(
+      career.season.games,
+      terms,
+      allMonthsConfirmed,
+      request.incompleteCalendarConfirmed === true,
+    );
+    if (calendarErrors.length)
+      throw new ValidationError(calendarErrors.join(" "));
+    const timestamp = new Date().toISOString();
+    this.db.exec("BEGIN IMMEDIATE");
+    try {
+      const seasonRow = this.db
+        .prepare("SELECT data FROM seasons WHERE id=? AND career_id=?")
+        .get(career.season.id, careerId)!;
+      const season: Season = JSON.parse(String(seasonRow.data));
+      season.salaryTerms = terms;
+      this.db
+        .prepare("UPDATE seasons SET data=? WHERE id=?")
+        .run(JSON.stringify(season), season.id);
+      const playerRow = this.db
+        .prepare("SELECT data FROM players WHERE career_id=?")
+        .get(careerId)!;
+      const profile: MyProfile = JSON.parse(String(playerRow.data));
+      profile.nbaContract = {
+        annualSalaryUsdCents: terms.annualSalaryUsdCents,
+        remainingContractSeasons: terms.remainingContractSeasons,
+      };
+      this.db
+        .prepare("UPDATE players SET data=? WHERE career_id=?")
+        .run(JSON.stringify(profile), careerId);
+      this.db
+        .prepare("INSERT INTO new_season_mutations VALUES (?,?,?,?,?)")
+        .run(
+          careerId,
+          requestId,
+          "salary_setup",
+          JSON.stringify({ seasonId: season.id }),
           timestamp,
         );
       this.db.exec("COMMIT");
@@ -899,6 +1046,15 @@ export class CareerStore {
     if (career.season.games.length >= 500)
       throw new ValidationError("This season already has 500 games.");
     if (
+      f.countsTowardRegularSeason &&
+      career.season.salaryTerms &&
+      countedRegularSeasonGames(career.season.games) >=
+        career.season.salaryTerms.regularSeasonGameCount
+    )
+      throw new ValidationError(
+        `This calendar already has the configured maximum of ${career.season.salaryTerms.regularSeasonGameCount} counted regular-season games.`,
+      );
+    if (
       career.season.games.some(
         (g) => g.date === f.date && g.teamId === f.teamId,
       )
@@ -985,6 +1141,19 @@ export class CareerStore {
     const selected = context
       ? selectInterview(context, career.season.games)
       : false;
+    if (
+      game.status !== "completed" &&
+      updated.status === "completed" &&
+      updated.countsTowardRegularSeason
+    ) {
+      if (!career.season.salaryTerms)
+        throw new ValidationError(
+          "NBA salary setup is required before completing the next counted regular-season game. Open Player Info and enter the current contract terms, then retry this match.",
+        );
+      const salaryErrors = salaryTermsErrors(career.season.salaryTerms);
+      if (salaryErrors.length)
+        throw new ValidationError(salaryErrors.join(" "));
+    }
     this.db.exec("BEGIN IMMEDIATE");
     try {
       if (game.status === "scheduled" && updated.status === "completed")
@@ -1004,6 +1173,8 @@ export class CareerStore {
       this.db
         .prepare("UPDATE games SET data = ? WHERE id = ? AND season_id = ?")
         .run(JSON.stringify(updated), gameId, career.season.id);
+      if (game.status !== "completed" && updated.status === "completed")
+        this.salary.processFirstCompletion(career, updated);
       this.db
         .prepare("UPDATE seasons SET data = ? WHERE id = ?")
         .run(JSON.stringify(season), career.season.id);
@@ -1145,6 +1316,7 @@ export class CareerStore {
         "daily_event_results",
         "daily_invitations",
         "daily_decision_groups",
+        "nba_salary_payments",
         "financial_transactions",
         "signature_shoe_launch_requests",
         "signature_shoe_game_sales",

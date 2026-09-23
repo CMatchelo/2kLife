@@ -2805,6 +2805,8 @@ export class SponsorService {
       .prepare(
         `SELECT
       COALESCE(SUM(amount_usd_cents),0) balance,
+      COALESCE(SUM(CASE WHEN amount_usd_cents > 0 THEN amount_usd_cents ELSE 0 END),0) total_income,
+      COALESCE(SUM(CASE WHEN reason='nba_salary' THEN amount_usd_cents ELSE 0 END),0) nba_salary,
       COALESCE(SUM(CASE WHEN origin_type='brand' THEN amount_usd_cents ELSE 0 END),0) sponsor,
       COALESCE(SUM(CASE WHEN reason='contract_sign' THEN amount_usd_cents ELSE 0 END),0) signing,
       COALESCE(SUM(CASE WHEN reason='sponsor_match' THEN amount_usd_cents ELSE 0 END),0) sponsor_match
@@ -2814,7 +2816,7 @@ export class SponsorService {
     const recentTransactions = this.db
       .prepare(
         `SELECT * FROM financial_transactions
-      WHERE career_id=? ORDER BY recorded_at DESC,rowid DESC LIMIT 25`,
+      WHERE career_id=? ORDER BY recorded_at DESC,rowid DESC`,
       )
       .all(career.id)
       .map(
@@ -2832,6 +2834,8 @@ export class SponsorService {
           brandId: row.brand_id ? String(row.brand_id) : null,
           contractId: row.contract_id ? String(row.contract_id) : null,
           gameId: row.game_id ? String(row.game_id) : null,
+          seasonId: row.season_id ? String(row.season_id) : null,
+          teamId: row.team_id ? String(row.team_id) : null,
           invitationReference: row.invitation_reference
             ? String(row.invitation_reference)
             : null,
@@ -2848,6 +2852,8 @@ export class SponsorService {
       pendingOffers,
       finances: {
         balanceUsdCents: Number(totals.balance),
+        totalIncomeUsdCents: Number(totals.total_income),
+        nbaSalaryEarningsUsdCents: Number(totals.nba_salary),
         sponsorEarningsUsdCents: Number(totals.sponsor),
         signingEarningsUsdCents: Number(totals.signing),
         sponsorMatchEarningsUsdCents: Number(totals.sponsor_match),

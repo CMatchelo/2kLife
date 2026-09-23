@@ -42,7 +42,15 @@ function draft(teamId = "LAL"): CareerDraft {
       currentTeamId: teamId,
       draft: { undrafted: true, year: 2026 },
     },
-    season: { era: "Modern", year: "2026-27" },
+    season: {
+      era: "Modern",
+      year: "2026-27",
+      salaryTerms: {
+        annualSalaryUsdCents: 0,
+        remainingContractSeasons: 1,
+        regularSeasonGameCount: 82,
+      },
+    },
     teams: modernTeams,
     games: [
       scheduledGame({
@@ -57,6 +65,7 @@ function draft(teamId = "LAL"): CareerDraft {
     coverage: [],
     unresolved: [],
     teamsConfirmed: true,
+    incompleteCalendarConfirmed: true,
   };
 }
 function atBoundary(store: CareerStore, careerId: string) {
@@ -349,16 +358,14 @@ test("Next Day skips retired series games and an obsolete saved game prompt", ()
       .prepare("UPDATE career_progression SET current_date=? WHERE career_id=?")
       .run(retired.date, created.id);
     const requestId = randomUUID();
-    store.db
-      .prepare("INSERT INTO day_requests VALUES (?,?,?)")
-      .run(
-        created.id,
-        requestId,
-        JSON.stringify({
-          date: retired.date,
-          outcome: { kind: "game_day", game: retired },
-        }),
-      );
+    store.db.prepare("INSERT INTO day_requests VALUES (?,?,?)").run(
+      created.id,
+      requestId,
+      JSON.stringify({
+        date: retired.date,
+        outcome: { kind: "game_day", game: retired },
+      }),
+    );
     const result = advanceCareerDay(
       store,
       created.id,

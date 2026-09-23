@@ -23,9 +23,18 @@ function firstDraft(teamId = "LAL"): CareerDraft {
       currentTeamId: teamId,
       draft: { undrafted: true, year: 2026 },
     },
-    season: { era: "Modern", year: "2026-27" },
+    season: {
+      era: "Modern",
+      year: "2026-27",
+      salaryTerms: {
+        annualSalaryUsdCents: 0,
+        remainingContractSeasons: 2,
+        regularSeasonGameCount: 82,
+      },
+    },
     teams: modernTeams,
     teamsConfirmed: true,
+    incompleteCalendarConfirmed: true,
     games: [
       scheduledGame({
         date: "2026-10-15",
@@ -74,6 +83,7 @@ function readyDraft(
     }),
   ];
   draft.coverage = [{ month: "2027-10", source: "user", confirmed: true }];
+  draft.incompleteCalendarConfirmed = true;
   draft.step = 4;
   return store.saveNewSeasonDraft(careerId, { requestId: randomUUID(), draft });
 }
@@ -96,6 +106,9 @@ test("completed careers expose no active season and resume one isolated setup dr
     assert.equal(draft.seasonYear, "2027-28");
     assert.equal(draft.age, 21);
     assert.equal(draft.currentTeamId, "LAL");
+    assert.equal(draft.salaryTerms.annualSalaryUsdCents, 0);
+    assert.equal(draft.salaryTerms.remainingContractSeasons, 1);
+    assert.equal(draft.salaryTerms.regularSeasonGameCount, 82);
     draft.games.push(
       scheduledGame({
         date: "2027-10-20",
@@ -135,6 +148,12 @@ test("draft validation rejects duplicate, non-increasing, invalid years and inva
     startDate: "2027-07-01",
     regularSeasonEndDate: "2028-04-15",
     nbaCupCountsTowardRegularSeason: true,
+    salaryTerms: {
+      annualSalaryUsdCents: 0,
+      remainingContractSeasons: 1,
+      regularSeasonGameCount: 82,
+    },
+    incompleteCalendarConfirmed: true,
     games: [
       scheduledGame({
         date: "2027-10-20",
@@ -188,6 +207,13 @@ test("activation is idempotent, creates fresh state, and preserves historical ga
     const draft = readyDraft(store, first.id);
     const requestId = randomUUID();
     const started = store.startNewSeason(first.id, { requestId });
+    assert.equal(started.season.salaryTerms?.remainingContractSeasons, 1);
+    assert.equal(started.profile.nbaContract?.remainingContractSeasons, 1);
+    assert.equal(
+      started.seasons.find((season) => season.id === first.season.id)
+        ?.salaryTerms?.remainingContractSeasons,
+      2,
+    );
     assert.equal(started.hasActiveSeason, true);
     assert.equal(started.season.year, "2027-28");
     assert.equal(started.season.phase, "regularSeason");

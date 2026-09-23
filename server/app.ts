@@ -290,6 +290,17 @@ export function connectionServer(
       const currentTeamRoute = req.url?.match(
         /^\/api\/careers\/([\w-]+)\/current-team$/,
       );
+      const salarySetupRoute = req.url?.match(
+        /^\/api\/careers\/([\w-]+)\/nba-salary-setup$/,
+      );
+      if (careers && salarySetupRoute && req.method === "POST")
+        return send(
+          200,
+          careers.setupSalary(
+            salarySetupRoute[1],
+            await readBody(req, 16 * 1024),
+          ),
+        );
       if (careers && currentTeamRoute && req.method === "POST") {
         const career = careers.changeCurrentTeam(
           currentTeamRoute[1],

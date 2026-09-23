@@ -9,7 +9,23 @@ import type {
 } from "./postseason.ts";
 import type { CompletedSeasonReview } from "./season-review.ts";
 
+export type NbaContractTerms = {
+  annualSalaryUsdCents: number;
+  remainingContractSeasons: number;
+};
+
+export type SeasonSalaryTerms = NbaContractTerms & {
+  regularSeasonGameCount: number;
+};
+
+export type SeasonSalaryProgress = {
+  paymentCount: number;
+  amountPaidUsdCents: number;
+};
+
 export type Season = {
+  salaryTerms?: SeasonSalaryTerms;
+  salaryProgress?: SeasonSalaryProgress;
   playerSnapshot?: {
     age: number;
     teamId: string;

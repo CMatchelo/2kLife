@@ -5,6 +5,7 @@ import type { SponsorsOverview } from "../types/sponsor";
 import { api } from "./api";
 import SignatureShoeLaunchModal from "./SignatureShoeLaunchModal";
 import SignatureShoesBoard from "./SignatureShoesBoard";
+import { teamName } from "../domain/teams";
 
 const currency = new Intl.NumberFormat("en-US", {
   style: "currency",
@@ -69,11 +70,23 @@ export default function SponsorFinances({ career }: { career: Career }) {
         )}
         {!loading && !error && (
           <>
-            <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
               <div className="rounded-xl border border-slate-700 bg-slate-900/60 p-4">
                 <span className="text-sm text-muted">Current balance</span>
                 <strong className="mt-1 block text-2xl text-gold">
                   {money(overview?.finances.balanceUsdCents ?? 0)}
+                </strong>
+              </div>
+              <div className="rounded-xl border border-slate-700 bg-slate-900/60 p-4">
+                <span className="text-sm text-muted">Total income</span>
+                <strong className="mt-1 block text-xl">
+                  {money(overview?.finances.totalIncomeUsdCents ?? 0)}
+                </strong>
+              </div>
+              <div className="rounded-xl border border-slate-700 bg-slate-900/60 p-4">
+                <span className="text-sm text-muted">NBA salary</span>
+                <strong className="mt-1 block text-xl">
+                  {money(overview?.finances.nbaSalaryEarningsUsdCents ?? 0)}
                 </strong>
               </div>
               <div className="rounded-xl border border-slate-700 bg-slate-900/60 p-4">
@@ -116,11 +129,16 @@ export default function SponsorFinances({ career }: { career: Career }) {
                       >
                         <td className="p-2">{transaction.inGameDate}</td>
                         <td className="p-2">
-                          {transaction.description ??
-                            transaction.originReference}
+                          {transaction.originType === "team" &&
+                          transaction.teamId
+                            ? `${teamName(career.teams, transaction.teamId)} · ${transaction.description ?? "NBA salary"}`
+                            : (transaction.description ??
+                              transaction.originReference)}
                         </td>
                         <td className="p-2 capitalize">
-                          {transaction.reason.replaceAll("_", " ")}
+                          {transaction.reason === "nba_salary"
+                            ? "NBA salary"
+                            : transaction.reason.replaceAll("_", " ")}
                         </td>
                         <td className="p-2 text-right font-bold">
                           {money(transaction.amountUsdCents)}

@@ -5,6 +5,7 @@ import { eventLabel } from "../domain/dailySponsorEvents";
 import type {
   DailyDecisionGroup,
   DailyEventResult,
+  DailyInvitationType,
   DailyInvitationPresentation,
   DailyInvitationResolution,
   SponsorEventType,
@@ -17,6 +18,45 @@ const money = (cents: number) =>
 const integer = new Intl.NumberFormat("en-US");
 const signed = (value: number) =>
   `${value >= 0 ? "+" : "−"}${integer.format(Math.abs(value))}`;
+
+const declineEffect = (type: DailyInvitationType, followers: number) => {
+  if (type === "team") return "−1 team affinity";
+  if (type === "player") return "−1 player affinity";
+  if (type === "fan")
+    return `Lose up to ${integer.format(Math.min(10000, Math.floor(followers * 0.1)))} followers (random roll 100–10,000, capped at 10%)`;
+  if (type === "charity")
+    return "$5,000 donation sent to compensate for your absence";
+  return "The appearance remains subject to the existing sponsor-contract consequences";
+};
+
+const invitationEffects = (type: DailyInvitationType, followers: number) => {
+  if (type === "team")
+    return {
+      reward: "+1 Team identity and +1 team affinity",
+      penalty: declineEffect(type, followers),
+    };
+  if (type === "player")
+    return {
+      reward: "+1 Star identity and +1 player affinity",
+      penalty: declineEffect(type, followers),
+    };
+  if (type === "fan") {
+    const cap = Math.min(15000, Math.max(1000, Math.floor(followers * 0.3)));
+    return {
+      reward: `+1 Fan identity and 1,000–${integer.format(cap)} followers (maximum 30% with a 1,000-follower minimum)`,
+      penalty: declineEffect(type, followers),
+    };
+  }
+  if (type === "charity")
+    return {
+      reward: "+1 Fan identity and 750–2,000 followers",
+      penalty: declineEffect(type, followers),
+    };
+  return {
+    reward: "Payment, followers, and one attended contract appearance",
+    penalty: declineEffect(type, followers),
+  };
+};
 
 export function DailyEventResultModal({
   result,
@@ -65,9 +105,14 @@ export function DailyEventResultModal({
             {result.eventDescription}
           </p>
         )}
-        {!sponsor && (
+        {!sponsor && result.outcome === "attended" && (
           <p className="leading-relaxed">
             You attended the event. Here’s how it affected your career.
+          </p>
+        )}
+        {!sponsor && result.outcome === "refused" && (
+          <p className="leading-relaxed">
+            You declined this invitation. Here’s how it affected your career.
           </p>
         )}
         {sponsor && (
@@ -138,7 +183,9 @@ export function DailyEventResultModal({
             <div className="rounded-lg bg-court-red/25 p-3">
               <dt>
                 {result.paymentUsdCents < 0
-                  ? "Charity contribution"
+                  ? result.outcome === "refused"
+                    ? "Absence donation"
+                    : "Charity contribution"
                   : "Money earned"}
               </dt>
               <dd className="text-xl font-black">
@@ -173,10 +220,12 @@ export function DailyEventResultModal({
 
 export default function DailyInvitationModal({
   careerId,
+  currentFollowers,
   initial,
   onResolved,
 }: {
   careerId: string;
+  currentFollowers: number;
   initial: DailyDecisionGroup;
   onResolved: (resolution: DailyInvitationResolution) => void;
 }) {
@@ -217,6 +266,19 @@ export default function DailyInvitationModal({
     eventType?: SponsorEventType | null,
   ) {
     if (resolving.current || (loading && action === "attend")) return;
+    const declined = invitations.filter(
+      (item) => action === "refuse_all" || item.id !== invitationId,
+    );
+    const consequences = declined
+      .filter((item) => item.type !== "sponsor")
+      .map((item) => declineEffect(item.type, currentFollowers));
+    if (
+      consequences.length &&
+      !window.confirm(
+        `Confirm your decision?\n\nDeclined invitation penalties:\n${consequences.map((item) => `• ${item}`).join("\n")}`,
+      )
+    )
+      return;
     resolving.current = true;
     setSaving(true);
     setError("");
@@ -318,6 +380,10 @@ export default function DailyInvitationModal({
                         : "Community event";
               const canAttend =
                 invitation.type === "sponsor" || invitation.canAttend;
+              const effects = invitationEffects(
+                invitation.type,
+                currentFollowers,
+              );
               return (
                 <article
                   key={invitation.id}
@@ -340,6 +406,14 @@ export default function DailyInvitationModal({
                     Activity:{" "}
                     {eventLabel(event?.eventType ?? invitation.eventType)}
                   </p>
+                  <div className="mt-3 grid gap-2 text-sm">
+                    <p className="rounded-lg bg-emerald-700/10 p-2 font-semibold text-emerald-800">
+                      Attend: {effects.reward}
+                    </p>
+                    <p className="rounded-lg bg-court-red/10 p-2 font-semibold text-court-red">
+                      Decline: {effects.penalty}
+                    </p>
+                  </div>
                   {invitation.type === "sponsor" && (
                     <>
                       <dl className="mt-4 grid gap-2 text-sm sm:grid-cols-2">

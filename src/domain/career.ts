@@ -3,6 +3,69 @@ import type { NewSeasonDraft } from "../types/career.ts";
 import type { Game, GameCategory } from "../types/game.ts";
 import type { BoxScore, StatsSummary } from "../types/stats.ts";
 import { calendarDate } from "./calendarDate.ts";
+import type { SeasonSalaryTerms } from "../types/season.ts";
+
+export function salaryTermsErrors(
+  terms: Partial<SeasonSalaryTerms> | null | undefined,
+): string[] {
+  const errors: string[] = [];
+  if (
+    !terms ||
+    !Number.isSafeInteger(terms.annualSalaryUsdCents) ||
+    Number(terms.annualSalaryUsdCents) < 0
+  )
+    errors.push(
+      "Annual NBA salary must be a valid non-negative amount in whole cents.",
+    );
+  if (
+    !terms ||
+    !Number.isInteger(terms.remainingContractSeasons) ||
+    Number(terms.remainingContractSeasons) < 1
+  )
+    errors.push("Remaining contract seasons must be a positive integer.");
+  if (
+    !terms ||
+    !Number.isInteger(terms.regularSeasonGameCount) ||
+    Number(terms.regularSeasonGameCount) < 1 ||
+    Number(terms.regularSeasonGameCount) > 82
+  )
+    errors.push(
+      "Regular-season game count must be an integer from 1 through 82.",
+    );
+  return errors;
+}
+
+export function countedRegularSeasonGames(games: readonly Partial<Game>[]) {
+  return games.filter((game) => game.countsTowardRegularSeason === true).length;
+}
+
+export function calendarSalaryErrors(
+  games: readonly Partial<Game>[],
+  terms: Partial<SeasonSalaryTerms> | null | undefined,
+  allMonthsConfirmed: boolean,
+  incompleteCalendarConfirmed = false,
+): string[] {
+  if (!terms || !Number.isInteger(terms.regularSeasonGameCount)) return [];
+  const counted = countedRegularSeasonGames(games);
+  const configured = Number(terms.regularSeasonGameCount);
+  if (counted > configured)
+    return [
+      `The calendar has ${counted} counted regular-season games, exceeding the configured maximum of ${configured}.`,
+    ];
+  if (allMonthsConfirmed && counted !== configured)
+    return [
+      `Complete calendar coverage requires exactly ${configured} counted regular-season games; the calendar currently has ${counted}.`,
+    ];
+  if (
+    !allMonthsConfirmed &&
+    counted < configured &&
+    !incompleteCalendarConfirmed
+  )
+    return [
+      `Confirm that the incomplete calendar currently contains ${counted} of ${configured} counted regular-season games.`,
+    ];
+  return [];
+}
 
 export const categories: GameCategory[] = [
   "regularSeason",
@@ -118,6 +181,7 @@ export const sameFixture = (a: Partial<Game>, b: Partial<Game>) =>
   a.date === b.date && a.teamId === b.teamId;
 export function validateCareer(draft: CareerDraft): string[] {
   const errors: string[] = [];
+  errors.push(...salaryTermsErrors(draft.season?.salaryTerms));
   if (!draft.games.length)
     errors.push("Add the first scheduled game before starting the career.");
   const p = draft.player;
@@ -207,6 +271,18 @@ export function validateCareer(draft: CareerDraft): string[] {
     )
   )
     errors.push("Correct calendar coverage.");
+  const months = seasonMonths(draft.season.year);
+  errors.push(
+    ...calendarSalaryErrors(
+      draft.games,
+      draft.season.salaryTerms,
+      months.length > 0 &&
+        months.every((month) =>
+          draft.coverage.some((item) => item.month === month && item.confirmed),
+        ),
+      draft.incompleteCalendarConfirmed,
+    ),
+  );
   return [...new Set(errors)];
 }
 export function emptyStats(): StatsSummary {
@@ -246,6 +322,7 @@ export function validateNewSeasonDraft(
   existingYears: string[],
 ): string[] {
   const errors: string[] = [];
+  errors.push(...salaryTermsErrors(draft.salaryTerms));
   const year = normalizeSeason(draft.seasonYear);
   if (!year) errors.push("Enter a consecutive season such as 2027–28.");
   else {
@@ -310,5 +387,16 @@ export function validateNewSeasonDraft(
     )
   )
     errors.push("Correct calendar coverage.");
+  errors.push(
+    ...calendarSalaryErrors(
+      draft.games,
+      draft.salaryTerms,
+      months.length > 0 &&
+        months.every((month) =>
+          draft.coverage.some((item) => item.month === month && item.confirmed),
+        ),
+      draft.incompleteCalendarConfirmed,
+    ),
+  );
   return [...new Set(errors)];
 }

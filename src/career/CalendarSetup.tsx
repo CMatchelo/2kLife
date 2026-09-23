@@ -53,6 +53,10 @@ export default function CalendarSetup({
   const lock = useRef(false);
   const [error, setError] = useState("");
   const [summary, setSummary] = useState("");
+  const configuredCount = draft.season.salaryTerms.regularSeasonGameCount;
+  const countedCount = draft.games.filter(
+    (game) => game.countsTowardRegularSeason,
+  ).length;
   async function operation(action: () => Promise<void>) {
     if (lock.current) return;
     lock.current = true;
@@ -137,6 +141,20 @@ export default function CalendarSetup({
               "A game already exists for your team on this date. Correct the date/team or discard this import.",
           },
         });
+      } else if (
+        game.countsTowardRegularSeason &&
+        games.filter((item) => item.countsTowardRegularSeason).length >=
+          configuredCount
+      ) {
+        review.push({
+          id: crypto.randomUUID(),
+          fields: game,
+          sourceImage: null,
+          opponentText: "",
+          warnings: {
+            countsTowardRegularSeason: `The configured maximum of ${configuredCount} counted regular-season games has been reached.`,
+          },
+        });
       } else games.push(game);
     }
     // Preserve confirmed coverage; seeing a screenshot does not prove a full month.
@@ -167,7 +185,15 @@ export default function CalendarSetup({
       const key = `${row.fields.date}|${row.fields.teamId}`;
       if (seen.has(key)) continue;
       seen.add(key);
-      added.push(scheduledGame(row.fields as ScheduleFields));
+      const game = scheduledGame(row.fields as ScheduleFields);
+      if (
+        game.countsTowardRegularSeason &&
+        countedCount +
+          added.filter((item) => item.countsTowardRegularSeason).length >=
+          configuredCount
+      )
+        continue;
+      added.push(game);
       acceptedIds.add(row.id);
     }
     if (!added.length) return;
@@ -185,8 +211,12 @@ export default function CalendarSetup({
       <div>
         <h2 className="text-2xl font-bold">Build your season calendar</h2>
         <p className="mt-2 text-muted">
-          Mix screenshots and manual entry. There is no required game count, and
-          results are not needed.
+          Mix screenshots and manual entry. Results are not needed.
+        </p>
+        <p
+          className={`mt-2 font-semibold ${countedCount === configuredCount ? "text-green-300" : "text-gold"}`}
+        >
+          Counted regular-season games: {countedCount} of {configuredCount}
         </p>
       </div>
       <div className="flex flex-wrap gap-3">
@@ -400,6 +430,15 @@ export default function CalendarSetup({
                 return "Your team already has a game on this date. Edit that fixture or correct the date/team here.";
               if (draft.games.length >= 500 && !editing.gameId)
                 return "This setup supports up to 500 games.";
+              const previous = draft.games.find(
+                (game) => game.id === editing.gameId,
+              );
+              if (
+                fields.countsTowardRegularSeason &&
+                !previous?.countsTowardRegularSeason &&
+                countedCount >= configuredCount
+              )
+                return `The configured maximum of ${configuredCount} counted regular-season games has been reached.`;
               const game = scheduledGame(fields, editing.gameId);
               setMonth(game.date.slice(0, 7));
               onChange({
@@ -544,6 +583,30 @@ export default function CalendarSetup({
               and dates are correct.
             </span>
           </label>
+          {!months.every((value) =>
+            draft.coverage.some(
+              (item) => item.month === value && item.confirmed,
+            ),
+          ) &&
+            countedCount < configuredCount && (
+              <label className="mt-4 flex items-start gap-3">
+                <input
+                  type="checkbox"
+                  checked={draft.incompleteCalendarConfirmed}
+                  onChange={(event) =>
+                    onChange({
+                      ...draft,
+                      incompleteCalendarConfirmed: event.target.checked,
+                    })
+                  }
+                />
+                <span>
+                  I confirm this calendar is incomplete and currently contains{" "}
+                  {countedCount} of {configuredCount} counted regular-season
+                  games.
+                </span>
+              </label>
+            )}
         </section>
       </fieldset>
     </div>

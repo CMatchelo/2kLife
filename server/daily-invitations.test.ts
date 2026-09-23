@@ -5,6 +5,7 @@ import { CareerStore } from "./careers.ts";
 import { DailyInvitationService } from "./daily-invitations.ts";
 import { scheduledGame } from "../src/domain/career.ts";
 import {
+  dailySponsorEventsPrompt,
   fallbackDailyEvent,
   validateDailySponsorEvents,
 } from "../src/domain/dailySponsorEvents.ts";
@@ -27,9 +28,18 @@ function draft(): CareerDraft {
       currentTeamId: "LAL",
       draft: { undrafted: true, year: 2026 },
     },
-    season: { era: "Modern", year: "2026-27" },
+    season: {
+      era: "Modern",
+      year: "2026-27",
+      salaryTerms: {
+        annualSalaryUsdCents: 0,
+        remainingContractSeasons: 1,
+        regularSeasonGameCount: 82,
+      },
+    },
     teams,
     teamsConfirmed: true,
+    incompleteCalendarConfirmed: true,
     games: [
       scheduledGame({
         date: "2026-10-15",
@@ -56,11 +66,11 @@ function sequence(values: number[]) {
   return () => values[Math.min(index++, values.length - 1)] ?? 0;
 }
 
-test("non-sponsor quantity uses 60/30/10 thresholds and categories never repeat", () => {
+test("non-sponsor quantity uses 65/30/5 thresholds and categories never repeat", () => {
   for (const [roll, expected] of [
     [0, 1],
-    [0.6, 2],
-    [0.9, 3],
+    [0.65, 2],
+    [0.95, 3],
   ] as const) {
     const store = new CareerStore(":memory:");
     try {
@@ -170,7 +180,22 @@ test("presentation preserves controlled facts and falls back for malformed or mi
   }
 });
 
-test("reload reuses factual invitations and refuse all resolves the window without rewards", () => {
+test("daily-event prompts assign a natural voice to each invitation origin", () => {
+  const prompt = dailySponsorEventsPrompt({
+    language: "en",
+    playerName: "Test Player",
+    currentTeam: "Los Angeles Lakers",
+    inGameDate: "2026-10-16",
+    allowedEventTypes: ["public_brand_event"],
+    invitations: [],
+  });
+  assert.match(prompt, /brand speaks directly as "we"/);
+  assert.match(prompt, /named player speaks personally in first person/);
+  assert.match(prompt, /should not introduce themself/);
+  assert.match(prompt, /agent here/);
+});
+
+test("reload reuses factual invitations and refuse all applies every non-sponsor penalty", () => {
   const store = new CareerStore(":memory:");
   try {
     const career = offDay(store);
@@ -201,6 +226,14 @@ test("reload reuses factual invitations and refuse all resolves the window witho
       action: "refuse_all",
     });
     assert.equal(resolved.result, null);
+    assert.equal(
+      resolved.results.length,
+      first.invitations.filter((item) => item.type !== "sponsor").length,
+    );
+    assert.equal(
+      resolved.results.every((item) => item.outcome === "refused"),
+      true,
+    );
     assert.equal(
       resolved.group.invitations.every((item) => item.status === "refused"),
       true,
@@ -254,10 +287,7 @@ test("accepting a player invitation applies effects once and refuses every compe
       invitationId: player.id,
     });
     const result = first.result!;
-    assert.equal(
-      result.followersGained <= -100 && result.followersGained >= -300,
-      true,
-    );
+    assert.equal(result.followersGained, 0);
     assert.equal(result.identityChanges.star, 1);
     assert.equal(result.networkPlayerAffinityChange, 1);
     assert.equal(retried.result?.id, result.id);
@@ -282,13 +312,13 @@ test("accepting a player invitation applies effects once and refuses every compe
   }
 });
 
-test("charity requires funds and records an exact $5,000 expense when attended", () => {
+test("charity is free when attended and refusal records a $5,000 absence donation", () => {
   const store = new CareerStore(":memory:");
   try {
     let career = offDay(store);
     store.invitations = new DailyInvitationService(
       store,
-      sequence([0, 0.99, 0, 0]),
+      sequence([0.99, 0, 0, 0, 0, 0, 0]),
     );
     let group = store.invitations.ensureForDate(
       career,
@@ -296,41 +326,50 @@ test("charity requires funds and records an exact $5,000 expense when attended",
       "window:charity",
     )!;
     const charity = group.invitations.find((item) => item.type === "charity")!;
-    assert.equal(charity.type !== "sponsor" && charity.canAttend, false);
-    assert.throws(
-      () =>
-        store.invitations.resolve(career, group.id, {
-          requestId: randomUUID(),
-          action: "attend",
-          invitationId: charity.id,
-        }),
-      /\$5,000/,
-    );
-    store.db
-      .prepare(
-        "INSERT INTO financial_transactions (id,career_id,amount_usd_cents,currency,in_game_date,recorded_at,origin_type,origin_reference,reason,idempotency_key) VALUES (?,?,600000,'USD',?,?,'salary','test','salary','test:salary')",
-      )
-      .run(
-        randomUUID(),
-        career.id,
-        career.currentDate,
-        new Date().toISOString(),
-      );
-    career = store.get(career.id)!;
-    group = store.invitations.group(career.id, group.id);
+    assert.equal(charity.type !== "sponsor" && charity.canAttend, true);
     const result = store.invitations.resolve(career, group.id, {
       requestId: randomUUID(),
       action: "attend",
       invitationId: charity.id,
     }).result!;
-    assert.equal(result.paymentUsdCents, -500000);
-    assert.equal(result.updatedBalanceUsdCents, 100000);
+    assert.equal(result.paymentUsdCents, 0);
     assert.equal(result.identityChanges.fan, 1);
+    assert.equal(
+      store.db
+        .prepare(
+          "SELECT COUNT(*) count FROM financial_transactions WHERE invitation_reference=?",
+        )
+        .get(charity.id)!.count,
+      0,
+    );
+
+    career = offDay(store);
+    store.invitations = new DailyInvitationService(
+      store,
+      sequence([0.99, 0, 0, 0, 0, 0, 0]),
+    );
+    group = store.invitations.ensureForDate(
+      career,
+      career.currentDate!,
+      "window:charity-refusal",
+    )!;
+    const refusedCharity = group.invitations.find(
+      (item) => item.type === "charity",
+    )!;
+    const refused = store.invitations.resolve(career, group.id, {
+      requestId: randomUUID(),
+      action: "refuse_all",
+    });
+    const refusedResult = refused.results.find(
+      (item) => item.invitationId === refusedCharity.id,
+    )!;
+    assert.equal(refusedResult.paymentUsdCents, -500000);
+    assert.equal(refusedResult.outcome, "refused");
     const ledger = store.db
       .prepare(
         "SELECT origin_type,reason,amount_usd_cents FROM financial_transactions WHERE invitation_reference=?",
       )
-      .get(charity.id)!;
+      .get(refusedCharity.id)!;
     assert.deepEqual(
       [ledger.origin_type, ledger.reason, ledger.amount_usd_cents],
       ["charity", "event_expense", -500000],

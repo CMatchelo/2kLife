@@ -1,6 +1,7 @@
 import type { Game } from "./game.ts";
 import type { MyProfile, Position } from "./profile.ts";
 import type { Season } from "./season.ts";
+import type { SeasonSalaryTerms } from "./season.ts";
 
 export type TeamConference = "east" | "west";
 export type Team = {
@@ -45,12 +46,13 @@ export type ImportReview = {
 export type CareerDraft = {
   saveName: string;
   player: PlayerSetup;
-  season: { era: string; year: string };
+  season: { era: string; year: string; salaryTerms: SeasonSalaryTerms };
   teams: Team[];
   games: Game[];
   coverage: Coverage[];
   unresolved: ImportReview[];
   teamsConfirmed: boolean;
+  incompleteCalendarConfirmed: boolean;
   requestId: string;
 };
 export type Career = {
@@ -102,6 +104,8 @@ export type NewSeasonDraft = {
   startDate: string;
   regularSeasonEndDate: string;
   nbaCupCountsTowardRegularSeason: boolean;
+  salaryTerms: SeasonSalaryTerms;
+  incompleteCalendarConfirmed: boolean;
   games: Game[];
   unresolved: ImportReview[];
   coverage: Coverage[];

@@ -5,10 +5,12 @@ import type { Season } from "./season.ts";
 import type { SocialMedia } from "./social-media.ts";
 import type { StatsSummary } from "./stats.ts";
 import type { TeamStint } from "./team.ts";
+import type { NbaContractTerms } from "./season.ts";
 
 export type Position = "PG" | "SG" | "SF" | "PF" | "C";
 
 export type MyProfile = {
+  nbaContract?: NbaContractTerms;
   matchRecords?: PlayerMatchRecords;
   id: string;
   name: string;
