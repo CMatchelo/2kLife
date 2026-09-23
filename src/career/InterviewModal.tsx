@@ -145,7 +145,39 @@ export default function InterviewModal({
             ))}
           </div>
         ) : null}
-        {saving && <p role="status">Saving your answer…</p>}
+        {!result && !loading && (
+          <button
+            type="button"
+            className="ai-secondary text-ink"
+            disabled={saving}
+            onClick={async () => {
+              if (lock.current) return;
+              lock.current = true;
+              setSaving(true);
+              setError("");
+              try {
+                const updated = await api<Career>(
+                  `careers/${careerId}/games/${gameId}/interview/skip`,
+                  {},
+                );
+                onSaved(updated);
+                onClose();
+              } catch (cause) {
+                setError(
+                  cause instanceof Error
+                    ? cause.message
+                    : "Could not skip the interview. Retry.",
+                );
+              } finally {
+                lock.current = false;
+                setSaving(false);
+              }
+            }}
+          >
+            Skip interview
+          </button>
+        )}
+        {saving && <p role="status">Saving…</p>}
         {error && (
           <p role="alert" className="rounded-lg bg-black/70 p-3 text-white">
             {error}

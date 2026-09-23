@@ -4,6 +4,7 @@ import type { StatsSummary } from "./stats.ts";
 import type { StandingsSnapshot, TeamRecord } from "./team.ts";
 
 export type Season = {
+  seasonEndDate?: string | null;
   matchRecords?: PlayerMatchRecords;
   recordTrackedGameIds?: string[];
   id: string;
