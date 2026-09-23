@@ -43,12 +43,15 @@ export function performanceScore(game: Game & { stats: BoxScore; teamScore: numb
   return clamp(parts.reduce((sum, [value, weight]) => sum + value * weight, 0) / parts.reduce((sum, [, weight]) => sum + weight, 0), -1, 1);
 }
 export function followerChange(followers: number, score: number): number {
-  // A strong score (>= 0.5) earns 500 at zero. Growth gradually saturates
-  // near 25k per match for large audiences, then approaches zero at the cap.
+  // Ordinary games grow the audience; only clearly poor games lose followers.
   const audience = clamp(Math.round(followers), 0, LIMIT);
   const magnitude = (500 + audience * 0.025) / (1 + audience / 1_000_000);
-  const headroom = score > 0 ? 1 - audience / LIMIT : 1;
-  const change = Math.round(Math.sign(score) * Math.min(Math.abs(score) / 0.5, 1) * magnitude * headroom);
+  const gain = score >= -0.3;
+  const scale = gain
+    ? Math.min((score + 0.3) / 0.8, 1) * 4
+    : -Math.min((-0.3 - score) / 0.4, 1) * 2;
+  const headroom = gain ? 1 - audience / LIMIT : 1;
+  const change = Math.round(scale * magnitude * headroom);
   return clamp(audience + change, 0, LIMIT) - audience;
 }
 export function recalculateFollowers(social: SocialMedia, games: Game[], savedGameId: string): SocialMedia {
@@ -66,7 +69,7 @@ export function recalculateFollowers(social: SocialMedia, games: Game[], savedGa
     const change = followerChange(followers, score);
     followers += change;
     history.push({ id: social.history.find(item => item.gameId === game.id)?.id ?? `followers-${game.id}`, gameId: game.id, date: game.date, change, performanceScore: score,
-      reason: score > 0 ? 'Positive overall performance relative to pregame career expectations.' : score < 0 ? 'Negative overall performance relative to pregame career expectations.' : 'Overall performance matched pregame career expectations.' });
+      reason: change > 0 ? 'Match performance grew the audience.' : change < 0 ? 'Poor match performance reduced the audience.' : 'Match performance left the audience unchanged.' });
   }
   followers += eventHistory.reduce((sum, item) => sum + item.change, 0);
   return { startingFollowers, currentFollowers: followers, trackedGameIds: [...tracked], history: [...history, ...eventHistory].sort((a, b) => a.date.localeCompare(b.date) || a.id.localeCompare(b.id)) };
