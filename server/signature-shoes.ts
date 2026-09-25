@@ -341,26 +341,29 @@ export class SignatureShoeService {
           ? calculateLaunchBoostUnits(terms, this.random).units
           : 0,
       );
-      const variation = calculateRandomVariationUnits(terms, this.random);
-      const totalUnits = Math.max(
-        0,
-        Math.round(
-          (terms.baseUnits +
-            follower.units +
-            variation.units +
-            boosts.reduce((sum, value) => sum + value, 0)) *
-            (1 + adjustment),
-        ),
+      const variations = shoes.map(() =>
+        calculateRandomVariationUnits(terms, this.random),
       );
+      const sharedUnitsBeforeAdjustment =
+        terms.baseUnits +
+        follower.units +
+        boosts.reduce((sum, value) => sum + value, 0);
       const secondInLaunch =
         shoes.length > 1 && Number(shoes[1].launch_games_processed) < 3;
-      const allocations = allocateShoeUnits(
-        totalUnits,
+      const baselineAllocations = allocateShoeUnits(
+        sharedUnitsBeforeAdjustment,
         shoes.length > 1,
         secondInLaunch,
       );
       for (const [index, shoe] of shoes.entries()) {
-        const units = allocations[index] ?? 0;
+        const variation = variations[index];
+        const units = Math.max(
+          0,
+          Math.round(
+            ((baselineAllocations[index] ?? 0) + variation.units) *
+              (1 + adjustment),
+          ),
+        );
         const revenue = units * Number(shoe.retail_price_usd_cents);
         const royalty = Math.round(revenue * Number(shoe.royalty_rate));
         const timestamp = now(),

@@ -137,15 +137,27 @@ test("first completions pay missed and Cup team games once with cumulative round
       [33, 34, 33],
     );
     assert.equal(rows.length, 3);
+    assert.deepEqual(
+      rows.map((row) => Number(row.tax_usd_cents)),
+      [11, 12, 11],
+    );
     assert.equal(career.season.salaryProgress?.amountPaidUsdCents, 100);
     const overview = store.sponsors.getOverview(career);
-    assert.equal(overview.finances.balanceUsdCents, 100);
+    assert.equal(overview.finances.balanceUsdCents, 66);
     assert.equal(overview.finances.nbaSalaryEarningsUsdCents, 100);
+    assert.equal(overview.finances.nbaSalaryTaxUsdCents, 34);
     assert.equal(overview.finances.sponsorEarningsUsdCents, 0);
-    assert.ok(
-      overview.finances.recentTransactions.every(
-        (row) => row.reason === "nba_salary" && row.originType === "team",
-      ),
+    assert.equal(
+      overview.finances.recentTransactions.filter(
+        (row) => row.reason === "nba_salary",
+      ).length,
+      3,
+    );
+    assert.equal(
+      overview.finances.recentTransactions.filter(
+        (row) => row.reason === "nba_salary_tax",
+      ).length,
+      3,
     );
   } finally {
     store.close();

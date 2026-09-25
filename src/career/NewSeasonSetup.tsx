@@ -97,7 +97,7 @@ export default function NewSeasonSetup({
     return () => {
       active = false;
     };
-  }, [career.id, draft]);
+  }, [career, draft]);
 
   useEffect(
     () => () => {

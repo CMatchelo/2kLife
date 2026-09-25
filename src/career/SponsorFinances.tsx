@@ -17,7 +17,6 @@ export default function SponsorFinances({ career }: { career: Career }) {
   const [overview, setOverview] = useState<SponsorsOverview | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [showAll, setShowAll] = useState(false);
   const [launchingShoe, setLaunchingShoe] = useState<SignatureShoe | null>(
     null,
   );
@@ -70,7 +69,7 @@ export default function SponsorFinances({ career }: { career: Career }) {
         )}
         {!loading && !error && (
           <>
-            <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+            <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
               <div className="rounded-xl border border-slate-700 bg-slate-900/60 p-4">
                 <span className="text-sm text-muted">Current balance</span>
                 <strong className="mt-1 block text-2xl text-gold">
@@ -87,6 +86,12 @@ export default function SponsorFinances({ career }: { career: Career }) {
                 <span className="text-sm text-muted">NBA salary</span>
                 <strong className="mt-1 block text-xl">
                   {money(overview?.finances.nbaSalaryEarningsUsdCents ?? 0)}
+                </strong>
+              </div>
+              <div className="rounded-xl border border-slate-700 bg-slate-900/60 p-4">
+                <span className="text-sm text-muted">Salary taxes paid</span>
+                <strong className="mt-1 block text-xl text-red-300">
+                  {money(overview?.finances.nbaSalaryTaxUsdCents ?? 0)}
                 </strong>
               </div>
               <div className="rounded-xl border border-slate-700 bg-slate-900/60 p-4">
@@ -109,9 +114,9 @@ export default function SponsorFinances({ career }: { career: Career }) {
               </div>
             </div>
             <h3 className="mt-6 font-bold">Recent transactions</h3>
-            <div className="mt-2 overflow-x-auto">
+            <div className="mt-2 max-h-[22.5rem] overflow-auto">
               <table className="w-full text-left text-sm">
-                <thead>
+                <thead className="sticky top-0 bg-slate-950">
                   <tr>
                     <th className="p-2">Date</th>
                     <th className="p-2">Description</th>
@@ -120,31 +125,38 @@ export default function SponsorFinances({ career }: { career: Career }) {
                   </tr>
                 </thead>
                 <tbody>
-                  {overview?.finances.recentTransactions
-                    .slice(0, showAll ? undefined : 5)
-                    .map((transaction) => (
-                      <tr
-                        key={transaction.id}
-                        className="border-t border-divider/60"
-                      >
-                        <td className="p-2">{transaction.inGameDate}</td>
-                        <td className="p-2">
-                          {transaction.originType === "team" &&
-                          transaction.teamId
-                            ? `${teamName(career.teams, transaction.teamId)} · ${transaction.description ?? "NBA salary"}`
-                            : (transaction.description ??
-                              transaction.originReference)}
-                        </td>
-                        <td className="p-2 capitalize">
-                          {transaction.reason === "nba_salary"
-                            ? "NBA salary"
+                  {overview?.finances.recentTransactions.map((transaction) => (
+                    <tr
+                      key={transaction.id}
+                      className="border-t border-divider/60"
+                    >
+                      <td className="p-2">{transaction.inGameDate}</td>
+                      <td className="p-2">
+                        {transaction.teamId
+                          ? `${teamName(career.teams, transaction.teamId)} · ${transaction.description ?? "NBA salary"}`
+                          : (transaction.description ??
+                            transaction.originReference)}
+                      </td>
+                      <td className="p-2 capitalize">
+                        {transaction.reason === "nba_salary"
+                          ? "NBA salary"
+                          : transaction.reason === "nba_salary_tax"
+                            ? "Salary tax"
                             : transaction.reason.replaceAll("_", " ")}
-                        </td>
-                        <td className="p-2 text-right font-bold">
-                          {money(transaction.amountUsdCents)}
-                        </td>
-                      </tr>
-                    ))}
+                      </td>
+                      <td
+                        className={`p-2 text-right font-bold ${
+                          transaction.amountUsdCents > 0
+                            ? "text-green-300"
+                            : transaction.amountUsdCents < 0
+                              ? "text-red-300"
+                              : ""
+                        }`}
+                      >
+                        {money(transaction.amountUsdCents)}
+                      </td>
+                    </tr>
+                  ))}
                   {!overview?.finances.recentTransactions.length && (
                     <tr>
                       <td colSpan={4} className="p-4 text-center text-muted">
@@ -155,16 +167,6 @@ export default function SponsorFinances({ career }: { career: Career }) {
                 </tbody>
               </table>
             </div>
-            {(overview?.finances.recentTransactions.length ?? 0) > 5 && (
-              <button
-                type="button"
-                className="ai-primary mt-4"
-                aria-expanded={showAll}
-                onClick={() => setShowAll((value) => !value)}
-              >
-                {showAll ? "Show less" : "Show all"}
-              </button>
-            )}
           </>
         )}
       </section>

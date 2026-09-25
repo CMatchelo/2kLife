@@ -286,6 +286,74 @@ test("completed games create idempotent sales, totals and positive royalty ledge
   }
 });
 
+test("two launched shoes receive independent general-variation rolls", () => {
+  const store = new CareerStore(":memory:");
+  try {
+    let career = store.create(draft());
+    const contractId = contract(store, career.id);
+    const first = store.signatureShoes.unlockForAttendance(
+      career.id,
+      contractId,
+      1,
+      "2026-10-01",
+    )!;
+    const second = store.signatureShoes.unlockForAttendance(
+      career.id,
+      contractId,
+      2,
+      "2026-10-02",
+    )!;
+    store.signatureShoes.launch(career, first.id, {
+      requestId: randomUUID(),
+      name: "Pair One",
+    });
+    store.signatureShoes.launch(career, second.id, {
+      requestId: randomUUID(),
+      name: "Pair Two",
+    });
+    store.db
+      .prepare(
+        "UPDATE signature_shoes SET launch_games_processed=3 WHERE id IN (?,?)",
+      )
+      .run(first.id, second.id);
+    const rolls = [0.5, 0, 1];
+    let roll = 0;
+    store.signatureShoes = new SignatureShoeService(
+      store.db,
+      () => rolls[roll++] ?? 0.5,
+    );
+    const game = career.season.games[0];
+    career = store.updateGame(career.id, game.id, {
+      status: "completed",
+      teamScore: 100,
+      opponentScore: 90,
+      played: true,
+      starter: true,
+      injured: false,
+      stats: stats(),
+    })!;
+    const sales = store.db
+      .prepare(
+        "SELECT shoe_id,units_sold,random_variation_units,royalty_paid_usd_cents FROM signature_shoe_game_sales WHERE game_id=? ORDER BY shoe_id",
+      )
+      .all(game.id);
+    assert.equal(sales.length, 2);
+    assert.deepEqual(
+      sales
+        .map((sale) => Number(sale.random_variation_units))
+        .sort((a, b) => a - b),
+      [-4, 4],
+    );
+    assert.notEqual(
+      Number(sales[0].royalty_paid_usd_cents),
+      Number(sales[1].royalty_paid_usd_cents),
+    );
+    assert.equal(career.season.games[0].status, "completed");
+  } finally {
+    store.close();
+  }
+});
+
 test("pending shoes make no sales and expiration preserves launched history while cancelling pending slots", () => {
   const store = new CareerStore(":memory:");
   try {

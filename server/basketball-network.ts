@@ -510,9 +510,9 @@ export class BasketballNetworkService {
     try {
       const result = this.db
         .prepare(
-          "UPDATE career_network_players SET active=0,inactive_reason='removed',updated_at=? WHERE id=? AND career_id=? AND role=? AND active=1",
+          "DELETE FROM career_network_players WHERE id=? AND career_id=? AND role=? AND active=1",
         )
-        .run(new Date().toISOString(), playerId, careerId, role);
+        .run(playerId, careerId, role);
       if (!result.changes)
         throw new BasketballNetworkError(
           `Active network ${role} not found.`,

@@ -21,6 +21,7 @@ This app is still in development and testing. Feel free to report any bugs you e
 - Create a local career with the player's profile, team, draft information, season, and starting date.
 - Build the NBA 2K calendar manually or import calendar screenshots through the configured AI provider.
 - Track home and away games, opponents, game categories, rankings, injuries, starts, final scores, and box scores.
+- Import a single-game box score from an NBA 2K screenshot through the configured AI provider, then review the extracted statistics before saving.
 
 ![Career and calendar](public/prints/3.png)
 
@@ -43,7 +44,7 @@ This app is still in development and testing. Feel free to report any bugs you e
 - Track follower changes from games and off-day activities.
 - Create relationships with selected players and teammates.
 - Create affinity with teams.
-
+- Carry relationships, team affinity, followers, identity, finances, sponsors, and signature-shoe history across seasons.
 
 In Version 1, affinity is tracked and displayed but does not yet affect trades or NBA contract negotiations.
 
@@ -56,6 +57,14 @@ In Version 1, affinity is tracked and displayed but does not yet affect trades o
 - Attend or refuse sponsor invitations alongside other off-day opportunities.
 - Process contract expiration, settlement, renewals, cooldowns, and permanent professionalism blocks.
 - Track all sponsor income and expenses in an append-only financial ledger.
+
+### NBA salary and finances
+
+- Record the player's annual NBA salary, remaining contract seasons, and expected number of paid regular-season team games.
+- Pay salary installments when counted team games are completed, including games the player misses and qualifying NBA Cup games.
+- Review NBA salary, sponsor income, signature-shoe royalties, charity donations, and other transactions in one financial ledger.
+
+Salary terms are currently entered manually. Team contract offers, negotiation, trades, and free agency are planned features.
 
 <table>
   <tr>
@@ -84,7 +93,9 @@ In Version 1, affinity is tracked and displayed but does not yet affect trades o
 
 - Enter and order final Eastern and Western Conference standings.
 - Complete the NBA Play-In Tournament and full playoff bracket.
-- Track the whole post-season, from the play-in to the NBA champion
+- Track the whole postseason, from the Play-In to the NBA champion.
+- Complete a five-step season review with optional league awards.
+- Continue the same career into a new season while preserving completed-season games, results, awards, interviews, relationships, sponsors, shoes, and finances.
 
 ## Planned features
 
@@ -95,8 +106,8 @@ These are ideas still to be implemented on this companion. Feel free to help or 
 - Add trade discussions and contract negotiations.
 - Add NBA player-contract and free-agency negotiations.
 - Manage finances, with houses, cars, and luxury items to spend money on.
-- Use data from previous seasons in AI generated interviews
-- Executable so anyone can run, without needing to clone a repository and installing.
+- Give AI-generated interviews richer previous-season context, including past averages, awards, playoff results, and team history.
+- Package the app so anyone can run it without cloning a repository or installing development tools.
 
 ## Technology
 
@@ -180,6 +191,7 @@ Do not commit or share the `.2klife` directory unless you intentionally want to 
 AI is used for presentation and extraction tasks such as:
 
 - Calendar screenshot import
+- Box-score screenshot import
 - Postgame interview writing
 - Sponsor approach messages
 - Sponsor-event descriptions
@@ -287,6 +299,18 @@ pnpm build
 ```
 
 Automated tests use temporary or in-memory data and mocked providers. They do not require real AI credentials or consume AI usage.
+
+### Windows and OneDrive troubleshooting
+
+If `pnpm test`, `pnpm lint`, or `pnpm build` fails with `EPERM: operation not permitted` while reading a file under `node_modules/.pnpm`, Windows is denying access to an installed dependency. This is not an application or career-database error.
+
+First close running 2kLife, Node, editor, and terminal processes that may be using `node_modules`, then rebuild the dependencies from the lockfile:
+
+```powershell
+pnpm install --force --frozen-lockfile
+```
+
+If that cannot repair the disposable dependency directory, remove `node_modules` and run `pnpm install --frozen-lockfile`. If the project is stored in a OneDrive-synced folder and access errors continue, mark the project folder **Always keep on this device** or clone/move the repository to a local, non-synced development folder, reinstall dependencies there, and rerun the checks. Keep `.2klife` backed up before moving an existing working copy because it contains the local career database.
 
 ## Project structure
 
