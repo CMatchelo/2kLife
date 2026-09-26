@@ -19,6 +19,7 @@ import { calendarDate } from "../src/domain/calendarDate.ts";
 import { randomUUID } from "node:crypto";
 import { migratePostseason, PostseasonService } from "./postseason.ts";
 import { SalaryService } from "./salary.ts";
+import { ContractService } from "./contracts.ts";
 import type {
   Career,
   CareerDraft,
@@ -104,13 +105,17 @@ export class CareerStore {
   signatureShoes: SignatureShoeService;
   postseason: PostseasonService;
   salary: SalaryService;
-  constructor(file: string) {
+  contracts: ContractService;
+  constructor(
+    file: string,
+    options: { signatureShoeImageRoot?: string } = {},
+  ) {
     this.db = new DatabaseSync(file);
     this.db.exec(`PRAGMA foreign_keys = ON; PRAGMA journal_mode = WAL;
       CREATE TABLE IF NOT EXISTS careers (id TEXT PRIMARY KEY, request_id TEXT UNIQUE NOT NULL, save_name TEXT NOT NULL, created_at TEXT NOT NULL, teams TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS players (id TEXT PRIMARY KEY, career_id TEXT UNIQUE NOT NULL REFERENCES careers(id), data TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS seasons (id TEXT PRIMARY KEY, career_id TEXT NOT NULL REFERENCES careers(id), data TEXT NOT NULL);
-      CREATE TABLE IF NOT EXISTS games (id TEXT PRIMARY KEY, season_id TEXT NOT NULL REFERENCES seasons(id), date TEXT NOT NULL, team_id TEXT NOT NULL, data TEXT NOT NULL, UNIQUE(season_id, date, team_id));
+      CREATE TABLE IF NOT EXISTS games (id TEXT PRIMARY KEY, season_id TEXT NOT NULL REFERENCES seasons(id), date TEXT NOT NULL, team_id TEXT NOT NULL, data TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS team_history (career_id TEXT NOT NULL REFERENCES careers(id), data TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS coverage (season_id TEXT NOT NULL REFERENCES seasons(id), month TEXT NOT NULL, data TEXT NOT NULL, PRIMARY KEY(season_id, month));
       CREATE TABLE IF NOT EXISTS new_season_drafts (
@@ -137,9 +142,23 @@ export class CareerStore {
     this.basketballNetwork = new BasketballNetworkService(this.db);
     this.sponsors = new SponsorService(this.db);
     this.salary = new SalaryService(this.db);
-    this.signatureShoes = new SignatureShoeService(this.db);
+    this.contracts = new ContractService(
+      this.db,
+      (id) => this.get(id),
+      (id) => this.basketballNetwork.get(id),
+    );
+    this.signatureShoes = new SignatureShoeService(
+      this.db,
+      Math.random,
+      options.signatureShoeImageRoot,
+    );
     this.invitations = new DailyInvitationService(this);
-    this.postseason = new PostseasonService(this.db, (id) => this.get(id));
+    this.postseason = new PostseasonService(
+      this.db,
+      (id) => this.get(id),
+      (careerId, seasonId) =>
+        this.contracts.ensureOffseason(careerId, seasonId),
+    );
     for (const row of this.db.prepare("SELECT id FROM careers").all()) {
       const career = this.get(String(row.id));
       if (
@@ -504,7 +523,36 @@ export class CareerStore {
           };
     }
     draft.incompleteCalendarConfirmed ??= false;
-    return draft;
+    draft.nbaCupCountsTowardRegularSeason = true;
+    draft.games = (draft.games ?? []).map((game) =>
+      game.category === "nbaCup"
+        ? { ...game, countsTowardRegularSeason: true }
+        : game,
+    );
+    return this.applyAcceptedContract(careerId, draft);
+  }
+  private applyAcceptedContract(
+    careerId: string,
+    draft: NewSeasonDraft,
+  ): NewSeasonDraft {
+    const accepted = this.contracts?.acceptedFuture(careerId);
+    if (!accepted || accepted.sourceSeasonId !== draft.sourceSeasonId)
+      return draft;
+    return {
+      ...draft,
+      seasonYear: accepted.terms.startingSeasonYear,
+      currentTeamId: accepted.teamId,
+      salaryTerms: {
+        annualSalaryUsdCents: accepted.terms.annualSalaryUsdCents,
+        remainingContractSeasons: accepted.terms.durationSeasons,
+        regularSeasonGameCount: draft.salaryTerms?.regularSeasonGameCount ?? 82,
+      },
+      acceptedContract: {
+        offerId: accepted.offerId,
+        teamId: accepted.teamId,
+        terms: accepted.terms,
+      },
+    };
   }
   newSeasonDraft(careerId: string): NewSeasonDraft {
     const saved = this.readNewSeasonDraft(careerId);
@@ -521,7 +569,7 @@ export class CareerStore {
     if (!year)
       throw new ValidationError("A later supported season is not available.");
     const startYear = Number(year.slice(0, 4));
-    const draft: NewSeasonDraft = {
+    let draft: NewSeasonDraft = {
       sourceSeasonId: career.season.id,
       seasonYear: year,
       age:
@@ -531,8 +579,7 @@ export class CareerStore {
       currentTeamId: career.profile.currentTeamId,
       startDate: `${startYear}-07-01`,
       regularSeasonEndDate: `${startYear + 1}-04-15`,
-      nbaCupCountsTowardRegularSeason:
-        career.season.nbaCupCountsTowardRegularSeason ?? true,
+      nbaCupCountsTowardRegularSeason: true,
       salaryTerms: career.season.salaryTerms
         ? {
             annualSalaryUsdCents:
@@ -555,6 +602,7 @@ export class CareerStore {
       coverage: [],
       step: 1,
     };
+    draft = this.applyAcceptedContract(careerId, draft);
     const timestamp = new Date().toISOString();
     this.db
       .prepare("INSERT INTO new_season_drafts VALUES (?,?,?,?,?)")
@@ -596,20 +644,29 @@ export class CareerStore {
       throw new ValidationError("This New Season setup is no longer current.");
     if (!request.draft || typeof request.draft !== "object")
       throw new ValidationError("Invalid New Season setup.");
-    const draft = request.draft;
+    const candidate = this.applyAcceptedContract(careerId, request.draft);
     if (
-      draft.sourceSeasonId !== current.sourceSeasonId ||
-      !Number.isInteger(draft.step) ||
-      draft.step < 1 ||
-      draft.step > 4 ||
-      !Array.isArray(draft.games) ||
-      !Array.isArray(draft.unresolved) ||
-      !Array.isArray(draft.coverage) ||
-      draft.games.length > 500 ||
-      draft.unresolved.length > 500 ||
-      draft.coverage.length > 24
+      candidate.sourceSeasonId !== current.sourceSeasonId ||
+      !Number.isInteger(candidate.step) ||
+      candidate.step < 1 ||
+      candidate.step > 4 ||
+      !Array.isArray(candidate.games) ||
+      !Array.isArray(candidate.unresolved) ||
+      !Array.isArray(candidate.coverage) ||
+      candidate.games.length > 500 ||
+      candidate.unresolved.length > 500 ||
+      candidate.coverage.length > 24
     )
       throw new ValidationError("Invalid or oversized New Season setup.");
+    const draft: NewSeasonDraft = {
+      ...candidate,
+      nbaCupCountsTowardRegularSeason: true,
+      games: candidate.games.map((game) =>
+        game.category === "nbaCup"
+          ? { ...game, countsTowardRegularSeason: true }
+          : game,
+      ),
+    };
     const timestamp = new Date().toISOString();
     this.db.exec("BEGIN IMMEDIATE");
     try {
@@ -855,6 +912,7 @@ export class CareerStore {
         this.get(careerId)!,
         `new-season:${seasonId}:eligibility`,
       );
+      this.contracts.activateFuture(careerId, career.season.id, seasonId);
       this.db
         .prepare("DELETE FROM new_season_drafts WHERE career_id=?")
         .run(careerId);
@@ -1305,6 +1363,11 @@ export class CareerStore {
         )
         .run(id);
       for (const table of [
+        "nba_contract_mutations",
+        "nba_future_contracts",
+        "nba_contract_activations",
+        "nba_contract_offers",
+        "nba_contract_offer_groups",
         "new_season_mutations",
         "new_season_drafts",
         "season_review_mutations",

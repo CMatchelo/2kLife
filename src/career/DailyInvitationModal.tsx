@@ -359,7 +359,7 @@ export default function DailyInvitationModal({
           </div>
           <button
             type="button"
-            className="ai-secondary text-ink"
+            className="ai-secondary"
             aria-label="Close invitations and refuse all"
             disabled={saving}
             onClick={requestClose}

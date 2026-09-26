@@ -9,6 +9,7 @@ import type { Provider } from "./providers/shared.ts";
 import { safeError } from "./providers/shared.ts";
 import { isProvider, readSettings, writeSettings } from "./settings.ts";
 import type { IncomingMessage } from "node:http";
+import { serveStaticFile } from "./static-files.ts";
 import { CareerStore, ValidationError } from "./careers.ts";
 import { parseImportRequest } from "./import-request.ts";
 import { normalizeImport } from "../src/domain/import.ts";
@@ -33,6 +34,8 @@ import type {
   CompleteSeasonReviewMutation,
   SaveSeasonReviewDraftMutation,
 } from "../src/types/season-review.ts";
+import type { ContractDecisionRequest } from "../src/types/contract.ts";
+import { ContractError } from "./contracts.ts";
 
 async function readBody(req: IncomingMessage, limit: number): Promise<unknown> {
   if (req.headers["content-type"] !== "application/json")
@@ -58,11 +61,12 @@ export function connectionServer(
   providers: Record<ProviderId, Provider>,
   settingsFile: string,
   careers?: CareerStore,
+  options: { staticRoot?: string } = {},
 ) {
   const interviews = careers ? new InterviewService(careers) : null;
   let busy = false;
   const verified: Partial<Record<ProviderId, number>> = {};
-  return createServer(async (req, res) => {
+  const server = createServer(async (req, res) => {
     const send = (code: number, body: unknown) => {
       res.writeHead(code, {
         "Content-Type": "application/json",
@@ -72,6 +76,7 @@ export function connectionServer(
       res.end(JSON.stringify(body));
     };
     // Reject cross-origin browser requests and DNS rebinding. Vite preserves this custom header.
+    const address = server.address();
     const hosts = new Set([
       "127.0.0.1:4319",
       "localhost:4319",
@@ -80,6 +85,14 @@ export function connectionServer(
       "127.0.0.1:4173",
       "localhost:4173",
     ]);
+    if (address && typeof address !== "string") {
+      hosts.add(`127.0.0.1:${address.port}`);
+      hosts.add(`localhost:${address.port}`);
+    }
+    const staticRequest =
+      !!options.staticRoot &&
+      (req.method === "GET" || req.method === "HEAD") &&
+      !req.url?.startsWith("/api/");
     const shoeImageRequest =
       req.method === "GET" &&
       /^\/api\/careers\/[\w-]+\/signature-shoes\/[\w-]+\/image$/.test(
@@ -87,13 +100,18 @@ export function connectionServer(
       );
     if (
       !hosts.has(req.headers.host ?? "") ||
-      (!shoeImageRequest && req.headers["x-2klife-client"] !== "1") ||
+      (!shoeImageRequest &&
+        !staticRequest &&
+        req.headers["x-2klife-client"] !== "1") ||
       (req.headers.origin &&
         ![...hosts].some((host) => req.headers.origin === `http://${host}`))
     )
       return send(403, {
         message: "Request denied. Open 2kLife on its local address.",
       });
+    if (staticRequest)
+      return serveStaticFile(req, res, options.staticRoot!) ||
+        send(404, { message: "Application file not found." });
     const session =
       typeof req.headers["x-2klife-session"] === "string" &&
       /^[\w-]{20,80}$/.test(req.headers["x-2klife-session"])
@@ -398,6 +416,85 @@ export function connectionServer(
               "teammate",
             ),
           );
+      }
+      const contractAction = req.url?.match(
+        /^\/api\/careers\/([\w-]+)\/contract-offers\/([\w-]+)\/(accept|reject)$/,
+      );
+      if (careers && contractAction && req.method === "POST") {
+        const [, careerId, offerId, action] = contractAction;
+        if (!careers.get(careerId))
+          return send(404, { message: "Career not found." });
+        const body = (await readBody(
+          req,
+          4096,
+        )) as ContractDecisionRequest | null;
+        if (
+          !body ||
+          typeof body.requestId !== "string" ||
+          !/^[\w-]{20,80}$/.test(body.requestId)
+        )
+          throw new ContractError("Invalid contract decision request.");
+        if (action === "reject")
+          return send(
+            200,
+            careers.contracts.rejectMidseason(
+              careerId,
+              offerId,
+              body.requestId,
+            ),
+          );
+        return send(
+          200,
+          careers.contracts.accept(
+            careerId,
+            offerId,
+            body.requestId,
+            body.durationSeasons,
+          ),
+        );
+      }
+      const contractPending = req.url?.match(
+        /^\/api\/careers\/([\w-]+)\/contract-offers\/pending$/,
+      );
+      if (careers && contractPending && req.method === "GET") {
+        const career = careers.get(contractPending[1]);
+        if (!career) return send(404, { message: "Career not found." });
+        return send(200, careers.contracts.pending(career.id));
+      }
+      const contractHistory = req.url?.match(
+        /^\/api\/careers\/([\w-]+)\/contract-offers\/history$/,
+      );
+      if (careers && contractHistory && req.method === "GET") {
+        if (!careers.get(contractHistory[1]))
+          return send(404, { message: "Career not found." });
+        return send(200, careers.contracts.history(contractHistory[1]));
+      }
+      const contractGroup = req.url?.match(
+        /^\/api\/careers\/([\w-]+)\/contract-offers\/([\w-]+)$/,
+      );
+      if (careers && contractGroup && req.method === "GET") {
+        if (!careers.get(contractGroup[1]))
+          return send(404, { message: "Career not found." });
+        const group = careers.contracts.group(contractGroup[2]);
+        if (!group || group.careerId !== contractGroup[1])
+          return send(404, { message: "Contract offer group not found." });
+        let provider: Provider | undefined;
+        try {
+          const settings = await readSettings(settingsFile);
+          provider = settings.selectedProvider
+            ? providers[settings.selectedProvider]
+            : undefined;
+        } catch {
+          /* Contract offers remain usable with deterministic fallback copy. */
+        }
+        return send(
+          200,
+          await careers.contracts.ensureMessages(
+            contractGroup[1],
+            group.id,
+            provider,
+          ),
+        );
       }
       const sponsorMatch = req.url?.match(
         /^\/api\/careers\/([\w-]+)\/sponsors$/,
@@ -895,6 +992,8 @@ export function connectionServer(
         return send(400, { message: error.message });
       if (error instanceof PostseasonError)
         return send(error.status, { message: error.message });
+      if (error instanceof ContractError)
+        return send(error.status, { message: error.message });
       if (
         req.url?.match(
           /^\/api\/careers\/([\w-]+)\/(advance-day|calendar-settings|current-team|basketball-network|sponsors\/block|sponsors\/unblock|sponsor-offers\/[\w-]+\/action|daily-invitations)/,
@@ -912,4 +1011,5 @@ export function connectionServer(
       if (connectionOperation) busy = false;
     }
   });
+  return server;
 }

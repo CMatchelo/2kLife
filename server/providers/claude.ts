@@ -1,8 +1,8 @@
 import { interviewPrompt } from "../../src/domain/interviewPrompt.ts";
 import { interviewSchema } from "../../src/domain/interviews.ts";
 import Anthropic from "@anthropic-ai/sdk";
-import { access, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
-import { delimiter, join } from "node:path";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { join } from "node:path";
 import { tmpdir } from "node:os";
 import type { Provider } from "./shared.ts";
 import { TEST_PROMPT } from "./shared.ts";
@@ -20,38 +20,23 @@ import {
   boxScoreExtractionPrompt,
   boxScoreExtractionSchema,
 } from "../../src/domain/boxScoreImport.ts";
+import {
+  contractMessagesPrompt,
+  contractMessagesSchema,
+} from "../../src/domain/contractMessages.ts";
+import { resolveCliExecutable } from "./cli-executable.ts";
 
 export type RunClaude = (args: string[], cwd?: string) => Promise<string>;
 
-async function executable(): Promise<{ file: string; prefix: string[] }> {
-  if (process.platform !== "win32") return { file: "claude", prefix: [] };
-  // Windows .cmd shims require a shell. Prefer the native binary, fall back to the npm JS entry.
-  for (const candidate of [
+export const runClaude: RunClaude = async (args, cwd) => {
+  const command = await resolveCliExecutable(
     "claude.exe",
     "node_modules/@anthropic-ai/claude-code/cli.js",
-  ]) {
-    for (const directory of (process.env.PATH ?? "")
-      .split(delimiter)
-      .filter(Boolean)) {
-      const file = join(directory.replace(/^"|"$/g, ""), candidate);
-      try {
-        await access(file);
-        return candidate.endsWith(".js")
-          ? { file: process.execPath, prefix: [file] }
-          : { file, prefix: [] };
-      } catch {
-        /* Try the next PATH entry. */
-      }
-    }
-  }
-  throw Object.assign(new Error("CLI missing"), { code: "ENOENT" });
-}
-
-export const runClaude: RunClaude = async (args, cwd) => {
-  const command = await executable();
+  );
   const env = { ...process.env };
   // A present API key would route Claude Code to API billing; the CLI path is for the subscription.
   delete env.ANTHROPIC_API_KEY;
+  Object.assign(env, command.environment);
   return runProcess(command.file, [...command.prefix, ...args], {
     cwd,
     env,
@@ -117,6 +102,58 @@ export function claudeProvider(
 ): Provider {
   const hasKey = () => !!env.ANTHROPIC_API_KEY?.trim();
   return {
+    async contractMessages(context) {
+      if (hasKey()) {
+        const reply = await makeClient(env.ANTHROPIC_API_KEY!).messages.create(
+          {
+            model: env.ANTHROPIC_MODEL?.trim() || "claude-haiku-4-5-20251001",
+            max_tokens: 3600,
+            tools: [
+              {
+                name: "contract_messages",
+                description:
+                  "Write a structured team message for every supplied NBA contract offer.",
+                input_schema:
+                  contractMessagesSchema as unknown as Anthropic.Tool.InputSchema,
+              },
+            ],
+            tool_choice: { type: "tool", name: "contract_messages" },
+            messages: [
+              { role: "user", content: contractMessagesPrompt(context) },
+            ],
+          },
+          { timeout: 120000 },
+        );
+        const block = reply.content.find(
+          (item) =>
+            item.type === "tool_use" && item.name === "contract_messages",
+        );
+        if (!block || block.type !== "tool_use")
+          throw new Error("Missing structured contract messages.");
+        return block.input;
+      }
+      const directory = await mkdtemp(join(tmpdir(), "2klife-contracts-"));
+      try {
+        const output = await run(
+          [
+            "-p",
+            contractMessagesPrompt(context),
+            "--output-format",
+            "json",
+            "--tools",
+            "",
+            "--permission-mode",
+            "default",
+          ],
+          directory,
+        );
+        const json = firstJsonObject(parseCliResult(output));
+        if (!json) throw new Error("No contract message JSON returned.");
+        return JSON.parse(json);
+      } finally {
+        await rm(directory, { recursive: true, force: true });
+      }
+    },
     async extractBoxScore(image) {
       if (hasKey()) {
         const reply = await makeClient(env.ANTHROPIC_API_KEY!).messages.create(

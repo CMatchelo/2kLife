@@ -115,8 +115,8 @@ test("completed careers expose no active season and resume one isolated setup dr
         teamId: "LAL",
         opponentId: "BOS",
         location: "home",
-        category: "regularSeason",
-        countsTowardRegularSeason: true,
+        category: "nbaCup",
+        countsTowardRegularSeason: false,
       }),
     );
     const saved = store.saveNewSeasonDraft(created.id, {
@@ -129,6 +129,8 @@ test("completed careers expose no active season and resume one isolated setup dr
       0,
     );
     assert.equal(saved.games[0].date, "2027-10-20");
+    assert.equal(saved.nbaCupCountsTowardRegularSeason, true);
+    assert.equal(saved.games[0].countsTowardRegularSeason, true);
     store.close();
   } finally {
     try {

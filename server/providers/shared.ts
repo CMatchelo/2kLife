@@ -3,10 +3,12 @@ export type Configuration = { configured: boolean; message: string };
 import type { ImportContext, ImportImage } from "../../src/types/career.ts";
 import type { SponsorApproachAIContext } from "../../src/types/sponsor.ts";
 import type { DailyEventAIContext } from "../../src/types/daily-invitations.ts";
+import type { ContractMessageAIContext } from "../../src/types/contract.ts";
 export interface Provider {
   interview?(context: InterviewContext): Promise<unknown>;
   sponsorApproach?(context: SponsorApproachAIContext): Promise<unknown>;
   dailySponsorEvents?(context: DailyEventAIContext): Promise<unknown>;
+  contractMessages?(context: ContractMessageAIContext): Promise<unknown>;
   check(): Promise<Configuration>;
   test(): Promise<void>;
   extract?(images: ImportImage[], context: ImportContext): Promise<unknown>;

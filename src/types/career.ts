@@ -62,9 +62,7 @@ export type Career = {
   createdAt: string;
   profile: MyProfile;
   season: Season;
-  /** True only when `season` is the mutable season used by progression. */
   hasActiveSeason: boolean;
-  /** Every season, including the active one, ordered by season year. */
   seasons: Season[];
   newSeasonDraft?: NewSeasonDraft | null;
   teams: Team[];
@@ -105,6 +103,11 @@ export type NewSeasonDraft = {
   regularSeasonEndDate: string;
   nbaCupCountsTowardRegularSeason: boolean;
   salaryTerms: SeasonSalaryTerms;
+  acceptedContract?: {
+    offerId: string;
+    teamId: string;
+    terms: import("./contract.ts").ContractTerms;
+  };
   incompleteCalendarConfirmed: boolean;
   games: Game[];
   unresolved: ImportReview[];

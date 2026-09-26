@@ -8,6 +8,8 @@ import type {
 } from "../src/types/season.ts";
 import { salaryTermsErrors } from "../src/domain/career.ts";
 
+export const NBA_SALARY_TAX_PERCENT = 34;
+
 export function migrateSalary(db: DatabaseSync) {
   const columns = db
     .prepare("PRAGMA table_info(financial_transactions)")
@@ -31,10 +33,24 @@ export function migrateSalary(db: DatabaseSync) {
     annual_salary_usd_cents INTEGER NOT NULL CHECK(annual_salary_usd_cents >= 0),
     amount_usd_cents INTEGER NOT NULL CHECK(amount_usd_cents >= 0),
     financial_transaction_id TEXT NOT NULL UNIQUE REFERENCES financial_transactions(id),
+    tax_financial_transaction_id TEXT UNIQUE REFERENCES financial_transactions(id),
+    tax_usd_cents INTEGER NOT NULL DEFAULT 0 CHECK(tax_usd_cents >= 0),
     idempotency_reference TEXT NOT NULL UNIQUE,
     created_at TEXT NOT NULL,
     UNIQUE(season_id, payment_number)
   );`);
+  const paymentColumns = db
+    .prepare("PRAGMA table_info(nba_salary_payments)")
+    .all()
+    .map((column) => String(column.name));
+  if (!paymentColumns.includes("tax_financial_transaction_id"))
+    db.exec(
+      "ALTER TABLE nba_salary_payments ADD COLUMN tax_financial_transaction_id TEXT REFERENCES financial_transactions(id)",
+    );
+  if (!paymentColumns.includes("tax_usd_cents"))
+    db.exec(
+      "ALTER TABLE nba_salary_payments ADD COLUMN tax_usd_cents INTEGER NOT NULL DEFAULT 0 CHECK(tax_usd_cents >= 0)",
+    );
 }
 
 export class SalaryService {
@@ -84,8 +100,25 @@ export class SalaryService {
     const amountUsdCents = totalPaidAfterThisGame - progress.amountPaidUsdCents;
     const id = randomUUID();
     const financialTransactionId = randomUUID();
+    const taxFinancialTransactionId = randomUUID();
     const createdAt = new Date().toISOString();
     const reference = `nba-salary:${career.id}:${career.season.id}:${game.id}`;
+    const taxProgress = this.db
+      .prepare(
+        `SELECT COALESCE(SUM(CASE WHEN tax_financial_transaction_id IS NOT NULL THEN amount_usd_cents ELSE 0 END),0) taxable_gross,
+          COALESCE(SUM(tax_usd_cents),0) tax_paid
+          FROM nba_salary_payments WHERE season_id=?`,
+      )
+      .get(career.season.id)!;
+    const previousTaxUsdCents = Number(taxProgress.tax_paid);
+    const taxableGrossAfterThisGame =
+      Number(taxProgress.taxable_gross) + amountUsdCents;
+    const totalTaxAfterThisGame =
+      Math.floor(taxableGrossAfterThisGame / 100) * NBA_SALARY_TAX_PERCENT +
+      Math.round(
+        ((taxableGrossAfterThisGame % 100) * NBA_SALARY_TAX_PERCENT) / 100,
+      );
+    const taxUsdCents = totalTaxAfterThisGame - previousTaxUsdCents;
     const metadata = JSON.stringify({
       paymentNumber,
       paymentCount: terms.regularSeasonGameCount,
@@ -118,11 +151,37 @@ export class SalaryService {
       );
     this.db
       .prepare(
+        `INSERT INTO financial_transactions
+        (id,career_id,amount_usd_cents,currency,in_game_date,recorded_at,
+         origin_type,origin_reference,reason,game_id,idempotency_key,description,
+         settlement_metadata,season_id,team_id)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+      )
+      .run(
+        taxFinancialTransactionId,
+        career.id,
+        -taxUsdCents,
+        "USD",
+        game.date,
+        createdAt,
+        "tax",
+        game.teamId,
+        "nba_salary_tax",
+        game.id,
+        `${reference}:tax`,
+        `Salary tax on game payment ${paymentNumber} of ${terms.regularSeasonGameCount} (34%)`,
+        metadata,
+        career.season.id,
+        game.teamId,
+      );
+    this.db
+      .prepare(
         `INSERT INTO nba_salary_payments
         (id,career_id,season_id,game_id,team_id,payment_date,payment_number,
          payment_count,annual_salary_usd_cents,amount_usd_cents,
-         financial_transaction_id,idempotency_reference,created_at)
-        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+         financial_transaction_id,tax_financial_transaction_id,tax_usd_cents,
+         idempotency_reference,created_at)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
       )
       .run(
         id,
@@ -136,6 +195,8 @@ export class SalaryService {
         terms.annualSalaryUsdCents,
         amountUsdCents,
         financialTransactionId,
+        taxFinancialTransactionId,
+        taxUsdCents,
         reference,
         createdAt,
       );

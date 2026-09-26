@@ -215,10 +215,12 @@ test("chronological context separates ordinals, missing facts, meaningful record
       date: "2026-10-14",
       selectedAnswer: { identity: "team" as const, text: content.answers.team },
     };
-    const cooldown = interviewContext(career, { ...game, ...details(30) }, [
-      recent,
-    ])!;
-    assert.equal(selectInterview(cooldown, career.season.games), false);
+    const nextAppearance = interviewContext(
+      career,
+      { ...game, ...details(30) },
+      [recent],
+    )!;
+    assert.equal(selectInterview(nextAppearance, career.season.games), true);
     assert.ok(
       selectInterview(
         interviewContext(career, { ...game, ...details(60) }, [recent])!,

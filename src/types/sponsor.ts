@@ -227,6 +227,7 @@ export type SponsorScheduleReview = {
 
 export type FinancialTransactionReason =
   | "nba_salary"
+  | "nba_salary_tax"
   | "salary"
   | "sponsor_match"
   | "event"
@@ -240,7 +241,7 @@ export type FinancialTransaction = {
   currency: "USD";
   inGameDate: string;
   recordedAt: string;
-  originType: "brand" | "team" | "salary" | "charity";
+  originType: "brand" | "team" | "tax" | "salary" | "charity";
   originReference: string;
   reason: FinancialTransactionReason;
   brandId: string | null;
@@ -257,6 +258,7 @@ export type CareerFinancialSummary = {
   balanceUsdCents: number;
   totalIncomeUsdCents: number;
   nbaSalaryEarningsUsdCents: number;
+  nbaSalaryTaxUsdCents: number;
   sponsorEarningsUsdCents: number;
   signingEarningsUsdCents: number;
   sponsorMatchEarningsUsdCents: number;

@@ -1,9 +1,10 @@
 import AIConnection from "./AIConnection";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import NewCareer from "./career/NewCareer";
 import CareerDashboard, { type CareerView } from "./career/CareerDashboard";
 import NewSeasonSetup from "./career/NewSeasonSetup";
+import OffseasonFreeAgency from "./career/OffseasonFreeAgency";
 import { api } from "./career/api";
 import type { Career, CareerSummary } from "./types/career";
 
@@ -200,6 +201,13 @@ function App() {
   const [deleting, setDeleting] = useState<CareerSummary | null>(null);
   const [careerView, setCareerView] = useState<CareerView>("progress");
   const [menuOpen, setMenuOpen] = useState(false);
+  const [freeAgencyCleared, setFreeAgencyCleared] = useState<string | null>(
+    null,
+  );
+  const completedCareerKey = career ? `${career.id}:${career.season.id}` : null;
+  const completeFreeAgency = useCallback(() => {
+    if (completedCareerKey) setFreeAgencyCleared(completedCareerKey);
+  }, [completedCareerKey]);
   useEffect(() => {
     let active = true;
     api<CareerSummary[]>("careers")
@@ -240,6 +248,7 @@ function App() {
                 className="cursor-pointer rounded-lg bg-court-red px-4 py-2 font-semibold text-white transition-opacity hover:opacity-90"
                 onClick={() => {
                   setCareer(null);
+                  setFreeAgencyCleared(null);
                   setCareerView("progress");
                   setMenuOpen(false);
                   setRevision((value) => value + 1);
@@ -321,12 +330,19 @@ function App() {
                 setCareerView("progress");
               }}
             />
+          ) : freeAgencyCleared !== completedCareerKey ? (
+            <OffseasonFreeAgency
+              key={`${career.id}:${career.season.id}:free-agency`}
+              career={career}
+              onComplete={completeFreeAgency}
+            />
           ) : (
             <NewSeasonSetup
               key={`${career.id}:new-season`}
               career={career}
               onStarted={(updated) => {
                 setCareer(updated);
+                setFreeAgencyCleared(null);
                 setCareerView("progress");
                 setRevision((value) => value + 1);
               }}

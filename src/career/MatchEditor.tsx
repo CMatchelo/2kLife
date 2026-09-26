@@ -89,7 +89,7 @@ export default function MatchEditor({
           {teamName(career.teams, game.opponentId)}
         </p>
         <fieldset disabled={saving || extracting} className="space-y-4">
-          {/* Temporary shortcut for testing records and postgame interviews.
+          Temporary shortcut for testing records and postgame interviews.
           <div className="flex flex-wrap gap-3">
             <button
               type="button"
@@ -282,7 +282,7 @@ export default function MatchEditor({
               Fill bad match (temporary)
             </button>
           </div>
-          */}
+          
           <label className="career-field">
             <span>Status</span>
             <select

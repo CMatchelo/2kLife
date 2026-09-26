@@ -12,7 +12,7 @@ Personal single-player basketball-career companion app. The user manually plays 
 NBA 2K and mirrors match results into 2kLife, which tracks stats, records, sponsors, signature
 shoes, postseason, interviews, and follower growth — with optional AI (Claude or Codex) used
 only for flavor text generation (interview questions, sponsor pitch copy, daily event copy,
-calendar-screenshot import), always with a deterministic non-AI fallback.
+contract-offer messages, calendar-screenshot import), always with a deterministic non-AI fallback.
 
 ## 2. Tech stack
 
@@ -53,19 +53,23 @@ Domain logic in `src/domain/*.ts` is the single source of truth, imported direct
   **Every mutation route takes an idempotent `requestId` (`[\w-]{20,80}`)** — server persists
   outcomes keyed by requestId so retries after network uncertainty are safe.
 - Route groups (all under `/api/`): `careers[/:id]`, `careers/:id/current-team`,
+  `careers/:id/nba-salary-setup`, `careers/:id/new-season[/{draft,discard,start}]`,
   `careers/:id/games[/:gameId]`, `careers/:id/advance-day`, `careers/:id/calendar-settings`,
   `careers/:id/games/:gameId/interview/{generate,answer,skip}`, `interviews/abandon`,
   `careers/:id/basketball-network*`, `careers/:id/sponsors*`, `careers/:id/sponsor-offers*`,
   `careers/:id/daily-invitations*`, `careers/:id/postseason*`, `careers/:id/signature-shoes*`,
-  `ai/status`, `ai/import`, `ai/:provider/{select,test}`.
+  `careers/:id/contract-offers*`,
+  `ai/status`, `ai/import`, `ai/box-score`, `ai/:provider/{select,test}`.
 
 ### Storage pattern (important — applies DB-wide)
+
 Mostly **JSON blobs in TEXT columns** per logical entity (profile, season, game, snapshot,
 gameplay_data...), with normalized/indexed columns only where querying/joins are needed.
 `Career.get(id)` reassembles the full `Career` by joining + parsing all subsystem tables plus
 deriving computed fields on every read — there is no separate cached aggregate.
 
 ### `server/careers.ts` — `CareerStore`
+
 Owns the SQLite connection. On construct: `PRAGMA foreign_keys=ON; journal_mode=WAL`, creates
 core tables (`careers`, `players`, `seasons`, `games`, `team_history`, `coverage`,
 `interview_evaluations`, `interview_rewards`), then calls each subsystem's own migration
@@ -79,6 +83,7 @@ recalculates sponsor eligibility. `delete()` cascades across ~30 tables (the eff
 inventory of the app).
 
 ### `server/progression.ts` — the core game-loop state machine
+
 `advanceCareerDay()` / `migrateProgression()`. Tables: `career_progression` (current date),
 `day_transitions` (phase: leaving→settlements→offers→entering→done), `postgame_processing`
 (idempotent per-game post-game effects), `offday_processing` (per-date event-window rolls),
@@ -99,6 +104,7 @@ survives a crash. See `server/PROGRESSION.md` for the authoritative prose spec o
 for progression work**, this section is only a map.
 
 ### `server/sponsors.ts` — `SponsorService` (largest subsystem, ~2900 lines)
+
 Per-brand eligibility (`sponsor_tracking`, `sponsor_eligibility_periods`), milestone progress
 (`sponsor_milestone_progress` — 4 permanent @ 20% + 1 dynamic @ 20% = up to 100% "interest"),
 pregame/postgame eligibility boundaries per game (`sponsor_game_boundaries` — a game only counts
@@ -117,6 +123,7 @@ Interest→offer probability: 60% interest → 10% chance/postgame check, 80% �
 guaranteed. Catalog: `sponsorCatalog` (36 brands × 13 categories × 3 tiers) — see §9.
 
 ### `server/daily-invitations.ts` — `DailyInvitationService`
+
 Off-day event system. `daily_decision_groups` (one per confirmed off day with pending sponsor
 appearances or a rolled event window), `daily_invitations` (sponsor appearance obligations +
 generated team/player/fan/charity invitations), `daily_event_results`, `daily_invitation_mutations`
@@ -124,11 +131,31 @@ generated team/player/fan/charity invitations), `daily_event_results`, `daily_in
 copy with deterministic fallback.
 
 ### `server/basketball-network.ts` — `BasketballNetworkService`
+
 Up to 5 selected teams + 3 active players + 3 active teammates per career, each with an affinity
 score, enforced via SQLite CHECK/TRIGGERs (not just app code). Team changes deactivate teammates.
 `career_network_affinity_mutations` dedupes affinity changes per source reference.
 
+### `server/contracts.ts` — `ContractService`
+
+Durable NBA contract lifecycle. Tables: `nba_contract_offer_groups`, `nba_contract_offers`
+(terms + calculation snapshot + persisted AI/fallback message), `nba_contract_mutations`
+(idempotent decisions), `nba_future_contracts` (accepted but not yet active), and
+`nba_contract_activations` (permanent accepted-contract history). An expiring contract means the
+active season has `remainingContractSeasons === 1`. January 15 interrupts normal progression with
+one current-team extension; rejection permits offseason renewal. Season Review completion creates
+one offseason group containing the current team plus only selected Basketball Network teams (up
+to six total). Acceptance may shorten duration only, rejects every competing offer, and stores the
+future contract without changing the active season. New Season setup enforces the accepted team,
+starting year, salary, and duration, then consumes it into activation history atomically. No salary
+cap, Bird-rights, or roster-legality enforcement is performed.
+
+Contract messages use the selected provider without requiring a recent connection test. The
+structured response must contain exactly one message per offer ID; missing configuration, timeout,
+provider failure, or invalid output persists deterministic fallback copy instead.
+
 ### `server/signature-shoes.ts` — `SignatureShoeService`
+
 Footwear sponsor contracts unlock up to 2 signature shoe slots (1st & 2nd contract appearance
 attended). Image upload validated by magic bytes, stored under
 `.2klife/signature-shoes/<careerId>/<shoeId>.<ext>`, served via path-traversal-guarded route.
@@ -137,6 +164,7 @@ post-launch) + random variation + performance adjustment (vs season average); sp
 60/40 favoring established shoe) if 2 shoes active. Royalties recorded as `financial_transactions`.
 
 ### `server/postseason.ts` — `PostseasonService`
+
 After regular season ends, user enters full 30-team standings (`season_standings`) → generates
 play-in bracket (7v8, 9v10, finalQualifier per conference) + playoff tree (`playoff_series`:
 firstRound→confSemis→confFinals→nbaFinals, single global nbaFinals row) via
@@ -151,17 +179,29 @@ the player result, and optional awards into that season's JSON and sets
 `season.phase='completed'`. The career then opens a resumable New Season setup;
 activation creates a fresh active season and calendar in the same career while preserving history.
 
+### `server/salary.ts` — `SalaryService`
+
+Validates per-season annual salary, remaining contract seasons, and the 1–82 paid-game count.
+`nba_salary_payments` deduplicates payments by game and season payment number. Counted regular-
+season team games, including qualifying NBA Cup games and games the player misses, pay cumulative
+rounded installments into `financial_transactions`; postseason games do not. Legacy careers must
+enter salary terms before completing another counted game and receive no retroactive payments.
+Salary accounting consumes the terms activated by `ContractService`; counted games then write the
+signed annual salary and team into `nba_salary_payments` and `financial_transactions`.
+
 ### `server/interviews.ts` — `InterviewService`
+
 Post-game interview offer/answer flow, session-scoped (abandoned on `pagehide`/reload). Content
 (question + 3 identity-flavored answers: star/team/fan) is AI-generated or blocked if no
 provider; answer awards 1 identity point, recalculating `careerScores` (all-time) and
 `recentScores` (last 10 actions).
 
 ### `server/providers/`
+
 - `shared.ts`: `Provider` interface (`interview`, `sponsorApproach`, `dailySponsorEvents`,
   `check`, `test`, `extract`) + `safeError()` mapping raw errors → safe user-facing messages.
 - `claude.ts`: Anthropic SDK direct (if API key) else `claude` CLI (`claude -p ... --output-format
-  json`, defensively parses first top-level `{...}`).
+json`, defensively parses first top-level `{...}`).
 - `codex.ts`: `codex exec` CLI only.
 - `settings.ts`: reads/writes `.2klife/settings.json` (provider + last test dates only, atomic
   write via `.tmp`+rename).
@@ -187,7 +227,7 @@ Framework-free core logic, imported by server (and reusable client-side).
 - **`interviews.ts`**: `interviewContext()` builds AI prompt context; `selectInterview()` scores
   whether a game "deserves" an interview via `interview-policy.ts` thresholds (major/meaningful
   stat thresholds, record-break/surge/upset/margin/non-regular-season/follow-up bonuses) — needs
-  `selectionScore` (3) + min appearance gap (3) since last interview, or `majorScore` (6) to
+  `selectionScore` (3) + min appearance gap (1) since last interview, or `majorScore` (6) to
   bypass the gap. `validateInterview()` for AI response contract.
 - **`interview-policy.ts`**: tunable gameplay-balance thresholds only (not real NBA records).
 - **`matchRecords.ts`**: per-stat single-game bests (points/assists/rebounds/offReb/defReb/
@@ -211,36 +251,46 @@ Framework-free core logic, imported by server (and reusable client-side).
 - **`import.ts`**: AI schema/prompt to extract a schedule from NBA2K calendar screenshots (red
   card = away, blue = home — baked-in UI convention); `normalizeImport()` flags
   duplicates/warnings for user review rather than silently accepting bad data.
+- **`boxScoreImport.ts`**: AI prompt plus tolerant normalization for a single NBA 2K box-score
+  screenshot. It unwraps common provider shapes, accepts numeric strings, derives defensive
+  rebounds, and applies strict box-score validation before the UI can save it.
 - **`interviewPrompt.ts`**: builds the interview AI prompt from `InterviewContext`.
+- **`contracts.ts`**: position-neutral performance rating, market tiers, salary interpolation,
+  affinity multiplier, age/relationship duration, role/minutes mapping, deterministic variation,
+  and offseason duplicate-salary resolution.
+- **`contractMessages.ts`**: structured team-message schema/prompt/validation plus deterministic
+  fallback copy; AI receives factual team/player history and saved calculation terms only.
 
 ## 6. Types layer (`src/types/*.ts`, barrel `index.ts`)
 
-| File | Key exports |
-|---|---|
-| `career.ts` | `Team`, `PlayerSetup`, `Coverage`, `ScheduleFields`, `ImportReview`, `CareerDraft`, `Career`, `CareerSummary` |
-| `game.ts` | `Game`, `GameCategory`, `GameStatus` |
-| `profile.ts` | `MyProfile`, `Position` |
-| `season.ts` | `Season` (games, matchRecords, regularSeason/playoffs stats, postseason state, standings, phase) |
-| `stats.ts` | `BoxScore`, `StatsSummary` |
-| `MatchRecords.ts` | `MatchRecords`, `PlayerMatchRecords` |
-| `interview.ts` | `Interview`, `InterviewContext`, `InterviewContent`, `InterviewOffer` |
-| `identity.ts` | `IdentityType` (star/team/fan), `PlayerIdentity` |
-| `social-media.ts` | `SocialMedia` (followers + history) |
-| `sponsor.ts` | `SponsorBrand`, `SponsorTier`, `CommercialCategory`, `PermanentMilestone`, `SponsorBrandState`, `SponsorsOverview`, `SponsorOffer`, `SponsorApproachGroup`, `FinancialTransaction`, `SponsorActiveContract`, `SponsorContractSettlement`, etc. |
-| `daily-invitations.ts` | `DailyDecisionGroup`, `DailyInvitation` (union), `DailyEventResult`, `GeneratedDailyEvent(s)` |
-| `basketball-network.ts` | `BasketballNetwork`, `BasketballNetworkTeam/Player`, `NetworkPlayerRole` |
-| `signature-shoe.ts` | `SignatureShoe`, `SignatureShoeLaunchMutation`, `SignatureShoeTerms` |
-| `postseason.ts` | `PlayInGame`, `PlayoffSeries`, `PlayoffRound`, `PostseasonState`, `SeasonStanding`, `PostseasonScheduleInput` |
-| `season-review.ts` | Season award categories/entries, editable `SeasonReviewDraft`, historical `CompletedSeasonReview`, review mutations |
-| `progression.ts` | `AdvanceDayRequest`, `AdvanceDayResult` (discriminated union on `kind`), `AdvanceDayOutcome` |
-| `connection.ts` | `ProviderId` ("codex"|"claude"), `ProviderStatus`, `ConnectionSnapshot` |
+| File                    | Key exports                                                                                                                                                                                                                                    |
+| ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------- |
+| `career.ts`             | `Team`, `PlayerSetup`, `Coverage`, `ScheduleFields`, `ImportReview`, `CareerDraft`, `Career`, `CareerSummary`                                                                                                                                  |
+| `game.ts`               | `Game`, `GameCategory`, `GameStatus`                                                                                                                                                                                                           |
+| `profile.ts`            | `MyProfile`, `Position`                                                                                                                                                                                                                        |
+| `season.ts`             | `Season` (games, matchRecords, regularSeason/playoffs stats, postseason state, standings, phase)                                                                                                                                               |
+| `stats.ts`              | `BoxScore`, `StatsSummary`                                                                                                                                                                                                                     |
+| `MatchRecords.ts`       | `MatchRecords`, `PlayerMatchRecords`                                                                                                                                                                                                           |
+| `interview.ts`          | `Interview`, `InterviewContext`, `InterviewContent`, `InterviewOffer`                                                                                                                                                                          |
+| `identity.ts`           | `IdentityType` (star/team/fan), `PlayerIdentity`                                                                                                                                                                                               |
+| `social-media.ts`       | `SocialMedia` (followers + history)                                                                                                                                                                                                            |
+| `sponsor.ts`            | `SponsorBrand`, `SponsorTier`, `CommercialCategory`, `PermanentMilestone`, `SponsorBrandState`, `SponsorsOverview`, `SponsorOffer`, `SponsorApproachGroup`, `FinancialTransaction`, `SponsorActiveContract`, `SponsorContractSettlement`, etc. |
+| `daily-invitations.ts`  | `DailyDecisionGroup`, `DailyInvitation` (union), `DailyEventResult`, `GeneratedDailyEvent(s)`                                                                                                                                                  |
+| `basketball-network.ts` | `BasketballNetwork`, `BasketballNetworkTeam/Player`, `NetworkPlayerRole`                                                                                                                                                                       |
+| `signature-shoe.ts`     | `SignatureShoe`, `SignatureShoeLaunchMutation`, `SignatureShoeTerms`                                                                                                                                                                           |
+| `postseason.ts`         | `PlayInGame`, `PlayoffSeries`, `PlayoffRound`, `PostseasonState`, `SeasonStanding`, `PostseasonScheduleInput`                                                                                                                                  |
+| `season-review.ts`      | Season award categories/entries, editable `SeasonReviewDraft`, historical `CompletedSeasonReview`, review mutations                                                                                                                            |
+| `progression.ts`        | `AdvanceDayRequest`, `AdvanceDayResult` (discriminated union on `kind`), `AdvanceDayOutcome`                                                                                                                                                   |
+| `connection.ts`         | `ProviderId` ("codex"                                                                                                                                                                                                                          | "claude"), `ProviderStatus`, `ConnectionSnapshot` |
+| `contract.ts`           | Offer/group/status/terms/calculation types, AI message context, decision requests, future and activated contract records                                                                                                                       |
 
 ## 7. Frontend / UI (`src/`)
 
 - `main.tsx` mounts `<App/>` in `StrictMode`.
 - `App.tsx`: shell — landing page (career list + New Career + `AIConnection`) vs `NewCareer`
-  (setup wizard) vs `CareerDashboard` (open career). Career nav tabs: progress/info/sponsors/
-  finances/config. Includes `DeleteCareerDialog`.
+  (setup wizard) vs `CareerDashboard` (open career). Completed careers pass through
+  `OffseasonFreeAgency` before `NewSeasonSetup` when an unresolved offseason group exists. Career
+  nav tabs: progress/info/sponsors/finances/config. Includes `DeleteCareerDialog`.
 - `career/api.ts`: `api<T>()` fetch wrapper — always sends `X-2kLife-Client`/`X-2kLife-Session`
   headers, 155s timeout, throws `Error(message)` from JSON error bodies. Owns `pageSession`
   (per-tab UUID) and `pagehide`/`pageshow` listeners that abandon in-flight interviews on
@@ -253,20 +303,27 @@ Framework-free core logic, imported by server (and reusable client-side).
   `ScheduleView`, `PostseasonProgress`, `CalendarSettings`, and modals: `MatchEditor`,
   `FinalStandingsModal`, `PostseasonScheduleModal`, `InterviewModal`, `SponsorApproachModal`,
   `SponsorSettlementModal`/`SponsorMessageLoading` (local to this file),
-  `DailyInvitationModal`/`DailyEventResultModal`, `SignatureShoeLaunchModal`.
+  `DailyInvitationModal`/`DailyEventResultModal`, `SignatureShoeLaunchModal`, and the mandatory
+  January `ContractAgentLoading`/`ContractOfferPopup` flow.
 - `career/NewCareer.tsx`: career-creation wizard (uses `CalendarSetup`, `TeamManager`,
-  `fields.tsx`), supports screenshot import via `/api/ai/import`.
+  `SalaryFields`, `fields.tsx`), supports screenshot import via `/api/ai/import`, and captures
+  starting NBA salary terms.
 - `career/ScheduleView.tsx` / `CalendarView.tsx` / `ListView.tsx`: schedule presentations; click a
   game → `MatchEditor`/`GameEditor`.
 - `career/MatchEditor.tsx` / `GameEditor.tsx`: record a completed match's box score vs schedule a
-  new fixture.
+  new fixture. `MatchEditor` can prefill a reviewed box score from `/api/ai/box-score`.
 - `career/SeasonProgress.tsx`, `PlayerInfo.tsx`, `PlayerRecords.tsx`, `PersonalLife.tsx`: stat
   dashboards (NBA-style averages, bio info, career/season records, follower history).
 - `career/PostseasonProgress.tsx`, `PostseasonScheduleModal.tsx`, `FinalStandingsModal.tsx`:
   bracket display/entry (uses `.postseason-*` CSS in `index.css`).
 - `career/SeasonReviewModal.tsx`: five-step optional awards wizard and final league summary;
   completed reviews are historical and read-only. `NewSeasonSetup.tsx` reuses `CalendarSetup`
-  for the next season's screenshot import, manual entry, review, and coverage confirmation.
+  for the next season's screenshot import, manual entry, salary/team setup, review, and coverage
+  confirmation; activation continues the same career with a fresh active season.
+- `career/ContractOfferPopup.tsx`: non-dismissible January extension UI with agent loading,
+  team branding, duration reduction, live total value, and accept/reject confirmations.
+- `career/OffseasonFreeAgency.tsx`: post-review loading/progress gate, responsive comparison
+  cards, focused offer details, and mandatory contract-selection confirmation.
 - `career/Sponsors.tsx`, `SponsorFinances.tsx`, `SponsorApproachModal.tsx`,
   `SignatureShoesBoard.tsx`, `SignatureShoeLaunchModal.tsx`: sponsor/contract UI, ledger view,
   shoe launch form.
@@ -285,6 +342,7 @@ Framework-free core logic, imported by server (and reusable client-side).
 ## 8. Spec docs (`spec/0001–0005.md`)
 
 Historical/planning, may be stale vs shipped behavior:
+
 - **0001**: player match-record tracking (regular season vs playoffs), "Player records" view.
 - **0002**: post-game AI interview — significance evaluation, question/3-identity answers,
   identity points.
@@ -299,6 +357,7 @@ Historical/planning, may be stale vs shipped behavior:
 
 36 original sponsor definitions, 13 categories × 3 tiers, deeply frozen `sponsorCatalog`.
 Key rules (full detail in `src/data/README.md`):
+
 - Money = safe-integer USD **cents** (`fixedPaymentUsdCents: 3000000` = $30,000).
 - Required appearances = `ceil(durationMatches / 5)`; per-event payments rebalanced so minimum
   appearances ≈ same total compensation.
@@ -335,26 +394,34 @@ Key rules (full detail in `src/data/README.md`):
    on the new date either surfaces the next scheduled game or (confirmed off day) rolls an event
    window and presents `DailyInvitationModal` (sponsor appearances + AI-flavored invitations, ≤1
    attended/day) before landing.
-3. **Season end**: date reaches season-end boundary → blocks until full 30-team final standings
+3. **Contracts**: on January 15 of the final contract season, progression pauses before that
+   day's activity for one current-team extension. Accepted terms remain future-dated; rejection
+   preserves offseason eligibility. Contract calculations are deterministic and messages have AI
+   and non-AI paths.
+4. **Season end**: date reaches season-end boundary → blocks until full 30-team final standings
    entered (`FinalStandingsModal`) → auto-generates play-in/playoff bracket. Player's own games
    score automatically via normal match flow; other-team results entered manually as brackets
-   advance. `completeSeason()` finalizes — **no offseason/new-season flow implemented yet.**
-4. **Sponsors**: performance/followers/identity unlock brand interest (up to 100% via 5
+   advance. `completeSeason()` finalizes the season, after which the resumable New Season setup
+   creates the next active season while preserving career history. If the contract is expiring
+   and no extension was accepted, free agency appears after Season Review and before New Season;
+   the signed team/salary/duration are enforced during activation.
+5. **Sponsors**: performance/followers/identity unlock brand interest (up to 100% via 5
    milestones) → probabilistic offer after a completed game → user reviews/signs (schedules
    off-day appearances) → attending pays out, can unlock signature shoes (footwear brands, 2
    slots) → contract completion settles final payment based on attendance, evaluates renewal,
    can permanently block a brand after repeated attendance failures.
-5. **Social/identity**: interviews and daily invitations are the two sources of identity points
+6. **Social/identity**: interviews and daily invitations are the two sources of identity points
    (star/team/fan) and (non-sponsor invitations) follower/affinity changes; match performance
    alone drives base follower changes deterministically.
 
 ## 11. Testing conventions
 
 - Node's built-in runner: `node --test server/*.test.ts`. No Jest/Vitest.
-- One `*.test.ts` per server subsystem: `basketball-network`, `careers`, `connection`,
-  `daily-invitations`, `game-details`, `interviews`, `match-records`, `postseason`,
-  `signature-shoes`. No standalone `sponsors.test.ts`/`progression.test.ts` seen — that logic is
-  exercised indirectly through `careers.test.ts` and others; check before assuming coverage.
+- Current suites cover `basketball-network`, `box-score-import`, `careers`, `connection`,
+  `contracts`/`contract-lifecycle`,
+  `daily-invitations`, `followers`, `game-details`, `interviews`, `match-records`, `new-season`,
+  `postseason`, `salary`, `signature-shoes`, and `sponsors`. Progression has no standalone suite;
+  its behavior is exercised through career and subsystem tests.
 - Tests instantiate `CareerStore` directly against an in-memory/temp SQLite file (no HTTP layer
   needed for most unit tests) and/or exercise `connectionServer` for HTTP-contract tests.
   Providers are mocked — no real AI calls/credentials in tests (README guarantee).

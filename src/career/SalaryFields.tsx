@@ -18,9 +18,11 @@ function salaryCentsFromInput(value: string): number {
 export default function SalaryFields({
   value,
   onChange,
+  lockedContract = false,
 }: {
   value: SeasonSalaryTerms;
   onChange: (value: SeasonSalaryTerms) => void;
+  lockedContract?: boolean;
 }) {
   const errors = salaryTermsErrors(value);
   const error = (text: string) => errors.find((item) => item.startsWith(text));
@@ -34,6 +36,7 @@ export default function SalaryFields({
         <input
           type="text"
           required
+          disabled={lockedContract}
           inputMode="numeric"
           placeholder="0,00"
           aria-label="Annual NBA salary in USD"
@@ -55,6 +58,7 @@ export default function SalaryFields({
         <input
           type="number"
           required
+          disabled={lockedContract}
           min={1}
           step={1}
           value={

@@ -5,6 +5,7 @@ import type {
   SponsorContractSettlement,
 } from "./sponsor.ts";
 import type { DailyDecisionGroup } from "./daily-invitations.ts";
+import type { ContractOfferGroup } from "./contract.ts";
 
 export type SponsorOfferReference = { id: string; approachGroupId: string };
 export type InvitationWindowReference = { id: string; date: string };
@@ -49,6 +50,7 @@ export type AdvanceDayOutcome =
   | { kind: "season_end"; seasonEndDate: string; message: string }
   | { kind: "standings_required"; seasonEndDate: string }
   | { kind: "postseason_schedule_required" }
+  | { kind: "contract_extension"; group: ContractOfferGroup }
   | { kind: "season_completed"; message: string }
   | {
       kind: "error";
