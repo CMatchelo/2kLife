@@ -1,7 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
+import { DatabaseSync } from "node:sqlite";
 import { CareerStore } from "./careers.ts";
+import { migratePostseason } from "./postseason.ts";
 import { modernTeams } from "../src/domain/teams.ts";
 import {
   formatWinPercentage,
@@ -29,6 +31,40 @@ const inputs = (): StandingInput[] =>
         losses: 22 + index,
       })),
   );
+test("legacy game-date uniqueness migrates without losing games", () => {
+  const db = new DatabaseSync(":memory:");
+  try {
+    db.exec(`PRAGMA foreign_keys=ON;
+      CREATE TABLE careers (id TEXT PRIMARY KEY);
+      CREATE TABLE seasons (id TEXT PRIMARY KEY, career_id TEXT REFERENCES careers(id));
+      CREATE TABLE games (
+        id TEXT PRIMARY KEY, season_id TEXT NOT NULL REFERENCES seasons(id),
+        date TEXT NOT NULL, team_id TEXT NOT NULL, data TEXT NOT NULL,
+        UNIQUE(season_id,date,team_id)
+      );
+      INSERT INTO careers VALUES ('career');
+      INSERT INTO seasons VALUES ('season','career');
+      INSERT INTO games VALUES ('old','season','2027-04-16','LAL','{"status":"notNeeded"}');
+    `);
+    migratePostseason(db);
+    db.prepare(
+      "INSERT INTO games (id,season_id,date,team_id,data) VALUES (?,?,?,?,?)",
+    ).run(
+      "new",
+      "season",
+      "2027-04-16",
+      "LAL",
+      JSON.stringify({ status: "scheduled" }),
+    );
+    assert.equal(
+      db.prepare("SELECT count(*) count FROM games").get()!.count,
+      2,
+    );
+    assert.deepEqual(db.prepare("PRAGMA foreign_key_check").all(), []);
+  } finally {
+    db.close();
+  }
+});
 function draft(teamId = "LAL"): CareerDraft {
   return {
     requestId: randomUUID(),
@@ -316,6 +352,86 @@ test("a player series reaches four wins and retires the remaining possible games
       career.season.postseason!.playoffSeries.find((s) => s.id === q.targetId)
         ?.winnerTeamId,
       "LAL",
+    );
+  } finally {
+    store.close();
+  }
+});
+test("the next series can reuse dates occupied only by not-needed games", () => {
+  const store = new CareerStore(":memory:");
+  try {
+    const created = store.create(draft("LAL"));
+    atBoundary(store, created.id);
+    let career = store.postseason.confirmStandings(created.id, {
+      standings: inputs(),
+    });
+    const firstRequirement = career.season.postseason!.pendingSchedule!;
+    career = store.postseason.schedule(created.id, {
+      requestId: randomUUID(),
+      targetId: firstRequirement.targetId,
+      games: Array.from({ length: 7 }, (_, index) => ({
+        date: `2027-04-${String(12 + index).padStart(2, "0")}`,
+        location: index % 2 ? "away" : "home",
+      })),
+    });
+    for (const game of career.season.games
+      .filter((item) => item.postseasonSeriesId === firstRequirement.targetId)
+      .slice(0, 4))
+      career = store.updateGame(created.id, game.id, {
+        status: "completed",
+        teamScore: 110,
+        opponentScore: 100,
+        played: false,
+        stats: null,
+      })!;
+    const semifinal = career.season.postseason!.playoffSeries.find(
+      (series) =>
+        series.conference === "west" &&
+        series.round === "conferenceSemifinals" &&
+        series.bracketPosition === 2,
+    )!;
+    store.db
+      .prepare("UPDATE playoff_series SET first_team_id='DAL' WHERE id=?")
+      .run(semifinal.id);
+    store.db
+      .prepare(
+        "INSERT INTO postseason_schedule_requirements VALUES (?,?,?,?,?,?,?,?,?,?)",
+      )
+      .run(
+        randomUUID(),
+        career.season.postseason!.id,
+        career.id,
+        career.season.id,
+        "playoffSeries",
+        semifinal.id,
+        "DAL",
+        "conferenceSemifinals",
+        "pending",
+        new Date().toISOString(),
+      );
+    career = store.postseason.schedule(created.id, {
+      requestId: randomUUID(),
+      targetId: semifinal.id,
+      games: Array.from({ length: 7 }, (_, index) => ({
+        date: `2027-04-${String(16 + index).padStart(2, "0")}`,
+        location: index % 2 ? "away" : "home",
+      })),
+    });
+    const nextGames = career.season.games.filter(
+      (game) => game.postseasonSeriesId === semifinal.id,
+    );
+    assert.equal(nextGames.length, 7);
+    assert.deepEqual(
+      nextGames.slice(0, 2).map((game) => game.date),
+      ["2027-04-16", "2027-04-17"],
+    );
+    assert.equal(
+      career.season.games.filter(
+        (game) =>
+          game.postseasonSeriesId === firstRequirement.targetId &&
+          game.status === "notNeeded",
+      ).length,
+      3,
     );
   } finally {
     store.close();

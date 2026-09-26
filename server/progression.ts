@@ -267,7 +267,26 @@ export function advanceCareerDay(
       const saved: { date: string | null; outcome: AdvanceDayOutcome } =
         JSON.parse(String(previous.result));
       const outcome = saved.outcome;
-      if (outcome.kind === "incomplete_game" || outcome.kind === "game_day") {
+      if (outcome.kind === "contract_extension") {
+        const currentGroup = store.contracts.group(outcome.group.id);
+        if (currentGroup?.status === "pending") {
+          outcome.group = currentGroup;
+          db.exec("COMMIT");
+          transaction = false;
+          return saved.date === career.currentDate
+            ? { ...outcome, career }
+            : failure(
+                "stale_date",
+                "This request was already completed. The current date has been refreshed; click Next day to continue.",
+              );
+        }
+        db.prepare(
+          "DELETE FROM day_requests WHERE career_id = ? AND request_id = ?",
+        ).run(careerId, request.requestId);
+      } else if (
+        outcome.kind === "incomplete_game" ||
+        outcome.kind === "game_day"
+      ) {
         const gameId = outcome.game.id;
         const currentGame = career.season.games.find(
           (game) => game.id === gameId,
@@ -323,6 +342,17 @@ export function advanceCareerDay(
           "schedule_needed",
           "Add the first scheduled game to establish the current date.",
         );
+      }
+      const extension = store.contracts.ensureMidseason(career);
+      if (extension) {
+        const result = remember({
+          kind: "contract_extension",
+          career,
+          group: extension,
+        });
+        db.exec("COMMIT");
+        transaction = false;
+        return result;
       }
       const end = career.season.seasonEndDate;
       if (career.season.phase === "regularSeason" && end && date >= end) {
@@ -573,6 +603,17 @@ export function advanceCareerDay(
       );
     }
     const date = career.currentDate!;
+    const extension = store.contracts.ensureMidseason(career);
+    if (extension) {
+      const result = remember({
+        kind: "contract_extension",
+        career,
+        group: extension,
+      });
+      db.exec("COMMIT");
+      transaction = false;
+      return result;
+    }
     const game =
       career.season.games.find(
         (game) => game.date === date && game.status === "scheduled",

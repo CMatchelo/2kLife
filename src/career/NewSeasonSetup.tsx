@@ -31,6 +31,12 @@ function normalizeLegacyDraft(
     career.season;
   return {
     ...draft,
+    nbaCupCountsTowardRegularSeason: true,
+    games: draft.games.map((game) =>
+      game.category === "nbaCup"
+        ? { ...game, countsTowardRegularSeason: true }
+        : game,
+    ),
     salaryTerms:
       draft.salaryTerms ??
       (source.salaryTerms
@@ -196,18 +202,14 @@ export default function NewSeasonSetup({
     career.seasons.map((season) => season.year),
   );
   const setCalendar = (value: CareerDraft) => {
-    const existingIds = new Set(draft.games.map((game) => game.id));
     change({
       ...draft,
       seasonYear: value.season.year,
       age: value.player.age,
       currentTeamId: value.player.currentTeamId,
       games: value.games.map((game) =>
-        !existingIds.has(game.id) && game.category === "nbaCup"
-          ? {
-              ...game,
-              countsTowardRegularSeason: draft.nbaCupCountsTowardRegularSeason,
-            }
+        game.category === "nbaCup"
+          ? { ...game, countsTowardRegularSeason: true }
           : game,
       ),
       unresolved: value.unresolved,
@@ -299,6 +301,7 @@ export default function NewSeasonSetup({
             >
               <input
                 value={draft.seasonYear}
+                disabled={!!draft.acceptedContract}
                 onChange={(event) =>
                   change({ ...draft, seasonYear: event.target.value })
                 }
@@ -325,6 +328,7 @@ export default function NewSeasonSetup({
               <TeamSelect
                 teams={career.teams}
                 value={draft.currentTeamId}
+                disabled={!!draft.acceptedContract}
                 onChange={(currentTeamId) =>
                   change({ ...draft, currentTeamId })
                 }
@@ -352,28 +356,34 @@ export default function NewSeasonSetup({
                 }
               />
             </Field>
-            <label className="flex items-center gap-2 font-semibold">
-              <input
-                type="checkbox"
-                checked={draft.nbaCupCountsTowardRegularSeason}
-                onChange={(event) =>
-                  change({
-                    ...draft,
-                    nbaCupCountsTowardRegularSeason: event.target.checked,
-                  })
-                }
-              />
-              NBA Cup games count toward regular-season totals by default
-            </label>
-            {draft.salaryTerms.remainingContractSeasons === 0 && (
-              <p className="sm:col-span-2 rounded-lg border border-gold/60 p-4 text-gold">
-                Your previous NBA contract has ended. Enter your salary and
-                remaining contract duration for the new season. Contract
-                negotiations will be added in a future version.
-              </p>
+            {draft.acceptedContract && (
+              <div className="sm:col-span-2 rounded-lg border border-gold/60 bg-gold/10 p-4">
+                <p className="font-bold text-gold">Accepted NBA contract</p>
+                <p className="mt-1 text-sm">
+                  {teamName(career.teams, draft.acceptedContract.teamId)} ·{" "}
+                  {money(
+                    draft.acceptedContract.terms.annualSalaryUsdCents / 100,
+                  )}{" "}
+                  per season · {draft.acceptedContract.terms.durationSeasons}{" "}
+                  year
+                  {draft.acceptedContract.terms.durationSeasons === 1
+                    ? ""
+                    : "s"}
+                  . Team, salary, duration, and starting season come from your
+                  signed offer.
+                </p>
+              </div>
             )}
+            {!draft.acceptedContract &&
+              draft.salaryTerms.remainingContractSeasons === 0 && (
+                <p className="sm:col-span-2 rounded-lg border border-gold/60 p-4 text-gold">
+                  Your previous NBA contract has ended. Enter your salary and
+                  remaining contract duration for the new season.
+                </p>
+              )}
             <SalaryFields
               value={draft.salaryTerms}
+              lockedContract={!!draft.acceptedContract}
               onChange={(salaryTerms) =>
                 change({
                   ...draft,
@@ -464,12 +474,6 @@ export default function NewSeasonSetup({
                   draft.games.filter((game) => game.countsTowardRegularSeason)
                     .length,
                 ),
-              ],
-              [
-                "NBA Cup preference",
-                draft.nbaCupCountsTowardRegularSeason
-                  ? "Counts toward regular season"
-                  : "Does not count by default",
               ],
               ["Scheduled games", String(draft.games.length)],
             ].map(([label, value]) => (

@@ -2,7 +2,7 @@
 
 2kLife is a local companion app for a single-player NBA 2K career played through **MyNBA in the Modern Era with Player Lock**. Start a MyNBA save, lock to your chosen player, and use either a created player or an existing player or legend.
 
-2kLife adds the career context that happens around the games: interviews, personality development, followers, sponsors, off-day decisions, signature shoes, finances, records, and postseason progression.
+2kLife adds the career context that happens around the games: interviews, personality development, followers, sponsors, NBA contract decisions, off-day decisions, signature shoes, finances, records, and postseason progression.
 
 > 2kLife does not connect to NBA 2K or read its save files. You enter game results and career changes manually. The optional screenshot-import flow is only for building the calendar from NBA 2K calendar screenshots. It is meant as a role-playing companion, so using it requires some imagination to connect the events in both experiences.
 
@@ -46,7 +46,7 @@ This app is still in development and testing. Feel free to report any bugs you e
 - Create affinity with teams.
 - Carry relationships, team affinity, followers, identity, finances, sponsors, and signature-shoe history across seasons.
 
-In Version 1, affinity is tracked and displayed but does not yet affect trades or NBA contract negotiations.
+Team affinity affects NBA contract salary and duration. It remains available for future trade and relationship systems.
 
 ### Sponsors
 
@@ -61,10 +61,15 @@ In Version 1, affinity is tracked and displayed but does not yet affect trades o
 ### NBA salary and finances
 
 - Record the player's annual NBA salary, remaining contract seasons, and expected number of paid regular-season team games.
+- Receive one current-team extension offer on January 15 when the active contract is expiring.
+- Enter offseason free agency after Season Review and compare the current team with up to five selected Basketball Network teams.
+- Calculate salary, role, minutes, and duration from performance, age, team affinity, and deterministic team-specific variation.
+- Accept a shorter duration than offered, with the total value recalculated before confirmation.
+- Carry the accepted team and salary terms into New Season setup and preserve every offer and decision in contract history.
 - Pay salary installments when counted team games are completed, including games the player misses and qualifying NBA Cup games.
 - Review NBA salary, sponsor income, signature-shoe royalties, charity donations, and other transactions in one financial ledger.
 
-Salary terms are currently entered manually. Team contract offers, negotiation, trades, and free agency are planned features.
+2kLife does not enforce the NBA salary cap, Bird rights, or roster legality. Because it is a companion app, the user remains responsible for reproducing the accepted move and respecting NBA 2K's rules inside the game.
 
 <table>
   <tr>
@@ -103,8 +108,7 @@ These are ideas still to be implemented on this companion. Feel free to help or 
 
 - Make player relationships and team affinity affect future career events.
 - Use your network to arrange the creation of a super team.
-- Add trade discussions and contract negotiations.
-- Add NBA player-contract and free-agency negotiations.
+- Add trade discussions and network influence.
 - Manage finances, with houses, cars, and luxury items to spend money on.
 - Give AI-generated interviews richer previous-season context, including past averages, awards, playoff results, and team history.
 - Package the app so anyone can run it without cloning a repository or installing development tools.
@@ -196,8 +200,11 @@ AI is used for presentation and extraction tasks such as:
 - Sponsor approach messages
 - Sponsor-event descriptions
 - Non-sponsor event descriptions
+- NBA contract-offer messages
 
 Career rules, rewards, calculations, eligibility, and progression remain controlled by application code. AI output is validated before use, and supported text-generation features provide deterministic fallback copy.
+
+Contract offers do not require a recent AI connection test. If no provider is selected, the provider fails, times out, or returns an invalid structure, the offer remains available with deterministic default team copy.
 
 AI features may consume subscription allowance or separately billed API usage, depending on the selected provider and authentication method.
 

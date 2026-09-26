@@ -35,15 +35,18 @@ export function TeamSelect({
   value,
   onChange,
   required = true,
+  disabled = false,
 }: {
   teams: Team[];
   value: string;
   onChange: (value: string) => void;
   required?: boolean;
+  disabled?: boolean;
 }) {
   return (
     <select
       required={required}
+      disabled={disabled}
       value={value}
       onChange={(event) => onChange(event.target.value)}
     >

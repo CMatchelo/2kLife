@@ -1,10 +1,11 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { Career } from "../types/career";
 import { teamName } from "../domain/teams";
 import type { SeasonSalaryTerms } from "../types/season";
 import SalaryFields from "./SalaryFields";
 import { money } from "./money";
 import { api } from "./api";
+import type { ContractOfferGroup } from "../types/contract";
 
 export default function PlayerInfo({
   career,
@@ -45,6 +46,24 @@ export default function PlayerInfo({
   const [setupError, setSetupError] = useState("");
   const [saving, setSaving] = useState(false);
   const requestId = useRef<string | null>(null);
+  const [contractHistory, setContractHistory] = useState<ContractOfferGroup[]>(
+    [],
+  );
+  useEffect(() => {
+    let active = true;
+    void api<ContractOfferGroup[]>(
+      `careers/${career.id}/contract-offers/history`,
+    )
+      .then((groups) => {
+        if (active) setContractHistory(groups);
+      })
+      .catch(() => {
+        /* Salary history remains available if contract history cannot load. */
+      });
+    return () => {
+      active = false;
+    };
+  }, [career.id]);
   const details = [
     {
       label: "Position",
@@ -283,6 +302,53 @@ export default function PlayerInfo({
               )}
             </div>
           ))}
+        </div>
+      </div>
+      <div className="mt-4 rounded-xl border border-divider p-4">
+        <h3 className="font-bold">NBA contract history</h3>
+        <div className="mt-3 space-y-4">
+          {contractHistory.map((group) => (
+            <section
+              key={group.id}
+              className="rounded-lg border border-divider/60 p-3"
+            >
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <strong>
+                  {group.kind === "midseason"
+                    ? "Midseason extension"
+                    : "Offseason free agency"}
+                </strong>
+                <span className="text-xs text-muted">{group.createdDate}</span>
+              </div>
+              <ul className="mt-3 space-y-2">
+                {group.offers.map((offer) => (
+                  <li
+                    key={offer.id}
+                    className="grid gap-1 rounded-lg bg-slate-950/20 p-3 text-sm sm:grid-cols-[1fr_auto_auto] sm:items-center sm:gap-4"
+                  >
+                    <span className="font-semibold">
+                      {teamName(career.teams, offer.teamId)}
+                    </span>
+                    <span>
+                      {money(offer.terms.annualSalaryUsdCents / 100)} ×{" "}
+                      {offer.terms.durationSeasons} year
+                      {offer.terms.durationSeasons === 1 ? "" : "s"}
+                    </span>
+                    <span
+                      className={`font-bold capitalize ${offer.status === "accepted" ? "text-sky-300" : offer.status === "rejected" ? "text-muted" : "text-gold"}`}
+                    >
+                      {offer.status === "rejected" ? "Declined" : offer.status}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ))}
+          {!contractHistory.length && (
+            <p className="text-sm text-muted">
+              No contract decisions recorded yet.
+            </p>
+          )}
         </div>
       </div>
     </section>

@@ -1023,7 +1023,7 @@ export default function Sponsors({ career }: { career: Career }) {
               <p className="text-red-300">{error}</p>
               <button
                 type="button"
-                className="ai-secondary mt-3 text-ink"
+                className="ai-secondary mt-3"
                 disabled={loading || saving}
                 onClick={() => void load()}
               >

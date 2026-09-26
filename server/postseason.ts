@@ -119,7 +119,56 @@ export function migratePostseason(db: DatabaseSync) {
   ] as const)
     if (!columns.has(name))
       db.exec(`ALTER TABLE games ADD COLUMN ${name} ${definition}`);
+
+  // Older databases enforced UNIQUE(season_id,date,team_id) in the table
+  // definition. That incorrectly blocks a new series game from sharing a date
+  // with a retained historical game whose status is already "notNeeded".
+  const hasLegacyDateConstraint = (
+    db.prepare("PRAGMA index_list(games)").all() as {
+      name: string;
+      origin: string;
+    }[]
+  ).some((index) => {
+    if (index.origin !== "u") return false;
+    const escaped = index.name.replaceAll("'", "''");
+    const names = (
+      db.prepare(`PRAGMA index_info('${escaped}')`).all() as { name: string }[]
+    ).map((column) => column.name);
+    return names.join(",") === "season_id,date,team_id";
+  });
+  if (hasLegacyDateConstraint) {
+    db.exec("PRAGMA foreign_keys = OFF; BEGIN IMMEDIATE;");
+    try {
+      db.exec(`
+        CREATE TABLE games_postseason_migration (
+          id TEXT PRIMARY KEY,
+          season_id TEXT NOT NULL REFERENCES seasons(id),
+          date TEXT NOT NULL,
+          team_id TEXT NOT NULL,
+          data TEXT NOT NULL,
+          play_in_game_id TEXT REFERENCES play_in_games(id),
+          postseason_series_id TEXT REFERENCES playoff_series(id),
+          series_game_number INTEGER CHECK(series_game_number BETWEEN 1 AND 7)
+        );
+        INSERT INTO games_postseason_migration
+          (id,season_id,date,team_id,data,play_in_game_id,postseason_series_id,series_game_number)
+        SELECT id,season_id,date,team_id,data,play_in_game_id,postseason_series_id,series_game_number
+        FROM games;
+        DROP TABLE games;
+        ALTER TABLE games_postseason_migration RENAME TO games;
+        COMMIT;
+      `);
+    } catch (error) {
+      db.exec("ROLLBACK;");
+      throw error;
+    } finally {
+      db.exec("PRAGMA foreign_keys = ON;");
+    }
+  }
   db.exec(`
+    CREATE UNIQUE INDEX IF NOT EXISTS games_one_active_team_date
+      ON games(season_id,date,team_id)
+      WHERE COALESCE(json_extract(data,'$.status'),'scheduled') <> 'notNeeded';
     CREATE UNIQUE INDEX IF NOT EXISTS games_one_play_in_match ON games(play_in_game_id) WHERE play_in_game_id IS NOT NULL;
     CREATE UNIQUE INDEX IF NOT EXISTS games_one_series_number ON games(postseason_series_id,series_game_number) WHERE postseason_series_id IS NOT NULL;
   `);
@@ -129,9 +178,15 @@ const rowText = (value: unknown) => (value == null ? null : String(value));
 export class PostseasonService {
   private db: DatabaseSync;
   private getCareer: (id: string) => Career | null;
-  constructor(db: DatabaseSync, getCareer: (id: string) => Career | null) {
+  private onSeasonCompleted?: (careerId: string, seasonId: string) => unknown;
+  constructor(
+    db: DatabaseSync,
+    getCareer: (id: string) => Career | null,
+    onSeasonCompleted?: (careerId: string, seasonId: string) => unknown,
+  ) {
     this.db = db;
     this.getCareer = getCareer;
+    this.onSeasonCompleted = onSeasonCompleted;
   }
 
   standings(seasonId: string): SeasonStanding[] {
@@ -758,7 +813,7 @@ export class PostseasonService {
     this.db.exec("BEGIN IMMEDIATE");
     try {
       const insert = this.db.prepare(
-        "INSERT OR IGNORE INTO games (id,season_id,date,team_id,data,play_in_game_id,postseason_series_id,series_game_number) VALUES (?,?,?,?,?,?,?,?)",
+        "INSERT INTO games (id,season_id,date,team_id,data,play_in_game_id,postseason_series_id,series_game_number) VALUES (?,?,?,?,?,?,?,?)",
       );
       raw.games.forEach((entry, index) => {
         const id = randomUUID();
@@ -1228,6 +1283,7 @@ export class PostseasonService {
           JSON.stringify({ completed: true }),
           completedAt,
         );
+      this.onSeasonCompleted?.(careerId, career.season.id);
       this.db.exec("COMMIT");
     } catch (e) {
       this.db.exec("ROLLBACK");

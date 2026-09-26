@@ -20,6 +20,10 @@ import {
   boxScoreExtractionPrompt,
   boxScoreExtractionSchema,
 } from "../../src/domain/boxScoreImport.ts";
+import {
+  contractMessagesPrompt,
+  contractMessagesSchema,
+} from "../../src/domain/contractMessages.ts";
 
 export type RunClaude = (args: string[], cwd?: string) => Promise<string>;
 
@@ -117,6 +121,58 @@ export function claudeProvider(
 ): Provider {
   const hasKey = () => !!env.ANTHROPIC_API_KEY?.trim();
   return {
+    async contractMessages(context) {
+      if (hasKey()) {
+        const reply = await makeClient(env.ANTHROPIC_API_KEY!).messages.create(
+          {
+            model: env.ANTHROPIC_MODEL?.trim() || "claude-haiku-4-5-20251001",
+            max_tokens: 3600,
+            tools: [
+              {
+                name: "contract_messages",
+                description:
+                  "Write a structured team message for every supplied NBA contract offer.",
+                input_schema:
+                  contractMessagesSchema as unknown as Anthropic.Tool.InputSchema,
+              },
+            ],
+            tool_choice: { type: "tool", name: "contract_messages" },
+            messages: [
+              { role: "user", content: contractMessagesPrompt(context) },
+            ],
+          },
+          { timeout: 120000 },
+        );
+        const block = reply.content.find(
+          (item) =>
+            item.type === "tool_use" && item.name === "contract_messages",
+        );
+        if (!block || block.type !== "tool_use")
+          throw new Error("Missing structured contract messages.");
+        return block.input;
+      }
+      const directory = await mkdtemp(join(tmpdir(), "2klife-contracts-"));
+      try {
+        const output = await run(
+          [
+            "-p",
+            contractMessagesPrompt(context),
+            "--output-format",
+            "json",
+            "--tools",
+            "",
+            "--permission-mode",
+            "default",
+          ],
+          directory,
+        );
+        const json = firstJsonObject(parseCliResult(output));
+        if (!json) throw new Error("No contract message JSON returned.");
+        return JSON.parse(json);
+      } finally {
+        await rm(directory, { recursive: true, force: true });
+      }
+    },
     async extractBoxScore(image) {
       if (hasKey()) {
         const reply = await makeClient(env.ANTHROPIC_API_KEY!).messages.create(

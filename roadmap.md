@@ -5,16 +5,16 @@ The order is intentional: later systems should reuse career, relationship, finan
 
 ## Phase 2 — NBA contract lifecycle
 
-Turn the existing manually entered salary terms into a career decision system.
+Implemented: the existing salary terms now participate in a complete extension and free-agency decision system.
 
-- Add contract expiration, team options, player options, and extension eligibility.
-- Generate extension and free-agency offers from performance, awards, followers, age, identity, team success, and relationship affinity.
-- Let the player accept, reject, or counter an offer while leaving the corresponding NBA 2K roster move under the user's control.
-- Compare offers by salary, duration, expected role, team quality, location, and relationship fit.
-- Populate New Season salary and team details from the accepted contract.
-- Preserve a complete contract history in Player Info and the financial ledger.
-- Keep offer generation and negotiation outcomes idempotent so reloading cannot reroll them.
-- Start with understandable offer tiers instead of a complete NBA salary-cap simulation.
+- January 15 current-team extensions and post-Season Review free agency are durable and idempotent.
+- Offers use current-season performance, age, team affinity, and deterministic variation for salary, duration, role, and minutes.
+- Offseason choices include the current team plus only the teams selected in Basketball Network.
+- The player can accept, reject the midseason extension, compare offseason offers, and shorten an offered duration.
+- Accepted team and salary terms populate and are enforced by New Season setup while the NBA 2K roster move remains user-controlled.
+- Player Info preserves the full offer history; activated salary payments and taxes continue through the financial ledger.
+- AI writes optional team messages with deterministic fallback copy and never controls contract calculations.
+- Salary-cap, Bird-rights, and roster-legality enforcement remain intentionally outside the app.
 
 ## Phase 3 — Trades and network influence
 

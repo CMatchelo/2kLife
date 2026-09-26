@@ -19,6 +19,10 @@ import {
   boxScoreExtractionPrompt,
   boxScoreExtractionSchema,
 } from "../../src/domain/boxScoreImport.ts";
+import {
+  contractMessagesPrompt,
+  contractMessagesSchema,
+} from "../../src/domain/contractMessages.ts";
 
 export type Run = (args: string[], cwd?: string) => Promise<string>;
 async function executable(): Promise<{ file: string; prefix: string[] }> {
@@ -61,6 +65,36 @@ export const runCodex: Run = async (args, cwd) => {
 };
 export function codexProvider(run: Run = runCodex): Provider {
   return {
+    async contractMessages(context) {
+      const directory = await mkdtemp(join(tmpdir(), "2klife-contracts-"));
+      try {
+        const schemaFile = join(directory, "schema.json");
+        const outputFile = join(directory, "result.json");
+        await writeFile(schemaFile, JSON.stringify(contractMessagesSchema), {
+          mode: 0o600,
+        });
+        await run(
+          [
+            "exec",
+            "--ignore-user-config",
+            "--ephemeral",
+            "--skip-git-repo-check",
+            "--sandbox",
+            "read-only",
+            "--json",
+            "--output-schema",
+            schemaFile,
+            "--output-last-message",
+            outputFile,
+            contractMessagesPrompt(context),
+          ],
+          directory,
+        );
+        return JSON.parse(await readFile(outputFile, "utf8"));
+      } finally {
+        await rm(directory, { recursive: true, force: true });
+      }
+    },
     async extractBoxScore(image) {
       const directory = await mkdtemp(join(tmpdir(), "2klife-box-score-"));
       try {

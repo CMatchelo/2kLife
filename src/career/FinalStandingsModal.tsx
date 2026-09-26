@@ -12,11 +12,9 @@ import { api } from "./api";
 export default function FinalStandingsModal({
   career,
   onSaved,
-  onClose,
 }: {
   career: Career;
   onSaved: (career: Career) => void;
-  onClose: () => void;
 }) {
   const initial = useMemo(
     () => ({
@@ -179,7 +177,7 @@ export default function FinalStandingsModal({
       aria-labelledby="standings-title"
     >
       <section className="max-h-[95vh] w-[min(1400px,98vw)] overflow-y-auto rounded-2xl bg-[#0d161f] p-5 text-white">
-        <div className="flex justify-between gap-4">
+        <div>
           <div>
             <h2 id="standings-title" className="text-2xl font-black text-gold">
               Final regular-season standings
@@ -189,9 +187,6 @@ export default function FinalStandingsModal({
               order.
             </p>
           </div>
-          <button className="ai-secondary" onClick={onClose} disabled={saving}>
-            Close
-          </button>
         </div>
         <div className="mt-5 grid gap-6 xl:grid-cols-2">
           <section>

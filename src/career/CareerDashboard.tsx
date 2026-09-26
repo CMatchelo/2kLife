@@ -6,7 +6,7 @@ import PlayerRecords from "./PlayerRecords";
 import PlayerInfo from "./PlayerInfo";
 import MatchEditor from "./MatchEditor";
 import type { Game } from "../types/game";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import CalendarSettings from "./CalendarSettings";
 import type { AdvanceDayRequest, AdvanceDayResult } from "../types/progression";
@@ -38,6 +38,8 @@ import type { SignatureShoe } from "../types/signature-shoe";
 import FinalStandingsModal from "./FinalStandingsModal";
 import PostseasonScheduleModal from "./PostseasonScheduleModal";
 import PostseasonProgress from "./PostseasonProgress";
+import ContractOfferPopup, { ContractAgentLoading } from "./ContractOfferPopup";
+import type { ContractOfferGroup } from "../types/contract";
 
 function SponsorMessageLoading({
   error,
@@ -63,11 +65,7 @@ function SponsorMessageLoading({
           >
             Your agent has sponsor news
           </h2>
-          <button
-            type="button"
-            className="ai-secondary text-ink"
-            onClick={onClose}
-          >
+          <button type="button" className="ai-secondary" onClick={onClose}>
             Close
           </button>
         </div>
@@ -279,6 +277,13 @@ export default function CareerDashboard({
   const [sponsorContracts, setSponsorContracts] = useState<
     SponsorActiveContract[]
   >([]);
+  const [contractGeneration, setContractGeneration] = useState<{
+    groupId: string;
+    error: string;
+  } | null>(null);
+  const [contractOffer, setContractOffer] = useState<ContractOfferGroup | null>(
+    null,
+  );
   const dayLock = useRef(false);
   const requestKey = `2klife:advance:${career.id}`;
   const pendingRequest = useRef<AdvanceDayRequest | null>(null);
@@ -350,6 +355,46 @@ export default function CareerDashboard({
     }
   }
 
+  const loadContractMessages = useCallback(
+    async (groupId: string) => {
+      setContractOffer(null);
+      setContractGeneration({ groupId, error: "" });
+      try {
+        const group = await api<ContractOfferGroup>(
+          `careers/${current.id}/contract-offers/${groupId}`,
+        );
+        setContractGeneration(null);
+        setContractOffer(group);
+      } catch (cause) {
+        setContractGeneration({
+          groupId,
+          error:
+            cause instanceof Error
+              ? cause.message
+              : "Your agent could not prepare the contract offer. Retry.",
+        });
+      }
+    },
+    [current.id],
+  );
+
+  useEffect(() => {
+    let active = true;
+    void api<ContractOfferGroup | null>(
+      `careers/${career.id}/contract-offers/pending`,
+    )
+      .then((group) => {
+        if (active && group?.kind === "midseason")
+          void loadContractMessages(group.id);
+      })
+      .catch(() => {
+        /* Next day will surface the durable contract decision. */
+      });
+    return () => {
+      active = false;
+    };
+  }, [career.id, loadContractMessages]);
+
   async function nextDay(resumeTransitionId?: string) {
     if (dayLock.current) return;
     dayLock.current = true;
@@ -414,11 +459,13 @@ export default function CareerDashboard({
         case "season_completed":
           setDayMessage(result.message);
           break;
+        case "contract_extension":
+          void loadContractMessages(result.group.id);
+          break;
         case "error":
           setDayError(result.message);
           if (result.month) setMonth(result.month);
           break;
-        // No screens are implemented for extension results in this release.
         case "sponsor_offers":
           void loadSponsorMessages(result.approachGroupId, result.transitionId);
           break;
@@ -494,6 +541,34 @@ export default function CareerDashboard({
     }
   }
   const p = current.profile;
+  const isPostseason = current.season.phase === "postseason";
+  const hasUpcomingPostseasonGame = current.season.games.some(
+    (game) =>
+      (game.category === "playIn" || game.category === "playoffs") &&
+      game.status === "scheduled" &&
+      (!current.currentDate || game.date >= current.currentDate),
+  );
+  // Keep one final advance available after today's completed game so the
+  // existing postgame sponsor/contract processing can finish before waiting.
+  const hasCompletedPostseasonGameToday = current.season.games.some(
+    (game) =>
+      (game.category === "playIn" || game.category === "playoffs") &&
+      game.status === "completed" &&
+      game.date === current.currentDate,
+  );
+  const hasPendingPostseasonSchedule =
+    isPostseason && !!current.season.postseason?.pendingSchedule;
+  const postseasonNextDayBlocked =
+    isPostseason &&
+    (hasPendingPostseasonSchedule ||
+      (!hasUpcomingPostseasonGame && !hasCompletedPostseasonGameToday));
+  const postseasonNextDayMessage = hasPendingPostseasonSchedule
+    ? "Add the required matchup dates and locations before advancing."
+    : current.season.postseason?.canCompleteSeason
+      ? "No player games remain. Confirm and end the season below."
+      : current.season.postseason?.playerPostseasonResult
+        ? "No player games remain. Complete the remaining playoff bracket below."
+        : "Your team is waiting for its next opponent. Resolve the required bracket results below; when the opponent is known, register the matchup schedule to enable Next day.";
   return (
     <div className="space-y-8">
       {(dayLoading || calendarSaving) && (
@@ -633,7 +708,15 @@ export default function CareerDashboard({
                     !!editing ||
                     !!interviewGame ||
                     adding ||
-                    !!invitationGroup
+                    !!invitationGroup ||
+                    !!contractGeneration ||
+                    !!contractOffer ||
+                    postseasonNextDayBlocked
+                  }
+                  title={
+                    postseasonNextDayBlocked
+                      ? postseasonNextDayMessage
+                      : undefined
                   }
                   onClick={() => void nextDay()}
                 >
@@ -641,6 +724,14 @@ export default function CareerDashboard({
                 </button>
               </div>
             </div>
+            {postseasonNextDayBlocked && (
+              <p
+                className="mb-5 rounded-lg border border-gold/40 bg-gold/10 px-3 py-2 text-sm text-slate-200"
+                role="status"
+              >
+                {postseasonNextDayMessage}
+              </p>
+            )}
             {adding && (
               <div className="mb-5">
                 <p className="mb-3 text-sm text-muted">
@@ -731,7 +822,6 @@ export default function CareerDashboard({
       {standingsOpen && current.season.phase !== "postseason" && (
         <FinalStandingsModal
           career={current}
-          onClose={() => setStandingsOpen(false)}
           onSaved={(updated) => {
             setCurrent(updated);
             setStandingsOpen(false);
@@ -777,6 +867,25 @@ export default function CareerDashboard({
             setInterview(null);
             setInterviewGame(null);
             setInterviewError("");
+          }}
+        />
+      )}
+      {contractGeneration && (
+        <ContractAgentLoading
+          playerName={current.profile.name}
+          error={contractGeneration.error}
+          onRetry={() => void loadContractMessages(contractGeneration.groupId)}
+        />
+      )}
+      {contractOffer && contractOffer.kind === "midseason" && (
+        <ContractOfferPopup
+          careerId={current.id}
+          teams={current.teams}
+          group={contractOffer}
+          onResolved={() => {
+            setContractOffer(null);
+            setContractGeneration(null);
+            void nextDay();
           }}
         />
       )}

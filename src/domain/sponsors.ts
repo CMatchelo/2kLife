@@ -127,7 +127,6 @@ function permanentMilestone(raw: unknown, path: string) {
   }
 }
 
-/** Validates definitions only; never evaluates player progress or calculates payments. */
 export function validateSponsorCatalog(
   raw: unknown,
 ): asserts raw is SponsorCatalog {
