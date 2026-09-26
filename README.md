@@ -1,75 +1,53 @@
 # 2kLife
 
-2kLife is a local companion app for a single-player NBA 2K career played through **MyNBA in the Modern Era with Player Lock**. Start a MyNBA save, lock to your chosen player, and use either a created player or an existing player or legend.
+**Your career. Your decisions. Your legacy.**
 
-2kLife adds the career context that happens around the games: interviews, personality development, followers, sponsors, NBA contract decisions, off-day decisions, signature shoes, finances, records, and postseason progression.
+2kLife turns a Player Lock save in **NBA 2K MyNBA's Modern Era** into a more complete basketball career, where every performance shapes the player you become and every decision follows you beyond the court.
 
-> 2kLife does not connect to NBA 2K or read its save files. You enter game results and career changes manually. The optional screenshot-import flow is only for building the calendar from NBA 2K calendar screenshots. It is meant as a role-playing companion, so using it requires some imagination to connect the events in both experiences.
+Create your own prospect, take control of an existing player, or rewrite the career of a legend. Chase records, build your reputation, choose who belongs in your inner circle, negotiate your future, and turn great seasons into a lasting legacy.
+
+## Made to complement your NBA 2K save
+
+2kLife is a local, single-player role-playing companion. It does not connect to NBA 2K or read its save files, so you remain in control of what carries between both experiences. Reproduce accepted moves inside NBA 2K, bring the results back to 2kLife, and use a little imagination to make the two worlds feel like one career.
+
+The project is still in development and testing. Bug reports, ideas, forks, and contributions are welcome.
 
 This project began as a personal idea and was built and refined with AI assistance. You are welcome to fork it, modify it, and run your own version.
 
 2kLife is an unofficial, fan-made project. It is not affiliated with, endorsed by, or sponsored by the NBA, NBA 2K, Take-Two Interactive, Visual Concepts, any NBA team, player, sponsor, or brand shown in the app. All names, logos, and trademarks belong to their respective owners.
 
-This app is still in development and testing. Feel free to report any bugs you encounter.
-
 ![2kLife overview](public/prints/2.png)
 
-## Features
+## Take control of your career
 
-### Career and calendar
+You decide how the story unfolds. Play each game in NBA 2K, then bring the result into 2kLife to continue your journey:
 
-- Create a local career with the player's profile, team, draft information, season, and starting date.
-- Build the NBA 2K calendar manually or import calendar screenshots through the configured AI provider.
-- Track home and away games, opponents, game categories, rankings, injuries, starts, final scores, and box scores.
-- Import a single-game box score from an NBA 2K screenshot through the configured AI provider, then review the extracted statistics before saving.
+- Save your box score after every match, enter it manually, or import a screenshot and let your AI provider do the work.
+- Bring your NBA 2K calendar with you, game by game or from screenshots, and follow the season one day at a time.
+- Watch your averages, personal bests, season records, and full career history grow with every performance.
+- Play through injuries, rival matchups, the NBA Cup, the Play-In, and the postseason on your way to a championship.
 
 ![Career and calendar](public/prints/3.png)
 
-### Statistics and records
+## Build your name on and off the court
 
-- Keep season and career statistics from saved games.
-- Track single-game records for each season and across the full career.
-- Display season progress, schedules, results, player information, and records.
+Big games create bigger expectations. Your performances can put you in front of the media, grow your following, and attract brands that want to be part of your rise.
 
-### Interviews and personality
-
-- Answer post-game interview questions based on your overall and recent performances.
-- Develop three personality traits through interview choices
+- Face post-game interviews shaped by what just happened on the court.
+- Choose whether you want to be known as a superstar, a team-first leader, or a fan favorite.
+- Gain or lose followers based on how you play and how you spend your time away from basketball.
+- Build relationships with players and teammates, strengthen connections with teams, and carry your reputation from season to season.
 
 ![Interviews and personality](public/prints/4.png)
 
-### Followers and personal life
+## Turn success into a business
 
-- Gain or lose followers from game performance.
-- Track follower changes from games and off-day activities.
-- Create relationships with selected players and teammates.
-- Create affinity with teams.
-- Carry relationships, team affinity, followers, identity, finances, sponsors, and signature-shoe history across seasons.
+Your play gets brands interested. Your choices determine whether those opportunities become long-term partnerships or disappear for good.
 
-Team affinity affects NBA contract salary and duration. It remains available for future trade and relationship systems.
-
-### Sponsors
-
-- Track sponsor interest based on followers, personality, and performance milestones.
-- Receive approaches from footwear and general commercial brands.
-- Review contract length, fixed payment, payment per game, appearance obligations, event payments, and penalties.
-- Schedule sponsor appearances when a contract is signed.
-- Attend or refuse sponsor invitations alongside other off-day opportunities.
-- Process contract expiration, settlement, renewals, cooldowns, and permanent professionalism blocks.
-- Track all sponsor income and expenses in an append-only financial ledger.
-
-### NBA salary and finances
-
-- Record the player's annual NBA salary, remaining contract seasons, and expected number of paid regular-season team games.
-- Receive one current-team extension offer on January 15 when the active contract is expiring.
-- Enter offseason free agency after Season Review and compare the current team with up to five selected Basketball Network teams.
-- Calculate salary, role, minutes, and duration from performance, age, team affinity, and deterministic team-specific variation.
-- Accept a shorter duration than offered, with the total value recalculated before confirmation.
-- Carry the accepted team and salary terms into New Season setup and preserve every offer and decision in contract history.
-- Pay salary installments when counted team games are completed, including games the player misses and qualifying NBA Cup games.
-- Review NBA salary, sponsor income, signature-shoe royalties, charity donations, and other transactions in one financial ledger.
-
-2kLife does not enforce the NBA salary cap, Bird rights, or roster legality. Because it is a companion app, the user remains responsible for reproducing the accepted move and respecting NBA 2K's rules inside the game.
+- Earn sponsor offers by reaching performance milestones, growing your audience, and building an identity brands believe in.
+- Compare payments, bonuses, appearance commitments, and penalties before you sign.
+- Balance sponsor obligations with invitations from teammates, players, fans, and charities on your days off.
+- Build your earnings through NBA salary, sponsor deals, appearances, and royalties, with every transaction recorded throughout your career.
 
 <table>
   <tr>
@@ -78,29 +56,23 @@ Team affinity affects NBA contract salary and duration. It remains available for
   </tr>
 </table>
 
-### Off-day events
+## Decide what happens next
 
-- Receive sponsor, team, player, fan, and charity invitations on eligible off days.
-- Choose one invitation when several events compete for the same date, or refuse all.
+Your time is limited, and every invitation is a choice. Show up for a sponsor, spend the day with a teammate, meet another player, give back to the community, connect with fans—or turn everyone down. You cannot be everywhere, and the relationships you prioritize help define your career.
 
 ![Off-day events](public/prints/1.png)
 
-### Signature shoes
+## Put your name on the shoe
 
-- Launch your own shoe and profit from its sales.
-- Name each shoe and upload an image of the shoe created inside NBA 2K.
-- Track units sold, revenue, launch status, and player royalties.
-- Win royalties after every eligible game.
+Earn a footwear deal, unlock your signature line, and launch a shoe of your own design. Give it a name, bring in the model you created in NBA 2K, and profit from every pair sold. Strong performances and a growing following can turn your launch into an empire.
 
 ![Signature shoes](public/prints/6.png)
 
-### Postseason
+## Choose where your story continues
 
-- Enter and order final Eastern and Western Conference standings.
-- Complete the NBA Play-In Tournament and full playoff bracket.
-- Track the whole postseason, from the Play-In to the NBA champion.
-- Complete a five-step season review with optional league awards.
-- Continue the same career into a new season while preserving completed-season games, results, awards, interviews, relationships, sponsors, shoes, and finances.
+When your contract nears its end, the future is yours to decide. Commit to an extension or test free agency. Select the teams you would like to play for, compare their offers, expected role, minutes, salary, and contract length, then choose the next chapter of your career.
+
+Make a run from the Play-In to the Finals, close the year with a complete season review, and return for another season with your records, awards, relationships, sponsors, finances, and signature-shoe history still intact. One save can tell the story of an entire career.
 
 ## Planned features
 
@@ -164,31 +136,62 @@ pnpm dev
 
 Open [http://127.0.0.1:5173](http://127.0.0.1:5173) in a browser.
 
+To run the same development application in its Electron desktop shell:
+
+```sh
+pnpm dev:desktop
+```
+
+The desktop command starts Vite, starts the existing local backend inside
+Electron, and opens the application window. This development milestone still
+uses the repository's `.2klife` directory, so existing local careers remain
+available in both browser and desktop development modes.
+
+To test the self-contained production runtime without Vite:
+
+```sh
+pnpm build
+pnpm start:desktop
+```
+
+The production runtime serves the compiled frontend and API from one private,
+dynamically selected loopback port. It does not require either Vite or the
+fixed development ports after the build is complete.
+
 Stop the app with `Ctrl+C`.
 
-Both of these ports must be available:
+Both of these ports must be available for development mode:
 
 - Frontend: `127.0.0.1:5173`
 - Backend: `127.0.0.1:4319`
 
 ## Local data
 
-2kLife creates a `.2klife` directory when it runs. It contains user-specific local data and is excluded from Git:
+The browser development backend creates a `.2klife` directory in the repository.
+The Electron desktop app stores the same files in its per-user application-data
+directory under `2kLife/data`. On its first desktop launch, it safely copies any
+existing repository `.2klife` database, settings, and signature-shoe images when
+the corresponding desktop files do not already exist. The original files are
+left untouched.
+
+Each active data directory has this layout:
 
 ```text
-.2klife/
+data-directory/
   careers.sqlite
   settings.json
   signature-shoes/
   logs/
 ```
 
-- Career data is stored in `.2klife/careers.sqlite`.
-- AI-provider selection and test dates are stored in `.2klife/settings.json`.
-- Uploaded signature-shoe images are stored under `.2klife/signature-shoes/`.
+- Career data is stored in `careers.sqlite`.
+- AI-provider selection and test dates are stored in `settings.json`.
+- Uploaded signature-shoe images are stored under `signature-shoes/`.
+- Electron diagnostic logs are stored under `logs/`.
 - AI credentials are not stored in the career database.
 
-Do not commit or share the `.2klife` directory unless you intentionally want to share your personal career data.
+Do not commit or share either data directory unless you intentionally want to
+share your personal career data.
 
 ## AI connection
 
@@ -207,6 +210,12 @@ Career rules, rewards, calculations, eligibility, and progression remain control
 Contract offers do not require a recent AI connection test. If no provider is selected, the provider fails, times out, or returns an invalid structure, the offer remains available with deterministic default team copy.
 
 AI features may consume subscription allowance or separately billed API usage, depending on the selected provider and authentication method.
+
+The Electron app uses an existing Codex or Claude CLI installation and its
+saved authentication. On Windows it prefers the provider's native executable,
+then falls back to the installed npm package entry using Electron's Node mode.
+Provider credentials remain managed by the provider CLI and are not copied into
+2kLife's desktop data directory.
 
 ### Codex CLI
 

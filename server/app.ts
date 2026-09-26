@@ -9,6 +9,7 @@ import type { Provider } from "./providers/shared.ts";
 import { safeError } from "./providers/shared.ts";
 import { isProvider, readSettings, writeSettings } from "./settings.ts";
 import type { IncomingMessage } from "node:http";
+import { serveStaticFile } from "./static-files.ts";
 import { CareerStore, ValidationError } from "./careers.ts";
 import { parseImportRequest } from "./import-request.ts";
 import { normalizeImport } from "../src/domain/import.ts";
@@ -60,11 +61,12 @@ export function connectionServer(
   providers: Record<ProviderId, Provider>,
   settingsFile: string,
   careers?: CareerStore,
+  options: { staticRoot?: string } = {},
 ) {
   const interviews = careers ? new InterviewService(careers) : null;
   let busy = false;
   const verified: Partial<Record<ProviderId, number>> = {};
-  return createServer(async (req, res) => {
+  const server = createServer(async (req, res) => {
     const send = (code: number, body: unknown) => {
       res.writeHead(code, {
         "Content-Type": "application/json",
@@ -74,6 +76,7 @@ export function connectionServer(
       res.end(JSON.stringify(body));
     };
     // Reject cross-origin browser requests and DNS rebinding. Vite preserves this custom header.
+    const address = server.address();
     const hosts = new Set([
       "127.0.0.1:4319",
       "localhost:4319",
@@ -82,6 +85,14 @@ export function connectionServer(
       "127.0.0.1:4173",
       "localhost:4173",
     ]);
+    if (address && typeof address !== "string") {
+      hosts.add(`127.0.0.1:${address.port}`);
+      hosts.add(`localhost:${address.port}`);
+    }
+    const staticRequest =
+      !!options.staticRoot &&
+      (req.method === "GET" || req.method === "HEAD") &&
+      !req.url?.startsWith("/api/");
     const shoeImageRequest =
       req.method === "GET" &&
       /^\/api\/careers\/[\w-]+\/signature-shoes\/[\w-]+\/image$/.test(
@@ -89,13 +100,18 @@ export function connectionServer(
       );
     if (
       !hosts.has(req.headers.host ?? "") ||
-      (!shoeImageRequest && req.headers["x-2klife-client"] !== "1") ||
+      (!shoeImageRequest &&
+        !staticRequest &&
+        req.headers["x-2klife-client"] !== "1") ||
       (req.headers.origin &&
         ![...hosts].some((host) => req.headers.origin === `http://${host}`))
     )
       return send(403, {
         message: "Request denied. Open 2kLife on its local address.",
       });
+    if (staticRequest)
+      return serveStaticFile(req, res, options.staticRoot!) ||
+        send(404, { message: "Application file not found." });
     const session =
       typeof req.headers["x-2klife-session"] === "string" &&
       /^[\w-]{20,80}$/.test(req.headers["x-2klife-session"])
@@ -995,4 +1011,5 @@ export function connectionServer(
       if (connectionOperation) busy = false;
     }
   });
+  return server;
 }

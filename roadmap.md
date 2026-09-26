@@ -3,6 +3,22 @@
 This roadmap covers the major feature phases after the initial documentation and reliability work.
 The order is intentional: later systems should reuse career, relationship, financial, identity, and historical data introduced by earlier phases.
 
+## Electron desktop migration
+
+1. **Development shell — complete.** Electron opens the existing React interface and owns the local backend lifecycle while browser development remains available.
+2. **Production runtime — complete.** The compiled frontend and API share a dynamically selected private loopback origin without requiring Vite.
+3. **Desktop data storage — complete.** SQLite, settings, signature-shoe images, and logs use the per-user application-data directory, with a safe non-destructive legacy import.
+4. **AI CLI compatibility — complete.** Electron uses existing Codex or Claude installations and their provider-managed authentication, including an Electron-safe JavaScript CLI fallback.
+5. **Installer and distribution — wait until packaging.** Create the unpacked application and Windows installer, add final product metadata and icons, and then perform the packaging-dependent hardening:
+   - Verify packaged resource paths and ASAR behavior.
+   - Enable appropriate Electron fuses and ASAR integrity protection.
+   - Test installer upgrades without losing per-user data.
+   - Verify uninstall behavior while preserving or explicitly handling user data.
+   - Add code signing before public distribution.
+   - Decide whether automatic updates are appropriate and test them safely.
+   - Run clean-machine installation and packaged-runtime smoke tests.
+6. **Development hardening — complete.** Enforce a single desktop instance, restrict navigation and permissions, record local startup/backend/load errors, and close the backend and SQLite cleanly.
+
 ## Phase 2 — NBA contract lifecycle
 
 Implemented: the existing salary terms now participate in a complete extension and free-agency decision system.

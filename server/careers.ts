@@ -106,7 +106,10 @@ export class CareerStore {
   postseason: PostseasonService;
   salary: SalaryService;
   contracts: ContractService;
-  constructor(file: string) {
+  constructor(
+    file: string,
+    options: { signatureShoeImageRoot?: string } = {},
+  ) {
     this.db = new DatabaseSync(file);
     this.db.exec(`PRAGMA foreign_keys = ON; PRAGMA journal_mode = WAL;
       CREATE TABLE IF NOT EXISTS careers (id TEXT PRIMARY KEY, request_id TEXT UNIQUE NOT NULL, save_name TEXT NOT NULL, created_at TEXT NOT NULL, teams TEXT NOT NULL);
@@ -144,7 +147,11 @@ export class CareerStore {
       (id) => this.get(id),
       (id) => this.basketballNetwork.get(id),
     );
-    this.signatureShoes = new SignatureShoeService(this.db);
+    this.signatureShoes = new SignatureShoeService(
+      this.db,
+      Math.random,
+      options.signatureShoeImageRoot,
+    );
     this.invitations = new DailyInvitationService(this);
     this.postseason = new PostseasonService(
       this.db,

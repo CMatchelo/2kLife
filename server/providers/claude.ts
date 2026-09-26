@@ -1,8 +1,8 @@
 import { interviewPrompt } from "../../src/domain/interviewPrompt.ts";
 import { interviewSchema } from "../../src/domain/interviews.ts";
 import Anthropic from "@anthropic-ai/sdk";
-import { access, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
-import { delimiter, join } from "node:path";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { join } from "node:path";
 import { tmpdir } from "node:os";
 import type { Provider } from "./shared.ts";
 import { TEST_PROMPT } from "./shared.ts";
@@ -24,38 +24,19 @@ import {
   contractMessagesPrompt,
   contractMessagesSchema,
 } from "../../src/domain/contractMessages.ts";
+import { resolveCliExecutable } from "./cli-executable.ts";
 
 export type RunClaude = (args: string[], cwd?: string) => Promise<string>;
 
-async function executable(): Promise<{ file: string; prefix: string[] }> {
-  if (process.platform !== "win32") return { file: "claude", prefix: [] };
-  // Windows .cmd shims require a shell. Prefer the native binary, fall back to the npm JS entry.
-  for (const candidate of [
+export const runClaude: RunClaude = async (args, cwd) => {
+  const command = await resolveCliExecutable(
     "claude.exe",
     "node_modules/@anthropic-ai/claude-code/cli.js",
-  ]) {
-    for (const directory of (process.env.PATH ?? "")
-      .split(delimiter)
-      .filter(Boolean)) {
-      const file = join(directory.replace(/^"|"$/g, ""), candidate);
-      try {
-        await access(file);
-        return candidate.endsWith(".js")
-          ? { file: process.execPath, prefix: [file] }
-          : { file, prefix: [] };
-      } catch {
-        /* Try the next PATH entry. */
-      }
-    }
-  }
-  throw Object.assign(new Error("CLI missing"), { code: "ENOENT" });
-}
-
-export const runClaude: RunClaude = async (args, cwd) => {
-  const command = await executable();
+  );
   const env = { ...process.env };
   // A present API key would route Claude Code to API billing; the CLI path is for the subscription.
   delete env.ANTHROPIC_API_KEY;
+  Object.assign(env, command.environment);
   return runProcess(command.file, [...command.prefix, ...args], {
     cwd,
     env,

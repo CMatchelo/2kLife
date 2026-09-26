@@ -1,8 +1,8 @@
 import { interviewPrompt } from "../../src/domain/interviewPrompt.ts";
 import { interviewSchema } from "../../src/domain/interviews.ts";
 import { runProcess } from "./process.ts";
-import { access, mkdtemp, rm, writeFile, readFile } from "node:fs/promises";
-import { delimiter, join } from "node:path";
+import { mkdtemp, rm, writeFile, readFile } from "node:fs/promises";
+import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { TEST_PROMPT } from "./shared.ts";
 import type { Provider } from "./shared.ts";
@@ -23,40 +23,20 @@ import {
   contractMessagesPrompt,
   contractMessagesSchema,
 } from "../../src/domain/contractMessages.ts";
+import { resolveCliExecutable } from "./cli-executable.ts";
 
 export type Run = (args: string[], cwd?: string) => Promise<string>;
-async function executable(): Promise<{ file: string; prefix: string[] }> {
-  // Windows .cmd shims require a shell. Run the official npm JS entry directly instead.
-  if (process.platform !== "win32") return { file: "codex", prefix: [] };
-  // Prefer directly executable CLI installations over npm package internals.
-  // A leftover npm package can exist even when its shim is absent or broken.
-  for (const candidate of [
+export const runCodex: Run = async (args, cwd) => {
+  const command = await resolveCliExecutable(
     "codex.exe",
     "node_modules/@openai/codex/bin/codex.js",
-  ]) {
-    for (const directory of (process.env.PATH ?? "")
-      .split(delimiter)
-      .filter(Boolean)) {
-      const file = join(directory.replace(/^"|"$/g, ""), candidate);
-      try {
-        await access(file);
-        return candidate.endsWith(".js")
-          ? { file: process.execPath, prefix: [file] }
-          : { file, prefix: [] };
-      } catch {
-        /* Try the next PATH entry. */
-      }
-    }
-  }
-  throw Object.assign(new Error("CLI missing"), { code: "ENOENT" });
-}
-export const runCodex: Run = async (args, cwd) => {
-  const command = await executable();
+  );
   // Never pass the Claude secret to a different provider's process.
   const env = { ...process.env };
   delete env.ANTHROPIC_API_KEY;
   delete env.CODEX_API_KEY;
   delete env.OPENAI_API_KEY;
+  Object.assign(env, command.environment);
   return runProcess(command.file, [...command.prefix, ...args], {
     cwd,
     env,
