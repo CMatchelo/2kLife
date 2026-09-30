@@ -16,11 +16,13 @@ export default function MatchEditor({
   career,
   onClose,
   onSaved,
+  onEdit,
 }: {
   game: Game;
   career: Career;
   onClose: () => void;
   onSaved: (career: Career, interviewSelected?: boolean) => void;
+  onEdit: () => void;
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
   const lock = useRef(false);
@@ -89,6 +91,7 @@ export default function MatchEditor({
           {teamName(career.teams, game.opponentId)}
         </p>
         <fieldset disabled={saving || extracting} className="space-y-4">
+          {/*
           Temporary shortcut for testing records and postgame interviews.
           <div className="flex flex-wrap gap-3">
             <button
@@ -282,7 +285,7 @@ export default function MatchEditor({
               Fill bad match (temporary)
             </button>
           </div>
-          
+          */}
           <label className="career-field">
             <span>Status</span>
             <select
@@ -539,6 +542,14 @@ export default function MatchEditor({
         <div className="flex gap-3">
           <button className="ai-primary" disabled={saving}>
             {saving ? "Saving…" : "Save match"}
+          </button>
+          <button
+            type="button"
+            className="ai-secondary"
+            disabled={saving}
+            onClick={onEdit}
+          >
+            Edit
           </button>
           <button
             type="button"

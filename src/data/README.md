@@ -7,11 +7,15 @@ from `../domain/sponsors.ts` for the validated, deeply frozen catalog, or use
 Types are defined in `../types/sponsor.ts` and exported from the types index.
 
 - Money is stored as safe integer **USD cents**. For example,
-  `fixedPaymentUsdCents: 3000000` means US$30,000. These are original base terms;
+  `fixedPaymentUsdCents: 5000000` means US$50,000. These are original base terms;
   no payout or renewal calculations are included.
-- Contract durations and required sponsor appearances are balanced independently.
-  Per-event payments are set so completing the minimum appearances keeps approximately
-  the same total event compensation; repeating fractions are rounded to the nearest cent.
+- Contract durations and required sponsor appearances are balanced independently. Base
+  compensation is divided approximately 40% guaranteed, 30% across contract matches,
+  and 30% across required appearances. Total base values are $75,000-$125,000 for entry,
+  $350,000-$650,000 for middle, and $1.5M-$3M for top-tier contracts.
+- Newly created offers receive a follower multiplier within their tier: 1.0x at the tier
+  minimum, rising linearly to 1.5x at the next tier threshold. Top-tier offers reach 1.5x
+  at 1,000,000 followers. Existing offers and signed contracts keep their stored terms.
 - Every percentage uses a fraction from 0 to 1: `0.2` means 20%, `0.85` means 85%.
   Four permanent milestones and one dynamic milestone each contribute `0.2` interest.
 - IDs are stable identifiers separate from display names. Keep an ID unchanged if

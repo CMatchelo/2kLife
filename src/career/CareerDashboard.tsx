@@ -238,6 +238,7 @@ export default function CareerDashboard({
       `${current.season.year.slice(0, 4)}-10`,
   );
   const [editing, setEditing] = useState<Game | null>(null);
+  const [editingFixture, setEditingFixture] = useState<Game | null>(null);
   const [adding, setAdding] = useState(false);
   const [interview, setInterview] = useState<{
     gameId: string;
@@ -674,7 +675,9 @@ export default function CareerDashboard({
               <CalendarSettings
                 career={current}
                 month={month}
-                disabled={dayLoading || calendarSaving || adding}
+                disabled={
+                  dayLoading || calendarSaving || adding || !!editingFixture
+                }
                 onSave={saveCalendar}
               />
             </section>
@@ -689,7 +692,9 @@ export default function CareerDashboard({
                 <h2 className="section-title">Season schedule</h2>
               </div>
               <div className="flex flex-wrap items-center gap-3">
-                {!adding && current.season.phase === "regularSeason" && (
+                {!adding &&
+                  !editingFixture &&
+                  current.season.phase === "regularSeason" && (
                   <button
                     type="button"
                     className="ai-primary"
@@ -708,6 +713,7 @@ export default function CareerDashboard({
                     !!editing ||
                     !!interviewGame ||
                     adding ||
+                    !!editingFixture ||
                     !!invitationGroup ||
                     !!contractGeneration ||
                     !!contractOffer ||
@@ -732,32 +738,42 @@ export default function CareerDashboard({
                 {postseasonNextDayMessage}
               </p>
             )}
-            {adding && (
+            {(adding || editingFixture) && (
               <div className="mb-5">
                 <p className="mb-3 text-sm text-muted">
-                  Add a fixture you missed during setup. It is saved to this
-                  career right away.
+                  {editingFixture
+                    ? "Update this fixture's date, teams, location, category, or regular-season status."
+                    : "Add a fixture you missed during setup. It is saved to this career right away."}
                 </p>
                 <GameEditor
-                  initial={{
-                    date: `${month}-01`,
-                    teamId: p.currentTeamId,
-                    location: "home",
-                    category: "regularSeason",
-                    countsTowardRegularSeason: true,
-                  }}
+                  key={editingFixture?.id ?? "add-game"}
+                  initial={
+                    editingFixture ?? {
+                      date: `${month}-01`,
+                      teamId: p.currentTeamId,
+                      location: "home",
+                      category: "regularSeason",
+                      countsTowardRegularSeason: true,
+                    }
+                  }
                   teams={current.teams}
                   year={current.season.year}
-                  onCancel={() => setAdding(false)}
+                  onCancel={() => {
+                    setAdding(false);
+                    setEditingFixture(null);
+                  }}
                   onSave={async (fields) => {
                     try {
                       const updated = await api<Career>(
-                        `careers/${current.id}/games`,
+                        editingFixture
+                          ? `careers/${current.id}/games/${editingFixture.id}/schedule`
+                          : `careers/${current.id}/games`,
                         fields,
                       );
                       setCurrent(updated);
                       setMonth(fields.date.slice(0, 7));
                       setAdding(false);
+                      setEditingFixture(null);
                       return null;
                     } catch (error) {
                       return error instanceof Error
@@ -777,7 +793,10 @@ export default function CareerDashboard({
               onMonth={setMonth}
               sponsorContracts={sponsorContracts}
               onEdit={
-                dayLoading || calendarSaving || interviewGame
+                dayLoading ||
+                calendarSaving ||
+                interviewGame ||
+                editingFixture
                   ? undefined
                   : setEditing
               }
@@ -811,6 +830,12 @@ export default function CareerDashboard({
           game={editing}
           career={current}
           onClose={() => setEditing(null)}
+          onEdit={() => {
+            setEditingFixture(editing);
+            setAdding(false);
+            setMonth(editing.date.slice(0, 7));
+            setEditing(null);
+          }}
           onSaved={(updated, selected) => {
             const gameId = editing.id;
             setCurrent(updated);

@@ -43,6 +43,7 @@ import {
   validateCareer,
   validateNewSeasonDraft,
   seasonMonths,
+  NBA_REGULAR_SEASON_GAME_LIMIT,
 } from "../src/domain/career.ts";
 
 export class ValidationError extends Error {}
@@ -1105,12 +1106,11 @@ export class CareerStore {
       throw new ValidationError("This season already has 500 games.");
     if (
       f.countsTowardRegularSeason &&
-      career.season.salaryTerms &&
       countedRegularSeasonGames(career.season.games) >=
-        career.season.salaryTerms.regularSeasonGameCount
+        NBA_REGULAR_SEASON_GAME_LIMIT
     )
       throw new ValidationError(
-        `This calendar already has the configured maximum of ${career.season.salaryTerms.regularSeasonGameCount} counted regular-season games.`,
+        `This calendar already has the NBA maximum of ${NBA_REGULAR_SEASON_GAME_LIMIT} counted regular-season games.`,
       );
     if (
       career.season.games.some(
@@ -1271,6 +1271,74 @@ export class CareerStore {
       throw error;
     }
     return this.get(careerId);
+  }
+  editGameSchedule(
+    careerId: string,
+    gameId: string,
+    raw: unknown,
+  ): Career | null {
+    const career = this.get(careerId);
+    const game = career?.season.games.find((item) => item.id === gameId);
+    if (!career || !game) return null;
+    if (!career.hasActiveSeason)
+      throw new ValidationError("Completed-season games are read-only.");
+    if (!raw || typeof raw !== "object")
+      throw new ValidationError("Invalid game.");
+    const fields = raw as ScheduleFields;
+    if (
+      typeof fields.date !== "string" ||
+      typeof fields.teamId !== "string" ||
+      typeof fields.opponentId !== "string" ||
+      (fields.location !== "home" && fields.location !== "away") ||
+      typeof fields.category !== "string" ||
+      typeof fields.countsTowardRegularSeason !== "boolean"
+    )
+      throw new ValidationError("Incomplete game fields.");
+    const issues = gameWarnings(fields, career.teams, career.season.year);
+    if (Object.keys(issues).length)
+      throw new ValidationError(Object.values(issues).join(" "));
+    if (
+      fields.countsTowardRegularSeason &&
+      !game.countsTowardRegularSeason &&
+      countedRegularSeasonGames(career.season.games) >=
+        NBA_REGULAR_SEASON_GAME_LIMIT
+    )
+      throw new ValidationError(
+        `This calendar already has the NBA maximum of ${NBA_REGULAR_SEASON_GAME_LIMIT} counted regular-season games.`,
+      );
+    if (
+      career.season.games.some(
+        (item) =>
+          item.id !== gameId &&
+          item.date === fields.date &&
+          item.teamId === fields.teamId,
+      )
+    )
+      throw new ValidationError(
+        "A game already exists for that team on that date. Edit that fixture or pick another date.",
+      );
+    const fixture = scheduledGame(fields, game.id);
+    const updated = {
+      ...game,
+      date: fixture.date,
+      teamId: fixture.teamId,
+      opponentId: fixture.opponentId,
+      location: fixture.location,
+      category: fixture.category,
+      countsTowardRegularSeason: fixture.countsTowardRegularSeason,
+    };
+    this.db
+      .prepare("UPDATE games SET date=?, team_id=?, data=? WHERE id=? AND season_id=?")
+      .run(
+        updated.date,
+        updated.teamId,
+        JSON.stringify(updated),
+        gameId,
+        career.season.id,
+      );
+    const updatedCareer = this.get(careerId)!;
+    this.sponsors.reconcileCalendar(updatedCareer);
+    return updatedCareer;
   }
   changeCurrentTeam(careerId: string, raw: unknown): Career | null {
     const career = this.get(careerId);

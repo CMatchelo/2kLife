@@ -800,6 +800,20 @@ export function connectionServer(
       const gameMatch = req.url?.match(
         /^\/api\/careers\/([\w-]+)\/games\/([\w-]+)$/,
       );
+      const gameScheduleMatch = req.url?.match(
+        /^\/api\/careers\/([\w-]+)\/games\/([\w-]+)\/schedule$/,
+      );
+      if (careers && gameScheduleMatch && req.method === "POST") {
+        const career = careers.editGameSchedule(
+          gameScheduleMatch[1],
+          gameScheduleMatch[2],
+          await readBody(req, 64 * 1024),
+        );
+        return send(
+          career ? 200 : 404,
+          career ?? { message: "Match not found." },
+        );
+      }
       if (careers && gameMatch && req.method === "POST") {
         const career = careers.updateGame(
           gameMatch[1],

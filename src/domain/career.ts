@@ -5,6 +5,8 @@ import type { BoxScore, StatsSummary } from "../types/stats.ts";
 import { calendarDate } from "./calendarDate.ts";
 import type { SeasonSalaryTerms } from "../types/season.ts";
 
+export const NBA_REGULAR_SEASON_GAME_LIMIT = 82;
+
 export function salaryTermsErrors(
   terms: Partial<SeasonSalaryTerms> | null | undefined,
 ): string[] {
@@ -27,7 +29,7 @@ export function salaryTermsErrors(
     !terms ||
     !Number.isInteger(terms.regularSeasonGameCount) ||
     Number(terms.regularSeasonGameCount) < 1 ||
-    Number(terms.regularSeasonGameCount) > 82
+    Number(terms.regularSeasonGameCount) > NBA_REGULAR_SEASON_GAME_LIMIT
   )
     errors.push(
       "Regular-season game count must be an integer from 1 through 82.",

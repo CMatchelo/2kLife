@@ -194,8 +194,6 @@ export default function SponsorApproachModal({
                     {offer.renewal && (
                       <p className="mt-2 rounded-md border border-sky-500/50 bg-sky-950/30 px-3 py-2 text-sm font-bold text-sky-200">
                         Includes a {Math.round(offer.renewal.bonusRate * 100)}%
-                        renewal bonus. Previous contract:{" "}
-                        {offer.renewal.previousContractId}
                       </p>
                     )}
                     <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-3 text-sm sm:grid-cols-3">

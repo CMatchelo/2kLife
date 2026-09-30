@@ -10,6 +10,7 @@ import {
 import type { Career } from "../src/types/career.ts";
 import type { Game } from "../src/types/game.ts";
 import type {
+  BaseContractTerms,
   CommercialCategory,
   PermanentMilestone,
   SponsorBrand,
@@ -45,6 +46,39 @@ const brandIds = new Set(sponsorCatalog.brands.map((brand) => brand.id));
 const categories = new Set(
   sponsorCatalog.brands.map((brand) => brand.category),
 );
+
+const followerOfferCeilings = {
+  entry: sponsorCatalog.tiers.middle.minimumFollowers,
+  middle: sponsorCatalog.tiers.top.minimumFollowers,
+  top: 1_000_000,
+} as const;
+
+/**
+ * Sponsor value grows inside a tier instead of becoming static as soon as the
+ * player crosses its minimum follower threshold. The multiplier is 1.0x at
+ * the tier minimum and is capped at 1.5x at the next tier (1M for top tier).
+ */
+export function sponsorOfferTerms(
+  brand: SponsorBrand,
+  followers: number,
+): BaseContractTerms {
+  const minimum = sponsorCatalog.tiers[brand.tier].minimumFollowers;
+  const ceiling = followerOfferCeilings[brand.tier];
+  const progress = Math.max(
+    0,
+    Math.min(1, (followers - minimum) / (ceiling - minimum)),
+  );
+  const multiplierBasisPoints = 10_000 + Math.round(progress * 5_000);
+  const increase = (value: number) =>
+    Math.floor((value * multiplierBasisPoints) / 10_000);
+
+  return {
+    ...brand.baseContract,
+    fixedPaymentUsdCents: increase(brand.baseContract.fixedPaymentUsdCents),
+    perMatchUsdCents: increase(brand.baseContract.perMatchUsdCents),
+    perEventUsdCents: increase(brand.baseContract.perEventUsdCents),
+  };
+}
 
 function validateInputs(inputs: SponsorEligibilityInputs) {
   for (const category of inputs.occupiedCategories ?? [])
@@ -1496,7 +1530,10 @@ export class SponsorService {
           : []),
       ];
       const terms = {
-        ...brand.baseContract,
+        ...sponsorOfferTerms(
+          brand,
+          career.profile.socialMedia.currentFollowers,
+        ),
         royaltyRate: brand.kind === "footwear" ? brand.royaltyRate : null,
         customShoeEntitlement:
           brand.kind === "footwear" ? brand.customShoeEntitlement : null,
@@ -2203,7 +2240,10 @@ export class SponsorService {
     const sequence = Number(contract.renewal_sequence) + 1;
     const bonusPercent = Math.min(sequence * 10, 100);
     const originalTerms = {
-      ...brand.baseContract,
+      ...sponsorOfferTerms(
+        brand,
+        career.profile.socialMedia.currentFollowers,
+      ),
       royaltyRate: brand.kind === "footwear" ? brand.royaltyRate : null,
       customShoeEntitlement:
         brand.kind === "footwear" ? brand.customShoeEntitlement : null,

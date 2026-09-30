@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { CareerStore } from "./careers.ts";
-import { remainingRegularSeasonGames } from "./sponsors.ts";
+import { remainingRegularSeasonGames, sponsorOfferTerms } from "./sponsors.ts";
 import { scheduledGame } from "../src/domain/career.ts";
 import { sponsorCatalog } from "../src/domain/sponsors.ts";
 import type { Career, CareerDraft } from "../src/types/career.ts";
@@ -179,6 +179,35 @@ test("remaining regular-season games include the equal boundary and exclude non-
       season: { ...career.season, games: qualifying.slice(0, 11) },
     }),
     11,
+  );
+});
+
+test("new sponsor offers scale from 1.0x to a capped 1.5x within each follower tier", () => {
+  const entry = sponsorCatalog.brands.find((item) => item.id === "qiaodan")!;
+  assert.deepEqual(sponsorOfferTerms(entry, 1_000), entry.baseContract);
+  assert.equal(
+    sponsorOfferTerms(entry, 50_000).fixedPaymentUsdCents,
+    Math.floor(entry.baseContract.fixedPaymentUsdCents * 1.5),
+  );
+  assert.deepEqual(
+    sponsorOfferTerms(entry, 5_000_000),
+    sponsorOfferTerms(entry, 50_000),
+  );
+
+  const middle = sponsorCatalog.brands.find(
+    (item) => item.tier === "middle",
+  )!;
+  assert.deepEqual(sponsorOfferTerms(middle, 50_000), middle.baseContract);
+  assert.equal(
+    sponsorOfferTerms(middle, 200_000).perMatchUsdCents,
+    Math.floor(middle.baseContract.perMatchUsdCents * 1.5),
+  );
+
+  const top = sponsorCatalog.brands.find((item) => item.tier === "top")!;
+  assert.deepEqual(sponsorOfferTerms(top, 200_000), top.baseContract);
+  assert.equal(
+    sponsorOfferTerms(top, 1_000_000).perEventUsdCents,
+    Math.floor(top.baseContract.perEventUsdCents * 1.5),
   );
 });
 

@@ -14,6 +14,7 @@ import {
   validateCareer,
   weightInKg,
 } from "../src/domain/career.ts";
+import { nextCalendarDate } from "../src/domain/calendarDate.ts";
 import { extractionPrompt, normalizeImport } from "../src/domain/import.ts";
 import { parseImportRequest } from "./import-request.ts";
 import { codexProvider } from "./providers/codex.ts";
@@ -277,6 +278,70 @@ test("a failed SQLite transaction leaves no partial career, player, or season", 
         store.db.prepare(`SELECT count(*) as n FROM ${table}`).get()!.n,
         0,
       );
+  } finally {
+    store.close();
+  }
+});
+test("an 80-payment season can add two later NBA Cup or regular-season games", () => {
+  const store = new CareerStore(":memory:");
+  try {
+    const input = draft();
+    input.season.salaryTerms!.regularSeasonGameCount = 80;
+    input.games = [];
+    let date = "2026-10-01";
+    for (let index = 0; index < 80; index++) {
+      input.games.push(
+        scheduledGame({
+          date,
+          teamId: "LAL",
+          opponentId: "BOS",
+          location: index % 2 ? "away" : "home",
+          category: "regularSeason",
+          countsTowardRegularSeason: true,
+        }),
+      );
+      date = nextCalendarDate(date);
+    }
+    const career = store.create(input);
+    const add = (gameDate: string) =>
+      store.addGame(career.id, {
+        date: gameDate,
+        teamId: "LAL",
+        opponentId: "BOS",
+        location: "home",
+        category: "nbaCup",
+        countsTowardRegularSeason: true,
+      });
+
+    assert.equal(add(date)?.season.games.length, 81);
+    date = nextCalendarDate(date);
+    assert.equal(add(date)?.season.games.length, 82);
+    date = nextCalendarDate(date);
+    assert.throws(() => add(date), /NBA maximum of 82/);
+  } finally {
+    store.close();
+  }
+});
+test("editing fixture information updates the existing game without replacing match data", () => {
+  const store = new CareerStore(":memory:");
+  try {
+    const career = store.create(draft());
+    const original = career.season.games[0];
+    const updated = store.editGameSchedule(career.id, original.id, {
+      date: "2026-10-16",
+      teamId: "LAL",
+      opponentId: "BOS",
+      location: "home",
+      category: "nbaCup",
+      countsTowardRegularSeason: true,
+    })!;
+
+    assert.equal(updated.season.games.length, 1);
+    assert.equal(updated.season.games[0].id, original.id);
+    assert.equal(updated.season.games[0].date, "2026-10-16");
+    assert.equal(updated.season.games[0].location, "home");
+    assert.equal(updated.season.games[0].category, "nbaCup");
+    assert.equal(updated.season.games[0].status, original.status);
   } finally {
     store.close();
   }
