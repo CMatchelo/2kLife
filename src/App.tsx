@@ -13,6 +13,7 @@ const careerViews: { value: CareerView; label: string }[] = [
   { value: "info", label: "Player info" },
   { value: "sponsors", label: "Sponsors" },
   { value: "finances", label: "Finances" },
+  { value: "lifestyle", label: "Lifestyle" },
   { value: "config", label: "Settings" },
 ];
 
@@ -50,6 +51,12 @@ function CareerViewIcon({ view }: { view: CareerView }) {
       <svg {...shared}>
         <circle cx="12" cy="12" r="9" />
         <path d="M15.5 8.5c-.8-.7-1.8-1-3.1-1-1.7 0-2.9.8-2.9 2s1.1 1.8 2.8 2.1c1.8.3 3.2.8 3.2 2.4s-1.4 2.5-3.3 2.5c-1.5 0-2.8-.5-3.7-1.4M12 5.5v13" />
+      </svg>
+    );
+  if (view === "lifestyle")
+    return (
+      <svg {...shared}>
+        <path d="M4 11.5 12 5l8 6.5M6.5 10v9h11v-9M10 19v-5h4v5" />
       </svg>
     );
   return (

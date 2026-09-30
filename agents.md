@@ -58,7 +58,7 @@ Domain logic in `src/domain/*.ts` is the single source of truth, imported direct
   `careers/:id/games/:gameId/interview/{generate,answer,skip}`, `interviews/abandon`,
   `careers/:id/basketball-network*`, `careers/:id/sponsors*`, `careers/:id/sponsor-offers*`,
   `careers/:id/daily-invitations*`, `careers/:id/postseason*`, `careers/:id/signature-shoes*`,
-  `careers/:id/contract-offers*`,
+  `careers/:id/contract-offers*`, `careers/:id/lifestyle*`,
   `ai/status`, `ai/import`, `ai/box-score`, `ai/:provider/{select,test}`.
 
 ### Storage pattern (important — applies DB-wide)
@@ -162,6 +162,16 @@ attended). Image upload validated by magic bytes, stored under
 Per-game sales = base units (by tier) + follower-based units + launch-boost (first 3 games
 post-launch) + random variation + performance adjustment (vs season average); split ~50/50 (or
 60/40 favoring established shoe) if 2 shoes active. Royalties recorded as `financial_transactions`.
+
+### `server/lifestyle.ts` — `LifestyleService`
+
+Lifestyle financial overview and collectible ownership. Additive tables store assets,
+one showcase slot per collectible category, future recurring commitments, and idempotent
+mutations. The always-available catalog in `src/domain/lifestyleCatalog.ts` contains 36 cars,
+jewelry pieces, artworks, and watches across team/star/fan styles and entry/middle/premium tiers.
+Purchases and sales use the shared append-only ledger; initial depreciation is a durable random
+8-12%, followed by 2% per completed calendar month to a 50% floor. Only showcased items apply
+their +1/+2/+3 identity modifier, kept separate from permanent interview/event identity actions.
 
 ### `server/postseason.ts` — `PostseasonService`
 
@@ -283,6 +293,7 @@ Framework-free core logic, imported by server (and reusable client-side).
 | `progression.ts`        | `AdvanceDayRequest`, `AdvanceDayResult` (discriminated union on `kind`), `AdvanceDayOutcome`                                                                                                                                                   |
 | `connection.ts`         | `ProviderId` ("codex"                                                                                                                                                                                                                          | "claude"), `ProviderStatus`, `ConnectionSnapshot` |
 | `contract.ts`           | Offer/group/status/terms/calculation types, AI message context, decision requests, future and activated contract records                                                                                                                       |
+| `lifestyle.ts`          | Lifestyle catalog, assets, commitments, financial overview, affordability, and mutation types                                                                                                                                                 |
 
 ## 7. Frontend / UI (`src/`)
 
@@ -299,7 +310,7 @@ Framework-free core logic, imported by server (and reusable client-side).
   dispatches on `AdvanceDayResult.kind` to the right modal (match editor / interview /
   standings / postseason schedule / sponsor offers / sponsor settlements / daily invitations).
   Also `saveCalendar()`, `prepareInterview()`, `loadSponsorMessages()`. Renders `SeasonProgress`,
-  `PlayerInfo`+`PlayerRecords`+`PersonalLife`, `Sponsors`, `SponsorFinances`, settings tabs, plus
+  `PlayerInfo`+`PlayerRecords`+`PersonalLife`, `Sponsors`, `SponsorFinances`, `LifestyleDashboard`, settings tabs, plus
   `ScheduleView`, `PostseasonProgress`, `CalendarSettings`, and modals: `MatchEditor`,
   `FinalStandingsModal`, `PostseasonScheduleModal`, `InterviewModal`, `SponsorApproachModal`,
   `SponsorSettlementModal`/`SponsorMessageLoading` (local to this file),
@@ -327,6 +338,8 @@ Framework-free core logic, imported by server (and reusable client-side).
 - `career/Sponsors.tsx`, `SponsorFinances.tsx`, `SponsorApproachModal.tsx`,
   `SignatureShoesBoard.tsx`, `SignatureShoeLaunchModal.tsx`: sponsor/contract UI, ledger view,
   shoe launch form.
+- `career/LifestyleDashboard.tsx`: Lifestyle overview, owned/showcased collectibles,
+  always-available marketplace, purchase/sale history, and transactional item actions.
 - `career/DailyInvitationModal.tsx` (+ `DailyEventResultModal`): off-day invitation
   selection/resolution.
 - `career/InterviewModal.tsx`: post-game Q&A UI ("press conference" theme, `pressBackground.jpg`,

@@ -28,7 +28,16 @@ export default function PlayerInfo({
   const number = new Intl.NumberFormat("en-US");
   const latestFollowerChange = player.socialMedia.history.at(-1);
   const latestFollowers = latestFollowerChange?.change ?? 0;
-  const identity = player.identity.careerScores;
+  const lifestyleIdentity = player.identity.lifestyleBonuses ?? {
+    star: 0,
+    team: 0,
+    fan: 0,
+  };
+  const identity = {
+    star: player.identity.careerScores.star + lifestyleIdentity.star,
+    team: player.identity.careerScores.team + lifestyleIdentity.team,
+    fan: player.identity.careerScores.fan + lifestyleIdentity.fan,
+  };
   const identityTotal = identity.star + identity.team + identity.fan;
   const identityPercentage = (score: number) =>
     identityTotal ? `${((score / identityTotal) * 100).toFixed(1)}%` : "0.0%";

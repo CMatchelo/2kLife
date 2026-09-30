@@ -20,6 +20,7 @@ import { randomUUID } from "node:crypto";
 import { migratePostseason, PostseasonService } from "./postseason.ts";
 import { SalaryService } from "./salary.ts";
 import { ContractService } from "./contracts.ts";
+import { LifestyleService } from "./lifestyle.ts";
 import type {
   Career,
   CareerDraft,
@@ -107,10 +108,8 @@ export class CareerStore {
   postseason: PostseasonService;
   salary: SalaryService;
   contracts: ContractService;
-  constructor(
-    file: string,
-    options: { signatureShoeImageRoot?: string } = {},
-  ) {
+  lifestyle: LifestyleService;
+  constructor(file: string, options: { signatureShoeImageRoot?: string } = {}) {
     this.db = new DatabaseSync(file);
     this.db.exec(`PRAGMA foreign_keys = ON; PRAGMA journal_mode = WAL;
       CREATE TABLE IF NOT EXISTS careers (id TEXT PRIMARY KEY, request_id TEXT UNIQUE NOT NULL, save_name TEXT NOT NULL, created_at TEXT NOT NULL, teams TEXT NOT NULL);
@@ -143,6 +142,7 @@ export class CareerStore {
     this.basketballNetwork = new BasketballNetworkService(this.db);
     this.sponsors = new SponsorService(this.db);
     this.salary = new SalaryService(this.db);
+    this.lifestyle = new LifestyleService(this.db);
     this.contracts = new ContractService(
       this.db,
       (id) => this.get(id),
@@ -434,6 +434,17 @@ export class CareerStore {
         "SELECT p.current_date AS saved_date FROM career_progression p WHERE p.career_id = ?",
       )
       .get(id);
+    const lifestyleBonuses = this.lifestyle?.identityBonuses(id) ?? {
+      star: 0,
+      team: 0,
+      fan: 0,
+    };
+    profile.identity.lifestyleBonuses = lifestyleBonuses;
+    profile.identity.effectiveCareerScores = {
+      star: profile.identity.careerScores.star + lifestyleBonuses.star,
+      team: profile.identity.careerScores.team + lifestyleBonuses.team,
+      fan: profile.identity.careerScores.fan + lifestyleBonuses.fan,
+    };
     return {
       id,
       currentDate: progression?.saved_date
@@ -1328,7 +1339,9 @@ export class CareerStore {
       countsTowardRegularSeason: fixture.countsTowardRegularSeason,
     };
     this.db
-      .prepare("UPDATE games SET date=?, team_id=?, data=? WHERE id=? AND season_id=?")
+      .prepare(
+        "UPDATE games SET date=?, team_id=?, data=? WHERE id=? AND season_id=?",
+      )
       .run(
         updated.date,
         updated.teamId,
@@ -1431,6 +1444,10 @@ export class CareerStore {
         )
         .run(id);
       for (const table of [
+        "lifestyle_mutations",
+        "lifestyle_commitments",
+        "lifestyle_showcases",
+        "lifestyle_assets",
         "nba_contract_mutations",
         "nba_future_contracts",
         "nba_contract_activations",

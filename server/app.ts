@@ -36,6 +36,8 @@ import type {
 } from "../src/types/season-review.ts";
 import type { ContractDecisionRequest } from "../src/types/contract.ts";
 import { ContractError } from "./contracts.ts";
+import { LifestyleError } from "./lifestyle.ts";
+import type { LifestyleMutationRequest } from "../src/types/lifestyle.ts";
 
 async function readBody(req: IncomingMessage, limit: number): Promise<unknown> {
   if (req.headers["content-type"] !== "application/json")
@@ -110,8 +112,10 @@ export function connectionServer(
         message: "Request denied. Open 2kLife on its local address.",
       });
     if (staticRequest)
-      return serveStaticFile(req, res, options.staticRoot!) ||
-        send(404, { message: "Application file not found." });
+      return (
+        serveStaticFile(req, res, options.staticRoot!) ||
+        send(404, { message: "Application file not found." })
+      );
     const session =
       typeof req.headers["x-2klife-session"] === "string" &&
       /^[\w-]{20,80}$/.test(req.headers["x-2klife-session"])
@@ -814,6 +818,64 @@ export function connectionServer(
           career ?? { message: "Match not found." },
         );
       }
+      const lifestyleMatch = req.url?.match(
+        /^\/api\/careers\/([\w-]+)\/lifestyle$/,
+      );
+      if (careers && lifestyleMatch && req.method === "GET") {
+        const career = careers.get(lifestyleMatch[1]);
+        return send(
+          career ? 200 : 404,
+          career
+            ? careers.lifestyle.overview(career)
+            : { message: "Career not found." },
+        );
+      }
+      const lifestylePurchase = req.url?.match(
+        /^\/api\/careers\/([\w-]+)\/lifestyle\/items\/([\w-]+)\/purchase$/,
+      );
+      const lifestyleAssetAction = req.url?.match(
+        /^\/api\/careers\/([\w-]+)\/lifestyle\/assets\/([\w-]+)\/(showcase|unshowcase|sell)$/,
+      );
+      if (
+        careers &&
+        req.method === "POST" &&
+        (lifestylePurchase || lifestyleAssetAction)
+      ) {
+        const careerId = (lifestylePurchase ?? lifestyleAssetAction)![1];
+        const career = careers.get(careerId);
+        if (!career) return send(404, { message: "Career not found." });
+        const body = (await readBody(
+          req,
+          4096,
+        )) as LifestyleMutationRequest | null;
+        if (
+          !body ||
+          typeof body.requestId !== "string" ||
+          !/^[\w-]{20,80}$/.test(body.requestId)
+        )
+          throw new LifestyleError("Invalid Lifestyle request. Retry.");
+        if (lifestylePurchase)
+          return send(
+            200,
+            careers.lifestyle.purchase(
+              career,
+              lifestylePurchase[2],
+              body.requestId,
+            ),
+          );
+        const [, , assetId, action] = lifestyleAssetAction!;
+        return send(
+          200,
+          action === "sell"
+            ? careers.lifestyle.sell(career, assetId, body.requestId)
+            : careers.lifestyle.showcase(
+                career,
+                assetId,
+                body.requestId,
+                action === "showcase",
+              ),
+        );
+      }
       if (careers && gameMatch && req.method === "POST") {
         const career = careers.updateGame(
           gameMatch[1],
@@ -1007,6 +1069,8 @@ export function connectionServer(
       if (error instanceof PostseasonError)
         return send(error.status, { message: error.message });
       if (error instanceof ContractError)
+        return send(error.status, { message: error.message });
+      if (error instanceof LifestyleError)
         return send(error.status, { message: error.message });
       if (
         req.url?.match(

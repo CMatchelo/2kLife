@@ -18,6 +18,7 @@ import { teamName } from "../domain/teams";
 import AIConnection from "../AIConnection";
 import Sponsors from "./Sponsors";
 import SponsorFinances from "./SponsorFinances";
+import LifestyleDashboard from "./LifestyleDashboard";
 import SponsorApproachModal from "./SponsorApproachModal";
 import type {
   SponsorActiveContract,
@@ -217,6 +218,7 @@ export type CareerView =
   | "info"
   | "sponsors"
   | "finances"
+  | "lifestyle"
   | "config";
 
 export default function CareerDashboard({
@@ -617,6 +619,14 @@ export default function CareerDashboard({
         <Sponsors career={current} />
       ) : view === "finances" ? (
         <SponsorFinances career={current} />
+      ) : view === "lifestyle" ? (
+        <LifestyleDashboard
+          career={current}
+          onCareerChange={(updated) => {
+            setCurrent(updated);
+            onCareerChange?.(updated);
+          }}
+        />
       ) : (
         <div className="space-y-6">
           <section className="career-card dashboard-card">
@@ -695,15 +705,15 @@ export default function CareerDashboard({
                 {!adding &&
                   !editingFixture &&
                   current.season.phase === "regularSeason" && (
-                  <button
-                    type="button"
-                    className="ai-primary"
-                    disabled={dayLoading || calendarSaving}
-                    onClick={() => setAdding(true)}
-                  >
-                    Add game
-                  </button>
-                )}
+                    <button
+                      type="button"
+                      className="ai-primary"
+                      disabled={dayLoading || calendarSaving}
+                      onClick={() => setAdding(true)}
+                    >
+                      Add game
+                    </button>
+                  )}
                 <button
                   type="button"
                   className="ai-primary"
@@ -793,10 +803,7 @@ export default function CareerDashboard({
               onMonth={setMonth}
               sponsorContracts={sponsorContracts}
               onEdit={
-                dayLoading ||
-                calendarSaving ||
-                interviewGame ||
-                editingFixture
+                dayLoading || calendarSaving || interviewGame || editingFixture
                   ? undefined
                   : setEditing
               }

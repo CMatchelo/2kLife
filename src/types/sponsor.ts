@@ -234,14 +234,18 @@ export type FinancialTransactionReason =
   | "contract_sign"
   | "contract_expire"
   | "royalties"
-  | "event_expense";
+  | "event_expense"
+  | "lifestyle_purchase"
+  | "lifestyle_sale"
+  | "property_maintenance"
+  | "service_payment";
 export type FinancialTransaction = {
   id: string;
   amountUsdCents: number;
   currency: "USD";
   inGameDate: string;
   recordedAt: string;
-  originType: "brand" | "team" | "tax" | "salary" | "charity";
+  originType: "brand" | "team" | "tax" | "salary" | "charity" | "lifestyle";
   originReference: string;
   reason: FinancialTransactionReason;
   brandId: string | null;

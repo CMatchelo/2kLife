@@ -70,6 +70,21 @@ export type {
 } from "./sponsor.ts";
 export type { MyProfile, Position } from "./profile";
 export type {
+  LifestyleAssetCategory,
+  LifestyleAssetStatus,
+  LifestyleItemTier,
+  LifestyleCollectibleCategory,
+  LifestyleCatalogItem,
+  LifestyleAsset,
+  LifestyleCommitmentKind,
+  LifestyleCommitmentStatus,
+  LifestyleCommitment,
+  LifestyleFinancialOverview,
+  LifestyleOverview,
+  PurchaseAffordability,
+  LifestyleMutationRequest,
+} from "./lifestyle";
+export type {
   SignatureShoe,
   SignatureShoeGameSales,
   SignatureShoeLaunchMutation,

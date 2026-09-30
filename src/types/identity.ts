@@ -9,6 +9,8 @@ export type IdentityScores = {
 export type PlayerIdentity = {
   careerScores: IdentityScores; // Calculated from actions
   recentScores: IdentityScores; // Calculated from recent actions
+  lifestyleBonuses?: IdentityScores; // Active ownership modifiers, not permanent actions
+  effectiveCareerScores?: IdentityScores; // careerScores + active modifiers
   actions: IdentityAction[];
 };
 

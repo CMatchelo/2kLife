@@ -338,7 +338,17 @@ function eligibilityReasons(
   const required = sponsorCatalog.tiers[brand.tier].minimumFollowers;
   if (followers < required)
     reasons.push({ code: "followers", required, actual: followers });
-  const scores = career.profile.identity.careerScores;
+  const baseScores = career.profile.identity.careerScores;
+  const lifestyleScores = career.profile.identity.lifestyleBonuses ?? {
+    star: 0,
+    team: 0,
+    fan: 0,
+  };
+  const scores = {
+    star: baseScores.star + lifestyleScores.star,
+    team: baseScores.team + lifestyleScores.team,
+    fan: baseScores.fan + lifestyleScores.fan,
+  };
   const highest = Math.max(scores.star, scores.team, scores.fan);
   if (highest === 0) reasons.push({ code: "identity_unestablished" });
   else {
@@ -2240,10 +2250,7 @@ export class SponsorService {
     const sequence = Number(contract.renewal_sequence) + 1;
     const bonusPercent = Math.min(sequence * 10, 100);
     const originalTerms = {
-      ...sponsorOfferTerms(
-        brand,
-        career.profile.socialMedia.currentFollowers,
-      ),
+      ...sponsorOfferTerms(brand, career.profile.socialMedia.currentFollowers),
       royaltyRate: brand.kind === "footwear" ? brand.royaltyRate : null,
       customShoeEntitlement:
         brand.kind === "footwear" ? brand.customShoeEntitlement : null,
