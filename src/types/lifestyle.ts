@@ -10,6 +10,10 @@ export type LifestyleAssetCategory =
 
 export type LifestyleAssetStatus = "owned" | "sold";
 export type LifestyleItemTier = "entry" | "middle" | "premium";
+export type LifestylePropertyType =
+  | "downtown_apartment"
+  | "suburban_home"
+  | "luxury_estate";
 export type LifestyleCollectibleCategory = Exclude<
   LifestyleAssetCategory,
   "property"
@@ -25,6 +29,26 @@ export type LifestyleCatalogItem = {
   identityBonus: 1 | 2 | 3;
   careerConnections: string[];
   ownedCount: number;
+};
+
+export type LifestylePropertyCatalogItem = {
+  id: string;
+  name: string;
+  propertyType: LifestylePropertyType;
+  featureName: string;
+  identityStyle: IdentityType;
+  priceUsdCents: number;
+  identityBonus: 1 | 2 | 3;
+  affinityBonus: 1 | 2 | 3;
+};
+
+export type LifestylePropertyMarketCity = {
+  cityId: string;
+  cityName: string;
+  teams: { teamId: string; teamName: string }[];
+  properties: (LifestylePropertyCatalogItem & {
+    unavailableReason: string | null;
+  })[];
 };
 
 export type LifestyleAsset = {
@@ -45,6 +69,16 @@ export type LifestyleAsset = {
   totalDepreciationPercentage: number;
   showcased: boolean;
   details: Record<string, unknown>;
+  property: {
+    cityId: string;
+    cityName: string;
+    propertyType: LifestylePropertyType;
+    featureName: string;
+    associatedTeamId: string;
+    identityBonus: number;
+    affinityBonus: number;
+    maintenanceCostUsdCents: number;
+  } | null;
 };
 
 export type LifestyleCommitmentKind = "property_maintenance" | "service";
@@ -75,12 +109,17 @@ export type LifestyleOverview = {
   finances: LifestyleFinancialOverview;
   identityBonuses: IdentityScores;
   marketplace: LifestyleCatalogItem[];
+  propertyMarketplace: LifestylePropertyMarketCity[];
   ownedAssets: LifestyleAsset[];
   activeCommitments: LifestyleCommitment[];
   history: FinancialTransaction[];
 };
 
 export type LifestyleMutationRequest = { requestId: string };
+export type LifestylePropertyPurchaseRequest = LifestyleMutationRequest & {
+  cityId: string;
+  associatedTeamId: string;
+};
 
 export type PurchaseAffordability = {
   affordable: boolean;

@@ -144,8 +144,13 @@ function playerFromRow(row: Record<string, unknown>): BasketballNetworkPlayer {
 
 export class BasketballNetworkService {
   private readonly db: DatabaseSync;
-  constructor(db: DatabaseSync) {
+  private readonly affinityBonuses: (careerId: string) => Record<string, number>;
+  constructor(
+    db: DatabaseSync,
+    affinityBonuses: (careerId: string) => Record<string, number> = () => ({}),
+  ) {
     this.db = db;
+    this.affinityBonuses = affinityBonuses;
     migrateBasketballNetwork(db);
   }
 
@@ -227,13 +232,18 @@ export class BasketballNetworkService {
       )
       .all(careerId)
       .map(playerFromRow);
+    const bonuses = this.affinityBonuses(careerId);
     return {
       teams: this.db
         .prepare(
           "SELECT * FROM career_network_teams WHERE career_id=? AND (selected=1 OR team_id=?) ORDER BY selected DESC, created_at, team_id",
         )
         .all(careerId, currentTeamId)
-        .map((row) => teamFromRow(row, currentTeamId)),
+        .map((row) => {
+          const team = teamFromRow(row, currentTeamId);
+          const lifestyleAffinityBonus = bonuses[team.teamId] ?? 0;
+          return { ...team, affinity: team.affinity + lifestyleAffinityBonus, lifestyleAffinityBonus };
+        }),
       players: people.filter((person) => person.role === "player"),
       teammates: people.filter((person) => person.role === "teammate"),
     };

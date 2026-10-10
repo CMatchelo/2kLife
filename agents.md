@@ -166,12 +166,19 @@ post-launch) + random variation + performance adjustment (vs season average); sp
 ### `server/lifestyle.ts` — `LifestyleService`
 
 Lifestyle financial overview and collectible ownership. Additive tables store assets,
-one showcase slot per collectible category, future recurring commitments, and idempotent
+one showcase slot per collectible category, properties, per-paid-match maintenance, future
+recurring commitments, and idempotent
 mutations. The always-available catalog in `src/domain/lifestyleCatalog.ts` contains 36 cars,
 jewelry pieces, artworks, and watches across team/star/fan styles and entry/middle/premium tiers.
 Purchases and sales use the shared append-only ledger; initial depreciation is a durable random
 8-12%, followed by 2% per completed calendar month to a 50% floor. Only showcased items apply
 their +1/+2/+3 identity modifier, kept separate from permanent interview/event identity actions.
+Nine house variants are available only in cities unlocked by selected Basketball Network teams;
+owned houses remain active and sellable after a team is removed. Per city, active ownership is
+limited to one of each property type and one of each identity. Houses apply their +1/+2/+3
+identity and associated-team affinity modifiers while owned. Maintenance starts at 0.05% of the
+purchase price per salary-paying game, grows 0.2% after each charge to an internal $9,000 cap,
+and may drive cash negative; purchases may not.
 
 ### `server/postseason.ts` — `PostseasonService`
 

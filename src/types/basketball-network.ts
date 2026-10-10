@@ -2,6 +2,7 @@ export type BasketballNetworkTeam = {
   careerId: string;
   teamId: string;
   affinity: number;
+  lifestyleAffinityBonus?: number;
   selected: boolean;
   current: boolean;
   createdAt: string;

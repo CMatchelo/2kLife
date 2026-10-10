@@ -17,13 +17,15 @@ const title = (value: string) =>
   value.replaceAll("_", " ").replace(/^./, (letter) => letter.toUpperCase());
 
 type Section = "overview" | "owned" | "marketplace" | "history";
+type MarketplaceCategory = "property" | LifestyleCollectibleCategory;
 const sections: { id: Section; label: string }[] = [
   { id: "overview", label: "Overview" },
   { id: "owned", label: "Owned & Active" },
   { id: "marketplace", label: "Marketplace" },
   { id: "history", label: "History" },
 ];
-const categories: { id: LifestyleCollectibleCategory; label: string }[] = [
+const categories: { id: MarketplaceCategory; label: string }[] = [
+  { id: "property", label: "Houses" },
   { id: "vehicle", label: "Cars" },
   { id: "jewelry", label: "Jewelry" },
   { id: "artwork", label: "Artwork" },
@@ -58,13 +60,13 @@ function AssetCard({
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div>
           <p className="text-xs font-bold uppercase tracking-widest text-gold">
-            {title(asset.tier ?? "item")} · {title(asset.identityStyle ?? "")}
+            {asset.property ? asset.property.cityName : title(asset.tier ?? "item")} · {title(asset.identityStyle ?? "")}
           </p>
           <h3 className="mt-1 font-bold">{asset.name}</h3>
         </div>
-        {asset.showcased && (
+        {(asset.showcased || asset.property) && (
           <span className="rounded-full bg-gold px-3 py-1 text-xs font-black text-ink">
-            Showcased · +{asset.identityBonus}{" "}
+            {asset.property ? "Active" : "Showcased"} · +{asset.identityBonus}{" "}
             {title(asset.identityStyle ?? "")}
           </span>
         )}
@@ -87,20 +89,30 @@ function AssetCard({
           <dd>{asset.totalDepreciationPercentage}%</dd>
         </div>
       </dl>
-      {!asset.showcased && (
+      {asset.property && (
+        <div className="mt-3 rounded-lg border border-slate-700 bg-slate-950/50 p-3 text-sm">
+          <p><strong>{asset.property.featureName}</strong></p>
+          <p className="mt-1 text-muted">+{asset.property.affinityBonus} relationship with the associated team</p>
+          <p className="mt-1">Maintenance: {money(asset.property.maintenanceCostUsdCents)} per paid match</p>
+          <p className="mt-1 text-xs text-muted">Maintenance costs may increase over time.</p>
+        </div>
+      )}
+      {!asset.property && !asset.showcased && (
         <p className="mt-3 text-xs text-muted">
           No identity bonus while this item is not showcased.
         </p>
       )}
       <div className="mt-4 flex flex-wrap gap-2">
-        <button
-          type="button"
-          className="ai-secondary"
-          disabled={busy}
-          onClick={() => onAction(asset.showcased ? "unshowcase" : "showcase")}
-        >
-          {asset.showcased ? "Remove from showcase" : "Showcase"}
-        </button>
+        {!asset.property && (
+          <button
+            type="button"
+            className="ai-secondary"
+            disabled={busy}
+            onClick={() => onAction(asset.showcased ? "unshowcase" : "showcase")}
+          >
+            {asset.showcased ? "Remove from showcase" : "Showcase"}
+          </button>
+        )}
         <button
           type="button"
           className="rounded-lg border border-red-400/60 px-3 py-2 text-sm font-bold text-red-200 disabled:opacity-50"
@@ -122,12 +134,12 @@ export default function LifestyleDashboard({
   onCareerChange?: (career: Career) => void;
 }) {
   const [section, setSection] = useState<Section>("overview");
-  const [category, setCategory] =
-    useState<LifestyleCollectibleCategory>("vehicle");
+  const [category, setCategory] = useState<MarketplaceCategory>("property");
   const [overview, setOverview] = useState<LifestyleOverview | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [busyKey, setBusyKey] = useState("");
+  const [propertyTeams, setPropertyTeams] = useState<Record<string, string>>({});
   const requestIds = useRef<Record<string, string>>({});
 
   useEffect(() => {
@@ -170,13 +182,18 @@ export default function LifestyleDashboard({
     }
   }
 
-  async function mutate(key: string, path: string) {
+  async function mutate(
+    key: string,
+    path: string,
+    fields: Record<string, string> = {},
+  ) {
     setBusyKey(key);
     setError("");
     requestIds.current[key] ??= crypto.randomUUID();
     try {
       const value = await api<LifestyleOverview>(path, {
         requestId: requestIds.current[key],
+        ...fields,
       });
       delete requestIds.current[key];
       setOverview(value);
@@ -201,7 +218,9 @@ export default function LifestyleDashboard({
       action === "sell" &&
       !window.confirm(
         `Sell ${asset.name} for ${money(asset.currentValueUsdCents)}?${
-          asset.showcased
+          asset.property
+            ? ` Its +${asset.identityBonus} ${title(asset.identityStyle ?? "")} bonus and +${asset.property.affinityBonus} team relationship will be removed. Maintenance will end.`
+            : asset.showcased
             ? ` Its +${asset.identityBonus} ${title(asset.identityStyle ?? "")} bonus will be removed.`
             : ""
         }`,
@@ -215,7 +234,9 @@ export default function LifestyleDashboard({
   }
 
   const visibleItems =
-    overview?.marketplace.filter((item) => item.category === category) ?? [];
+    category === "property"
+      ? []
+      : overview?.marketplace.filter((item) => item.category === category) ?? [];
 
   return (
     <section
@@ -311,7 +332,7 @@ export default function LifestyleDashboard({
                 className="rounded-full border border-slate-700 px-3 py-1"
               >
                 +{overview.identityBonuses[identity]} {title(identity)} from
-                showcased items
+                Lifestyle
               </span>
             ))}
           </div>
@@ -351,7 +372,52 @@ export default function LifestyleDashboard({
               </button>
             ))}
           </div>
-          <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+          {category === "property" && (
+            <div className="mt-5 space-y-6">
+              {!overview.propertyMarketplace.length ? (
+                <EmptyState>Add a team to your Basketball Network to unlock its city.</EmptyState>
+              ) : overview.propertyMarketplace.map((city) => (
+                <section key={city.cityId} className="rounded-xl border border-slate-700 bg-slate-900/40 p-4">
+                  <h3 className="text-xl font-black">{city.cityName}</h3>
+                  <p className="mt-1 text-sm text-muted">Available through {city.teams.map((team) => team.teamName).join(" or ")}</p>
+                  <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                    {city.properties.map((property) => {
+                      const affordable = overview.finances.cashBalanceUsdCents >= property.priceUsdCents;
+                      const team = city.teams.find((candidate) => candidate.teamId === propertyTeams[city.cityId]) ?? city.teams[0];
+                      return (
+                        <article key={property.id} className="rounded-xl border border-slate-700 bg-slate-900/60 p-4">
+                          <p className="text-xs font-bold uppercase tracking-widest text-gold">{title(property.identityStyle)} · +{property.identityBonus}</p>
+                          <h4 className="mt-1 text-lg font-bold">{property.name}</h4>
+                          <p className="text-sm text-muted">{property.featureName}</p>
+                          <p className="mt-3 text-2xl font-black">{money(property.priceUsdCents)}</p>
+                          <p className="mt-1 text-sm">+{property.identityBonus} {title(property.identityStyle)} and +{property.affinityBonus} team relationship while owned</p>
+                          {city.teams.length > 1 && (
+                            <label className="mt-3 block text-sm text-muted">
+                              Associated team
+                              <select className="mt-1 w-full rounded-lg border border-slate-600 bg-slate-950 p-2 text-white" value={team.teamId}
+                                onChange={(event) => setPropertyTeams((current) => ({ ...current, [city.cityId]: event.target.value }))}>
+                                {city.teams.map((choice) => <option key={choice.teamId} value={choice.teamId}>{choice.teamName}</option>)}
+                              </select>
+                            </label>
+                          )}
+                          <p className="mt-2 text-xs text-muted">Maintenance starts at {money(Math.round(property.priceUsdCents * 0.0005))} per paid match. Maintenance costs may increase over time.</p>
+                          <button type="button" className="ai-primary mt-4 w-full" disabled={!affordable || !!property.unavailableReason || !!busyKey}
+                            onClick={() => {
+                              const after = overview.finances.cashBalanceUsdCents - property.priceUsdCents;
+                              if (window.confirm(`Purchase ${property.name} in ${city.cityName} for ${money(property.priceUsdCents)}?\nAssociated team: ${team.teamName}\nBalance after purchase: ${money(after)}\nThis starts a per-paid-match maintenance commitment and initial depreciation will be 8–12%.`))
+                                void mutate(`property:${city.cityId}:${property.id}`, `careers/${career.id}/lifestyle/properties/${property.id}/purchase`, { cityId: city.cityId, associatedTeamId: team.teamId });
+                            }}>
+                            {property.unavailableReason ?? (affordable ? "Purchase" : `Need ${money(property.priceUsdCents - overview.finances.cashBalanceUsdCents)} more`)}
+                          </button>
+                        </article>
+                      );
+                    })}
+                  </div>
+                </section>
+              ))}
+            </div>
+          )}
+          {category !== "property" && <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
             {visibleItems.map((item) => {
               const affordable =
                 overview.finances.cashBalanceUsdCents >= item.priceUsdCents;
@@ -402,7 +468,7 @@ export default function LifestyleDashboard({
                 </article>
               );
             })}
-          </div>
+          </div>}
         </div>
       )}
 

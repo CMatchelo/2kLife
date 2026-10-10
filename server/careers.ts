@@ -139,10 +139,13 @@ export class CareerStore {
       SELECT g.id, s.career_id, g.id FROM games g JOIN seasons s ON s.id = g.season_id WHERE json_extract(g.data, '$.status') = 'completed';`);
     migrateProgression(this.db);
     migratePostseason(this.db);
-    this.basketballNetwork = new BasketballNetworkService(this.db);
     this.sponsors = new SponsorService(this.db);
     this.salary = new SalaryService(this.db);
     this.lifestyle = new LifestyleService(this.db);
+    this.basketballNetwork = new BasketballNetworkService(
+      this.db,
+      (careerId) => this.lifestyle.teamAffinityBonuses(careerId),
+    );
     this.contracts = new ContractService(
       this.db,
       (id) => this.get(id),
@@ -1242,8 +1245,15 @@ export class CareerStore {
       this.db
         .prepare("UPDATE games SET data = ? WHERE id = ? AND season_id = ?")
         .run(JSON.stringify(updated), gameId, career.season.id);
-      if (game.status !== "completed" && updated.status === "completed")
-        this.salary.processFirstCompletion(career, updated);
+      if (game.status !== "completed" && updated.status === "completed") {
+        const salaryPayment = this.salary.processFirstCompletion(career, updated);
+        if (salaryPayment)
+          this.lifestyle.processPropertyMaintenance(
+            career,
+            updated,
+            salaryPayment.id,
+          );
+      }
       this.db
         .prepare("UPDATE seasons SET data = ? WHERE id = ?")
         .run(JSON.stringify(season), career.season.id);
@@ -1445,7 +1455,9 @@ export class CareerStore {
         .run(id);
       for (const table of [
         "lifestyle_mutations",
+        "lifestyle_property_maintenance",
         "lifestyle_commitments",
+        "lifestyle_properties",
         "lifestyle_showcases",
         "lifestyle_assets",
         "nba_contract_mutations",

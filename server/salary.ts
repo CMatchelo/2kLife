@@ -75,7 +75,7 @@ export class SalaryService {
   }
 
   processFirstCompletion(career: Career, game: Game) {
-    if (!game.countsTowardRegularSeason || game.status !== "completed") return;
+    if (!game.countsTowardRegularSeason || game.status !== "completed") return null;
     const terms = career.season.salaryTerms;
     if (!terms)
       throw new Error(
@@ -86,9 +86,9 @@ export class SalaryService {
     const existing = this.db
       .prepare("SELECT 1 FROM nba_salary_payments WHERE game_id=?")
       .get(game.id);
-    if (existing) return;
+    if (existing) return null;
     const progress = this.progress(career.season.id);
-    if (progress.paymentCount >= terms.regularSeasonGameCount) return;
+    if (progress.paymentCount >= terms.regularSeasonGameCount) return null;
     const paymentNumber = progress.paymentCount + 1;
     const base = Math.floor(
       terms.annualSalaryUsdCents / terms.regularSeasonGameCount,
@@ -200,6 +200,7 @@ export class SalaryService {
         reference,
         createdAt,
       );
+    return { id, amountUsdCents };
   }
 
   validateTerms(raw: unknown): SeasonSalaryTerms {

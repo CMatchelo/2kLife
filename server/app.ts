@@ -37,7 +37,10 @@ import type {
 import type { ContractDecisionRequest } from "../src/types/contract.ts";
 import { ContractError } from "./contracts.ts";
 import { LifestyleError } from "./lifestyle.ts";
-import type { LifestyleMutationRequest } from "../src/types/lifestyle.ts";
+import type {
+  LifestyleMutationRequest,
+  LifestylePropertyPurchaseRequest,
+} from "../src/types/lifestyle.ts";
 
 async function readBody(req: IncomingMessage, limit: number): Promise<unknown> {
   if (req.headers["content-type"] !== "application/json")
@@ -833,15 +836,18 @@ export function connectionServer(
       const lifestylePurchase = req.url?.match(
         /^\/api\/careers\/([\w-]+)\/lifestyle\/items\/([\w-]+)\/purchase$/,
       );
+      const lifestylePropertyPurchase = req.url?.match(
+        /^\/api\/careers\/([\w-]+)\/lifestyle\/properties\/([\w-]+)\/purchase$/,
+      );
       const lifestyleAssetAction = req.url?.match(
         /^\/api\/careers\/([\w-]+)\/lifestyle\/assets\/([\w-]+)\/(showcase|unshowcase|sell)$/,
       );
       if (
         careers &&
         req.method === "POST" &&
-        (lifestylePurchase || lifestyleAssetAction)
+        (lifestylePurchase || lifestylePropertyPurchase || lifestyleAssetAction)
       ) {
-        const careerId = (lifestylePurchase ?? lifestyleAssetAction)![1];
+        const careerId = (lifestylePurchase ?? lifestylePropertyPurchase ?? lifestyleAssetAction)![1];
         const career = careers.get(careerId);
         if (!career) return send(404, { message: "Career not found." });
         const body = (await readBody(
@@ -863,6 +869,24 @@ export function connectionServer(
               body.requestId,
             ),
           );
+        if (lifestylePropertyPurchase) {
+          const propertyBody = body as LifestylePropertyPurchaseRequest;
+          if (
+            typeof propertyBody.cityId !== "string" ||
+            typeof propertyBody.associatedTeamId !== "string"
+          )
+            throw new LifestyleError("Choose an available city and team.");
+          return send(
+            200,
+            careers.lifestyle.purchaseProperty(
+              career,
+              lifestylePropertyPurchase[2],
+              propertyBody.cityId,
+              propertyBody.associatedTeamId,
+              body.requestId,
+            ),
+          );
+        }
         const [, , assetId, action] = lifestyleAssetAction!;
         return send(
           200,

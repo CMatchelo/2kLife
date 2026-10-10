@@ -11,6 +11,7 @@ import {
   depreciatedValue,
 } from "../src/domain/lifestyle.ts";
 import { lifestyleItemCatalog } from "../src/domain/lifestyleCatalog.ts";
+import { lifestylePropertyCatalog } from "../src/domain/lifestyleProperties.ts";
 import { LifestyleService } from "./lifestyle.ts";
 import { connectionServer } from "./app.ts";
 import { once } from "node:events";
@@ -291,6 +292,60 @@ test("purchases, showcase replacement, and sales are idempotent and ledger-backe
         .get()!.count,
       1,
     );
+  } finally {
+    store.close();
+  }
+});
+
+test("properties enforce city choices, add active bonuses, charge maintenance with salary, and reverse on sale", () => {
+  const store = new CareerStore(":memory:");
+  try {
+    store.lifestyle = new LifestyleService(store.db, () => 0.4);
+    let career = store.create({
+      ...draft(),
+      season: {
+        ...draft().season,
+        salaryTerms: {
+          annualSalaryUsdCents: 2_000_000_000,
+          remainingContractSeasons: 1,
+          regularSeasonGameCount: 82,
+        },
+      },
+    });
+    store.basketballNetwork.addTeam(career.id, { teamId: "LAL" });
+    store.db.prepare(`INSERT INTO financial_transactions
+      (id,career_id,amount_usd_cents,currency,in_game_date,recorded_at,origin_type,origin_reference,reason,idempotency_key,description)
+      VALUES (?,?,2000000000,'USD','2026-10-01',?,'salary','test:cash','nba_salary',?,'Test cash')`)
+      .run(randomUUID(), career.id, new Date().toISOString(), randomUUID());
+
+    let overview = store.lifestyle.purchaseProperty(
+      career,
+      "downtown-personal-gym",
+      "los-angeles",
+      "LAL",
+      randomUUID(),
+    );
+    assert.equal(lifestylePropertyCatalog.length, 9);
+    assert.equal(overview.ownedAssets[0].property?.maintenanceCostUsdCents, 50_000);
+    assert.equal(overview.identityBonuses.team, 1);
+    assert.equal(store.basketballNetwork.get(career.id).teams.find((team) => team.teamId === "LAL")?.affinity, 1);
+    assert.throws(() => store.lifestyle.purchaseProperty(career, "downtown-penthouse", "los-angeles", "LAL", randomUUID()), /property type/);
+    assert.throws(() => store.lifestyle.purchaseProperty(career, "suburban-half-court", "los-angeles", "LAL", randomUUID()), /identity/);
+
+    career = store.updateGame(career.id, career.season.games[0].id, {
+      status: "completed",
+      teamScore: 100,
+      opponentScore: 90,
+      played: false,
+    })!;
+    overview = store.lifestyle.overview(career);
+    assert.equal(overview.history.filter((entry) => entry.reason === "property_maintenance").length, 1);
+    assert.equal(overview.ownedAssets[0].property?.maintenanceCostUsdCents, 50_100);
+
+    overview = store.lifestyle.sell(career, overview.ownedAssets[0].id, randomUUID());
+    assert.equal(overview.identityBonuses.team, 0);
+    assert.equal(overview.activeCommitments.length, 0);
+    assert.equal(store.basketballNetwork.get(career.id).teams.find((team) => team.teamId === "LAL")?.affinity, 0);
   } finally {
     store.close();
   }
