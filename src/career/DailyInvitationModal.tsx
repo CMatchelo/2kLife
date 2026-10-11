@@ -43,24 +43,24 @@ const invitationEffects = (
 ) => {
   if (type === "team")
     return {
-      reward: "+1 Team identity and +1 team affinity",
+      reward: "+1 Team personality trait and +1 team affinity",
       penalty: declineEffect(type, followers, balanceUsdCents),
     };
   if (type === "player")
     return {
-      reward: "+1 Star identity and +1 player affinity",
+      reward: "+1 Star personality trait and +1 player affinity",
       penalty: declineEffect(type, followers, balanceUsdCents),
     };
   if (type === "fan") {
     const cap = Math.min(15000, Math.max(1000, Math.floor(followers * 0.3)));
     return {
-      reward: `+1 Fan identity and 1,000–${integer.format(cap)} followers (maximum 30% with a 1,000-follower minimum)`,
+      reward: `+1 Fan personality trait and 1,000–${integer.format(cap)} followers (maximum 30% with a 1,000-follower minimum)`,
       penalty: declineEffect(type, followers, balanceUsdCents),
     };
   }
   if (type === "charity")
     return {
-      reward: "+1 Fan identity and 750–2,000 followers",
+      reward: "+1 Fan personality trait and 750–2,000 followers",
       penalty: declineEffect(type, followers, balanceUsdCents),
     };
   return {
@@ -86,7 +86,7 @@ export function DailyEventResultModal({
   const identityRows = (["star", "team", "fan"] as const)
     .filter((key) => result.identityChanges[key])
     .map((key) => ({
-      label: `${key[0].toUpperCase()}${key.slice(1)} identity`,
+      label: `${key[0].toUpperCase()}${key.slice(1)} personality trait`,
       value: signed(result.identityChanges[key]),
     }));
   return createPortal(

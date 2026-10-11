@@ -179,6 +179,17 @@ limited to one of each property type and one of each identity. Houses apply thei
 identity and associated-team affinity modifiers while owned. Maintenance starts at 0.05% of the
 purchase price per salary-paying game, grows 0.2% after each charge to an internal $9,000 cap,
 and may drive cash negative; purchases may not.
+Six professional services receive durable per-paid-match prices for each season, generated at
+8-12% of salary per match with a $50,000 cap. Up to four can be hired on non-cancellable
+season-long agreements. Fees are charged only alongside new regular-season salary payments and
+may drive cash negative. Active services apply one non-stacking 20% multiplier to all positive
+rewards from their matching daily invitations (team, player/star, or fan/charity); sponsor
+appearances are never influenced. Fractional identity and affinity bonuses are preserved.
+The Lifestyle financial overview treats all remaining season-long professional fees as
+liabilities and subtracts them from estimated net worth; property maintenance is shown only as a
+per-paid-match commitment because selling the property ends it. Showcased collectibles expose
+their stable `careerConnections` through `LifestyleService.activeCareerConnections()` for future
+event expansion without changing current event generation.
 
 ### `server/postseason.ts` — `PostseasonService`
 

@@ -273,6 +273,7 @@ test("accepting a player invitation applies effects once and refuses every compe
       .prepare("UPDATE players SET data=? WHERE career_id=?")
       .run(JSON.stringify(profile), career.id);
     career = store.get(career.id)!;
+    store.lifestyle.hireService(career, "security", randomUUID());
     store.invitations = new DailyInvitationService(
       store,
       sequence([0.9, 0.99, 0, 0, 0, 0, 0, 0, 0]),
@@ -296,8 +297,8 @@ test("accepting a player invitation applies effects once and refuses every compe
     });
     const result = first.result!;
     assert.equal(result.followersGained, 0);
-    assert.equal(result.identityChanges.star, 1);
-    assert.equal(result.networkPlayerAffinityChange, 1);
+    assert.equal(result.identityChanges.star, 1.2);
+    assert.equal(result.networkPlayerAffinityChange, 1.2);
     assert.equal(retried.result?.id, result.id);
     assert.equal(
       first.group.invitations.filter((item) => item.status === "attended")
@@ -313,7 +314,7 @@ test("accepting a player invitation applies effects once and refuses every compe
       store.basketballNetwork
         .get(career.id)
         .teammates.find((item) => item.id === person.id)?.affinity,
-      1,
+      1.2,
     );
   } finally {
     store.close();

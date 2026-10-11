@@ -145,6 +145,7 @@ export class CareerStore {
     this.basketballNetwork = new BasketballNetworkService(
       this.db,
       (careerId) => this.lifestyle.teamAffinityBonuses(careerId),
+      (careerId) => this.lifestyle.playerAffinityBonuses(careerId),
     );
     this.contracts = new ContractService(
       this.db,
@@ -448,7 +449,7 @@ export class CareerStore {
       team: profile.identity.careerScores.team + lifestyleBonuses.team,
       fan: profile.identity.careerScores.fan + lifestyleBonuses.fan,
     };
-    return {
+    const career: Career = {
       id,
       currentDate: progression?.saved_date
         ? String(progression.saved_date)
@@ -466,6 +467,8 @@ export class CareerStore {
         .all(season.id)
         .map((c) => JSON.parse(String(c.data))),
     };
+    this.lifestyle?.ensureSeasonServices(career);
+    return career;
   }
   private calculateSeasonStats(season: Season) {
     const completed = season.games.filter(
@@ -922,6 +925,7 @@ export class CareerStore {
       this.db
         .prepare("DELETE FROM day_transitions WHERE career_id=?")
         .run(careerId);
+      this.lifestyle.beginNewSeason(this.get(careerId)!);
       this.sponsors.beginNewSeason(careerId, `new-season:${seasonId}`);
       this.sponsors.reevaluate(
         this.get(careerId)!,
@@ -1246,7 +1250,10 @@ export class CareerStore {
         .prepare("UPDATE games SET data = ? WHERE id = ? AND season_id = ?")
         .run(JSON.stringify(updated), gameId, career.season.id);
       if (game.status !== "completed" && updated.status === "completed") {
-        const salaryPayment = this.salary.processFirstCompletion(career, updated);
+        const salaryPayment = this.salary.processFirstCompletion(
+          career,
+          updated,
+        );
         if (salaryPayment)
           this.lifestyle.processPropertyMaintenance(
             career,
@@ -1455,6 +1462,10 @@ export class CareerStore {
         .run(id);
       for (const table of [
         "lifestyle_mutations",
+        "lifestyle_service_payments",
+        "lifestyle_service_contracts",
+        "lifestyle_service_offers",
+        "lifestyle_event_affinity_bonuses",
         "lifestyle_property_maintenance",
         "lifestyle_commitments",
         "lifestyle_properties",

@@ -10,6 +10,7 @@ import {
   lifestylePropertyCatalog,
   teamCity,
 } from "../src/domain/lifestyleProperties.ts";
+import { lifestyleServiceCatalog } from "../src/domain/lifestyleServices.ts";
 import type { Career } from "../src/types/career.ts";
 import type { IdentityScores, IdentityType } from "../src/types/identity.ts";
 import type {
@@ -60,6 +61,31 @@ export function migrateLifestyle(db: DatabaseSync) {
     financial_transaction_id TEXT NOT NULL UNIQUE REFERENCES financial_transactions(id),
     amount_usd_cents INTEGER NOT NULL, next_amount_usd_cents INTEGER NOT NULL, charged_at TEXT NOT NULL,
     PRIMARY KEY(property_asset_id,salary_payment_id)
+  );
+  CREATE TABLE IF NOT EXISTS lifestyle_service_offers (
+    career_id TEXT NOT NULL REFERENCES careers(id), season_id TEXT NOT NULL REFERENCES seasons(id),
+    service_id TEXT NOT NULL, price_per_paid_match_usd_cents INTEGER NOT NULL CHECK(price_per_paid_match_usd_cents >= 0),
+    generated_percentage INTEGER NOT NULL CHECK(generated_percentage BETWEEN 8 AND 12), created_at TEXT NOT NULL,
+    PRIMARY KEY(career_id,season_id,service_id)
+  );
+  CREATE TABLE IF NOT EXISTS lifestyle_service_contracts (
+    id TEXT PRIMARY KEY, career_id TEXT NOT NULL REFERENCES careers(id), season_id TEXT NOT NULL REFERENCES seasons(id),
+    service_id TEXT NOT NULL, identity_style TEXT NOT NULL CHECK(identity_style IN ('star','team','fan')),
+    price_per_paid_match_usd_cents INTEGER NOT NULL, hired_on TEXT NOT NULL, status TEXT NOT NULL CHECK(status IN ('active','completed')),
+    completed_on TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
+    UNIQUE(career_id,season_id,service_id)
+  );
+  CREATE INDEX IF NOT EXISTS lifestyle_service_contracts_active ON lifestyle_service_contracts(career_id,season_id,status);
+  CREATE TABLE IF NOT EXISTS lifestyle_service_payments (
+    career_id TEXT NOT NULL REFERENCES careers(id), service_contract_id TEXT NOT NULL REFERENCES lifestyle_service_contracts(id),
+    salary_payment_id TEXT NOT NULL REFERENCES nba_salary_payments(id), financial_transaction_id TEXT NOT NULL UNIQUE REFERENCES financial_transactions(id),
+    amount_usd_cents INTEGER NOT NULL, charged_at TEXT NOT NULL,
+    PRIMARY KEY(service_contract_id,salary_payment_id)
+  );
+  CREATE TABLE IF NOT EXISTS lifestyle_event_affinity_bonuses (
+    career_id TEXT NOT NULL REFERENCES careers(id), target_type TEXT NOT NULL CHECK(target_type IN ('team','player')),
+    target_id TEXT NOT NULL, source_reference TEXT NOT NULL, amount REAL NOT NULL,
+    PRIMARY KEY(career_id,target_type,target_id,source_reference)
   );
   CREATE TABLE IF NOT EXISTS lifestyle_showcases (
     career_id TEXT NOT NULL REFERENCES careers(id), category TEXT NOT NULL,
@@ -205,7 +231,9 @@ export class LifestyleService {
         ? {
             cityId: String(row.city_id),
             cityName: String(row.city_name),
-            propertyType: String(row.property_type) as NonNullable<LifestyleAsset["property"]>["propertyType"],
+            propertyType: String(row.property_type) as NonNullable<
+              LifestyleAsset["property"]
+            >["propertyType"],
             featureName: String(row.feature_name),
             associatedTeamId: String(row.associated_team_id),
             identityBonus: Number(row.property_identity_bonus),
@@ -232,22 +260,151 @@ export class LifestyleService {
         scores[identity] += bonus;
     }
     for (const row of this.db
-      .prepare("SELECT identity_style,identity_bonus FROM lifestyle_properties WHERE career_id=? AND active=1")
+      .prepare(
+        "SELECT identity_style,identity_bonus FROM lifestyle_properties WHERE career_id=? AND active=1",
+      )
       .all(careerId))
-      scores[String(row.identity_style) as IdentityType] += Number(row.identity_bonus);
+      scores[String(row.identity_style) as IdentityType] += Number(
+        row.identity_bonus,
+      );
     return scores;
   }
 
   teamAffinityBonuses(careerId: string) {
     const result: Record<string, number> = {};
     for (const row of this.db
-      .prepare("SELECT associated_team_id,SUM(affinity_bonus) bonus FROM lifestyle_properties WHERE career_id=? AND active=1 GROUP BY associated_team_id")
+      .prepare(
+        "SELECT associated_team_id,SUM(affinity_bonus) bonus FROM lifestyle_properties WHERE career_id=? AND active=1 GROUP BY associated_team_id",
+      )
       .all(careerId))
       result[String(row.associated_team_id)] = Number(row.bonus);
+    for (const row of this.db
+      .prepare(
+        "SELECT target_id,SUM(amount) bonus FROM lifestyle_event_affinity_bonuses WHERE career_id=? AND target_type='team' GROUP BY target_id",
+      )
+      .all(careerId))
+      result[String(row.target_id)] =
+        (result[String(row.target_id)] ?? 0) + Number(row.bonus);
     return result;
   }
 
+  playerAffinityBonuses(careerId: string) {
+    const result: Record<string, number> = {};
+    for (const row of this.db
+      .prepare(
+        "SELECT target_id,SUM(amount) bonus FROM lifestyle_event_affinity_bonuses WHERE career_id=? AND target_type='player' GROUP BY target_id",
+      )
+      .all(careerId))
+      result[String(row.target_id)] = Number(row.bonus);
+    return result;
+  }
+
+  applyEventAffinityBonus(
+    careerId: string,
+    targetType: "team" | "player",
+    targetId: string,
+    sourceReference: string,
+    amount: number,
+  ) {
+    this.db
+      .prepare(
+        "INSERT OR IGNORE INTO lifestyle_event_affinity_bonuses VALUES (?,?,?,?,?)",
+      )
+      .run(careerId, targetType, targetId, sourceReference, amount);
+    return Number(
+      this.db
+        .prepare(
+          "SELECT COALESCE(SUM(amount),0) total FROM lifestyle_event_affinity_bonuses WHERE career_id=? AND target_type=? AND target_id=?",
+        )
+        .get(careerId, targetType, targetId)!.total,
+    );
+  }
+
+  ensureSeasonServices(career: Career) {
+    const terms = career.season.salaryTerms;
+    if (!terms || career.season.status !== "active") return;
+    const salaryPerMatch =
+      terms.annualSalaryUsdCents / terms.regularSeasonGameCount;
+    const timestamp = new Date().toISOString();
+    const existing = new Set(
+      this.db
+        .prepare(
+          "SELECT service_id FROM lifestyle_service_offers WHERE career_id=? AND season_id=?",
+        )
+        .all(career.id, career.season.id)
+        .map((row) => String(row.service_id)),
+    );
+    const insert = this.db
+      .prepare(`INSERT OR IGNORE INTO lifestyle_service_offers
+      (career_id,season_id,service_id,price_per_paid_match_usd_cents,generated_percentage,created_at)
+      VALUES (?,?,?,?,?,?)`);
+    for (const service of lifestyleServiceCatalog) {
+      if (existing.has(service.id)) continue;
+      const percentage = 8 + Math.floor(this.random() * 5);
+      const price = Math.min(
+        5_000_000,
+        Math.round((salaryPerMatch * percentage) / 100),
+      );
+      insert.run(
+        career.id,
+        career.season.id,
+        service.id,
+        price,
+        percentage,
+        timestamp,
+      );
+    }
+  }
+
+  beginNewSeason(career: Career) {
+    const timestamp = new Date().toISOString();
+    const date = this.date(career);
+    this.db
+      .prepare(
+        "UPDATE lifestyle_service_contracts SET status='completed',completed_on=?,updated_at=? WHERE career_id=? AND season_id<>? AND status='active'",
+      )
+      .run(date, timestamp, career.id, career.season.id);
+    this.db
+      .prepare(
+        "UPDATE lifestyle_commitments SET status='completed',ended_on=?,updated_at=? WHERE career_id=? AND kind='service' AND status='active'",
+      )
+      .run(date, timestamp, career.id);
+    this.ensureSeasonServices(career);
+  }
+
+  eventBonusMultiplier(
+    careerId: string,
+    seasonId: string,
+    identity: IdentityType | null,
+  ) {
+    if (!identity) return 1;
+    const active = this.db
+      .prepare(
+        "SELECT 1 FROM lifestyle_service_contracts WHERE career_id=? AND season_id=? AND identity_style=? AND status='active' LIMIT 1",
+      )
+      .get(careerId, seasonId, identity);
+    return active ? 1.2 : 1;
+  }
+
+  activeCareerConnections(careerId: string) {
+    const connections = new Set<string>();
+    for (const row of this.db
+      .prepare(
+        `SELECT a.details FROM lifestyle_showcases s
+        JOIN lifestyle_assets a ON a.id=s.asset_id
+        WHERE s.career_id=? AND a.status='owned'`,
+      )
+      .all(careerId)) {
+      const values = jsonObject(row.details).careerConnections;
+      if (Array.isArray(values))
+        for (const value of values)
+          if (typeof value === "string" && value) connections.add(value);
+    }
+    return [...connections].sort();
+  }
+
   overview(career: Career): LifestyleOverview {
+    this.ensureSeasonServices(career);
     const currentDate = this.date(career);
     const cash = this.cash(career.id);
     const ownedAssets = this.db
@@ -277,10 +434,14 @@ export class LifestyleService {
       }),
     );
     const activeProperties = this.db
-      .prepare("SELECT city_id,property_type,identity_style FROM lifestyle_properties WHERE career_id=? AND active=1")
+      .prepare(
+        "SELECT city_id,property_type,identity_style FROM lifestyle_properties WHERE career_id=? AND active=1",
+      )
       .all(career.id);
     const selectedTeams = this.db
-      .prepare("SELECT team_id FROM career_network_teams WHERE career_id=? AND selected=1")
+      .prepare(
+        "SELECT team_id FROM career_network_teams WHERE career_id=? AND selected=1",
+      )
       .all(career.id)
       .map((row) => String(row.team_id));
     const cities = new Map<string, LifestylePropertyMarketCity>();
@@ -291,16 +452,34 @@ export class LifestyleService {
       const entry = cities.get(city.cityId) ?? {
         ...city,
         teams: [],
-        properties: lifestylePropertyCatalog.map((item) => ({ ...item, unavailableReason: null })),
+        properties: lifestylePropertyCatalog.map((item) => ({
+          ...item,
+          unavailableReason: null,
+        })),
       };
       entry.teams.push({ teamId, teamName: team.name });
       cities.set(city.cityId, entry);
     }
     for (const city of cities.values())
       city.properties = city.properties.map((item) => {
-        const typeTaken = activeProperties.some((row) => row.city_id === city.cityId && row.property_type === item.propertyType);
-        const identityTaken = activeProperties.some((row) => row.city_id === city.cityId && row.identity_style === item.identityStyle);
-        return { ...item, unavailableReason: typeTaken ? "You already own this property type in this city." : identityTaken ? "You already own a property with this identity in this city." : null };
+        const typeTaken = activeProperties.some(
+          (row) =>
+            row.city_id === city.cityId &&
+            row.property_type === item.propertyType,
+        );
+        const identityTaken = activeProperties.some(
+          (row) =>
+            row.city_id === city.cityId &&
+            row.identity_style === item.identityStyle,
+        );
+        return {
+          ...item,
+          unavailableReason: typeTaken
+            ? "You already own this property type in this city."
+            : identityTaken
+              ? "You already own a property with this identity in this city."
+              : null,
+        };
       });
     const activeCommitments = this.db
       .prepare(
@@ -329,6 +508,18 @@ export class LifestyleService {
       (total, commitment) => total + commitment.amountUsdCents,
       0,
     );
+    const remainingSalaryPayments = Math.max(
+      0,
+      (career.season.salaryTerms?.regularSeasonGameCount ?? 0) -
+        (career.season.salaryProgress?.paymentCount ?? 0),
+    );
+    const serviceLiabilities = activeCommitments
+      .filter((commitment) => commitment.kind === "service")
+      .reduce(
+        (total, commitment) =>
+          total + commitment.amountUsdCents * remainingSalaryPayments,
+        0,
+      );
     const history = this.db
       .prepare(
         `SELECT * FROM financial_transactions WHERE career_id=? AND reason IN
@@ -336,53 +527,315 @@ export class LifestyleService {
       )
       .all(career.id)
       .map((row) => transaction(row as Record<string, unknown>));
+    const hiredIds = new Set(
+      this.db
+        .prepare(
+          "SELECT service_id FROM lifestyle_service_contracts WHERE career_id=? AND season_id=? AND status='active'",
+        )
+        .all(career.id, career.season.id)
+        .map((row) => String(row.service_id)),
+    );
+    const servicePrices = new Map(
+      this.db
+        .prepare(
+          "SELECT service_id,price_per_paid_match_usd_cents FROM lifestyle_service_offers WHERE career_id=? AND season_id=?",
+        )
+        .all(career.id, career.season.id)
+        .map(
+          (row) =>
+            [
+              String(row.service_id),
+              Number(row.price_per_paid_match_usd_cents),
+            ] as const,
+        ),
+    );
+    const services = lifestyleServiceCatalog.map((service) => ({
+      ...service,
+      pricePerPaidMatchUsdCents: servicePrices.get(service.id) ?? 0,
+      hired: hiredIds.has(service.id),
+    }));
     return {
       finances: {
         cashBalanceUsdCents: cash,
         assetValueUsdCents: assetValue,
-        liabilitiesUsdCents: 0,
+        liabilitiesUsdCents: serviceLiabilities,
         recurringCommitmentsPerPaidMatchUsdCents: recurring,
-        estimatedNetWorthUsdCents: estimatedNetWorth(cash, assetValue, 0),
+        estimatedNetWorthUsdCents: estimatedNetWorth(
+          cash,
+          assetValue,
+          serviceLiabilities,
+        ),
+        remainingSalaryPayments,
       },
       identityBonuses: this.identityBonuses(career.id),
       marketplace,
-      propertyMarketplace: [...cities.values()].sort((a, b) => a.cityName.localeCompare(b.cityName)),
+      propertyMarketplace: [...cities.values()].sort((a, b) =>
+        a.cityName.localeCompare(b.cityName),
+      ),
+      services,
+      hiredServiceCount: hiredIds.size,
+      serviceLimit: 4,
       ownedAssets,
       activeCommitments,
       history,
     };
   }
 
-  purchaseProperty(career: Career, catalogItemId: string, cityId: string, associatedTeamId: string, requestId: string) {
+  hireService(career: Career, serviceId: string, requestId: string) {
     if (this.savedMutation(career.id, requestId)) return this.overview(career);
-    const item = lifestylePropertyCatalog.find((candidate) => candidate.id === catalogItemId);
+    this.ensureSeasonServices(career);
+    const service = lifestyleServiceCatalog.find(
+      (candidate) => candidate.id === serviceId,
+    );
+    if (!service)
+      throw new LifestyleError("Professional service not found.", 404);
+    const offer = this.db
+      .prepare(
+        "SELECT price_per_paid_match_usd_cents FROM lifestyle_service_offers WHERE career_id=? AND season_id=? AND service_id=?",
+      )
+      .get(career.id, career.season.id, serviceId);
+    if (!offer)
+      throw new LifestyleError(
+        "Professional service pricing is not available for this season.",
+        409,
+      );
+    const timestamp = new Date().toISOString();
+    const date = this.date(career);
+    const contractId = randomUUID();
+    this.db.exec("BEGIN IMMEDIATE");
+    try {
+      if (this.savedMutation(career.id, requestId)) {
+        this.db.exec("COMMIT");
+        return this.overview(career);
+      }
+      const count = Number(
+        this.db
+          .prepare(
+            "SELECT COUNT(*) count FROM lifestyle_service_contracts WHERE career_id=? AND season_id=? AND status='active'",
+          )
+          .get(career.id, career.season.id)!.count,
+      );
+      if (count >= 4)
+        throw new LifestyleError(
+          "You already have four professionals under contract this season.",
+          409,
+        );
+      if (
+        this.db
+          .prepare(
+            "SELECT 1 FROM lifestyle_service_contracts WHERE career_id=? AND season_id=? AND service_id=?",
+          )
+          .get(career.id, career.season.id, serviceId)
+      )
+        throw new LifestyleError(
+          "This professional is already under contract for the season.",
+          409,
+        );
+      const price = Number(offer.price_per_paid_match_usd_cents);
+      this.db
+        .prepare(
+          `INSERT INTO lifestyle_service_contracts VALUES (?,?,?,?,?,?,?,'active',NULL,?,?)`,
+        )
+        .run(
+          contractId,
+          career.id,
+          career.season.id,
+          serviceId,
+          service.identityStyle,
+          price,
+          date,
+          timestamp,
+          timestamp,
+        );
+      this.db
+        .prepare(
+          `INSERT INTO lifestyle_commitments (id,career_id,kind,name,status,amount_usd_cents,billing_basis,started_on,source_reference,details,created_at,updated_at) VALUES (?,?,'service',?,'active',?,'paid_match',?,?,?, ?,?)`,
+        )
+        .run(
+          randomUUID(),
+          career.id,
+          service.name,
+          price,
+          date,
+          `service-contract:${contractId}`,
+          JSON.stringify({ contractId, serviceId, seasonId: career.season.id }),
+          timestamp,
+          timestamp,
+        );
+      this.db
+        .prepare("INSERT INTO lifestyle_mutations VALUES (?,?,?,?,?,?)")
+        .run(
+          career.id,
+          requestId,
+          "hire_service",
+          contractId,
+          JSON.stringify({ contractId, serviceId }),
+          timestamp,
+        );
+      this.db.exec("COMMIT");
+    } catch (error) {
+      this.db.exec("ROLLBACK");
+      throw error;
+    }
+    return this.overview(career);
+  }
+
+  purchaseProperty(
+    career: Career,
+    catalogItemId: string,
+    cityId: string,
+    associatedTeamId: string,
+    requestId: string,
+  ) {
+    if (this.savedMutation(career.id, requestId)) return this.overview(career);
+    const item = lifestylePropertyCatalog.find(
+      (candidate) => candidate.id === catalogItemId,
+    );
     if (!item) throw new LifestyleError("Property not found.", 404);
-    const team = career.teams.find((candidate) => candidate.id === associatedTeamId);
-    const selected = this.db.prepare("SELECT 1 FROM career_network_teams WHERE career_id=? AND team_id=? AND selected=1").get(career.id, associatedTeamId);
-    if (!team || !selected) throw new LifestyleError("That city is not available in your Basketball Network.", 409);
+    const team = career.teams.find(
+      (candidate) => candidate.id === associatedTeamId,
+    );
+    const selected = this.db
+      .prepare(
+        "SELECT 1 FROM career_network_teams WHERE career_id=? AND team_id=? AND selected=1",
+      )
+      .get(career.id, associatedTeamId);
+    if (!team || !selected)
+      throw new LifestyleError(
+        "That city is not available in your Basketball Network.",
+        409,
+      );
     const city = teamCity(team);
-    if (city.cityId !== cityId) throw new LifestyleError("The selected team does not belong to that city.");
+    if (city.cityId !== cityId)
+      throw new LifestyleError(
+        "The selected team does not belong to that city.",
+      );
     const date = this.date(career);
     const timestamp = new Date().toISOString();
     const assetId = randomUUID();
     const initialDepreciationPercentage = 8 + Math.floor(this.random() * 5);
-    const initialValue = depreciatedValue(item.priceUsdCents, initialDepreciationPercentage, date, date).currentValueUsdCents;
+    const initialValue = depreciatedValue(
+      item.priceUsdCents,
+      initialDepreciationPercentage,
+      date,
+      date,
+    ).currentValueUsdCents;
     const maintenance = Math.round(item.priceUsdCents * 0.0005);
-    const details = { identityStyle: item.identityStyle, identityBonus: item.identityBonus, initialDepreciationPercentage, propertyType: item.propertyType, featureName: item.featureName, cityId, cityName: city.cityName, associatedTeamId, affinityBonus: item.affinityBonus };
+    const details = {
+      identityStyle: item.identityStyle,
+      identityBonus: item.identityBonus,
+      initialDepreciationPercentage,
+      propertyType: item.propertyType,
+      featureName: item.featureName,
+      cityId,
+      cityName: city.cityName,
+      associatedTeamId,
+      affinityBonus: item.affinityBonus,
+    };
     this.db.exec("BEGIN IMMEDIATE");
     try {
-      if (this.savedMutation(career.id, requestId)) { this.db.exec("COMMIT"); return this.overview(career); }
+      if (this.savedMutation(career.id, requestId)) {
+        this.db.exec("COMMIT");
+        return this.overview(career);
+      }
       const affordability = this.affordability(career.id, item.priceUsdCents);
-      if (!affordability.affordable) throw new LifestyleError(`You need $${(affordability.shortfallUsdCents / 100).toLocaleString("en-US")} more to purchase this property.`, 409);
-      const conflict = this.db.prepare("SELECT property_type,identity_style FROM lifestyle_properties WHERE career_id=? AND city_id=? AND active=1 AND (property_type=? OR identity_style=?)").get(career.id, cityId, item.propertyType, item.identityStyle);
-      if (conflict) throw new LifestyleError(String(conflict.property_type) === item.propertyType ? "You already own this property type in this city." : "You already own a property with this identity in this city.", 409);
-      this.db.prepare(`INSERT INTO lifestyle_assets (id,career_id,catalog_item_id,category,name,status,purchased_on,purchase_price_usd_cents,current_value_usd_cents,details,created_at,updated_at) VALUES (?,?,?,'property',?,'owned',?,?,?,?,?,?)`).run(assetId, career.id, item.id, `${item.name} — ${city.cityName}`, date, item.priceUsdCents, initialValue, JSON.stringify(details), timestamp, timestamp);
-      this.db.prepare(`INSERT INTO lifestyle_properties VALUES (?,?,?,?,?,?,?,?,?,?,?,0,1,?,?)`).run(assetId, career.id, cityId, city.cityName, item.propertyType, item.identityStyle, item.featureName, associatedTeamId, item.identityBonus, item.affinityBonus, maintenance, timestamp, timestamp);
-      this.db.prepare(`INSERT INTO lifestyle_commitments (id,career_id,kind,name,status,amount_usd_cents,billing_basis,started_on,source_reference,details,created_at,updated_at) VALUES (?,?,'property_maintenance',?,'active',?,'paid_match',?,?,?, ?,?)`).run(randomUUID(), career.id, `${item.name} maintenance`, maintenance, date, `property:${assetId}`, JSON.stringify({ assetId, cityId }), timestamp, timestamp);
-      this.db.prepare(`INSERT INTO financial_transactions (id,career_id,amount_usd_cents,currency,in_game_date,recorded_at,origin_type,origin_reference,reason,idempotency_key,description,settlement_metadata) VALUES (?,?,?,'USD',?,?,'lifestyle',?,'lifestyle_purchase',?,?,?)`).run(randomUUID(), career.id, -item.priceUsdCents, date, timestamp, `lifestyle-property:${assetId}`, `lifestyle:property-purchase:${requestId}`, `Purchased ${item.name} in ${city.cityName}`, JSON.stringify({ assetId, catalogItemId: item.id, associatedTeamId }));
-      this.db.prepare("INSERT INTO lifestyle_mutations VALUES (?,?,?,?,?,?)").run(career.id, requestId, "purchase_property", assetId, JSON.stringify({ assetId }), timestamp);
+      if (!affordability.affordable)
+        throw new LifestyleError(
+          `You need $${(affordability.shortfallUsdCents / 100).toLocaleString("en-US")} more to purchase this property.`,
+          409,
+        );
+      const conflict = this.db
+        .prepare(
+          "SELECT property_type,identity_style FROM lifestyle_properties WHERE career_id=? AND city_id=? AND active=1 AND (property_type=? OR identity_style=?)",
+        )
+        .get(career.id, cityId, item.propertyType, item.identityStyle);
+      if (conflict)
+        throw new LifestyleError(
+          String(conflict.property_type) === item.propertyType
+            ? "You already own this property type in this city."
+            : "You already own a property with this identity in this city.",
+          409,
+        );
+      this.db
+        .prepare(
+          `INSERT INTO lifestyle_assets (id,career_id,catalog_item_id,category,name,status,purchased_on,purchase_price_usd_cents,current_value_usd_cents,details,created_at,updated_at) VALUES (?,?,?,'property',?,'owned',?,?,?,?,?,?)`,
+        )
+        .run(
+          assetId,
+          career.id,
+          item.id,
+          `${item.name} — ${city.cityName}`,
+          date,
+          item.priceUsdCents,
+          initialValue,
+          JSON.stringify(details),
+          timestamp,
+          timestamp,
+        );
+      this.db
+        .prepare(
+          `INSERT INTO lifestyle_properties VALUES (?,?,?,?,?,?,?,?,?,?,?,0,1,?,?)`,
+        )
+        .run(
+          assetId,
+          career.id,
+          cityId,
+          city.cityName,
+          item.propertyType,
+          item.identityStyle,
+          item.featureName,
+          associatedTeamId,
+          item.identityBonus,
+          item.affinityBonus,
+          maintenance,
+          timestamp,
+          timestamp,
+        );
+      this.db
+        .prepare(
+          `INSERT INTO lifestyle_commitments (id,career_id,kind,name,status,amount_usd_cents,billing_basis,started_on,source_reference,details,created_at,updated_at) VALUES (?,?,'property_maintenance',?,'active',?,'paid_match',?,?,?, ?,?)`,
+        )
+        .run(
+          randomUUID(),
+          career.id,
+          `${item.name} maintenance`,
+          maintenance,
+          date,
+          `property:${assetId}`,
+          JSON.stringify({ assetId, cityId }),
+          timestamp,
+          timestamp,
+        );
+      this.db
+        .prepare(
+          `INSERT INTO financial_transactions (id,career_id,amount_usd_cents,currency,in_game_date,recorded_at,origin_type,origin_reference,reason,idempotency_key,description,settlement_metadata) VALUES (?,?,?,'USD',?,?,'lifestyle',?,'lifestyle_purchase',?,?,?)`,
+        )
+        .run(
+          randomUUID(),
+          career.id,
+          -item.priceUsdCents,
+          date,
+          timestamp,
+          `lifestyle-property:${assetId}`,
+          `lifestyle:property-purchase:${requestId}`,
+          `Purchased ${item.name} in ${city.cityName}`,
+          JSON.stringify({ assetId, catalogItemId: item.id, associatedTeamId }),
+        );
+      this.db
+        .prepare("INSERT INTO lifestyle_mutations VALUES (?,?,?,?,?,?)")
+        .run(
+          career.id,
+          requestId,
+          "purchase_property",
+          assetId,
+          JSON.stringify({ assetId }),
+          timestamp,
+        );
       this.db.exec("COMMIT");
-    } catch (error) { this.db.exec("ROLLBACK"); throw error; }
+    } catch (error) {
+      this.db.exec("ROLLBACK");
+      throw error;
+    }
     return this.overview(career);
   }
 
@@ -488,28 +941,125 @@ export class LifestyleService {
     salaryPaymentId: string,
   ) {
     const properties = this.db
-      .prepare("SELECT p.*,a.name FROM lifestyle_properties p JOIN lifestyle_assets a ON a.id=p.asset_id WHERE p.career_id=? AND p.active=1 AND a.status='owned'")
+      .prepare(
+        "SELECT p.*,a.name FROM lifestyle_properties p JOIN lifestyle_assets a ON a.id=p.asset_id WHERE p.career_id=? AND p.active=1 AND a.status='owned'",
+      )
       .all(career.id);
     const timestamp = new Date().toISOString();
     for (const property of properties) {
-      if (this.db.prepare("SELECT 1 FROM lifestyle_property_maintenance WHERE property_asset_id=? AND salary_payment_id=?").get(property.asset_id, salaryPaymentId)) continue;
+      if (
+        this.db
+          .prepare(
+            "SELECT 1 FROM lifestyle_property_maintenance WHERE property_asset_id=? AND salary_payment_id=?",
+          )
+          .get(property.asset_id, salaryPaymentId)
+      )
+        continue;
       const amount = Number(property.maintenance_cost_usd_cents);
       const nextAmount = Math.min(900_000, Math.round(amount * 1.002));
       const financialTransactionId = randomUUID();
-      this.db.prepare(`INSERT INTO financial_transactions
+      this.db
+        .prepare(
+          `INSERT INTO financial_transactions
         (id,career_id,amount_usd_cents,currency,in_game_date,recorded_at,origin_type,origin_reference,reason,game_id,idempotency_key,description,settlement_metadata,season_id,team_id)
-        VALUES (?,?,?,'USD',?,?,'lifestyle',?,'property_maintenance',?,?,?,?,?,?)`).run(
-        financialTransactionId, career.id, -amount, game.date, timestamp,
-        `lifestyle-property:${String(property.asset_id)}`, game.id,
-        `property-maintenance:${String(property.asset_id)}:${salaryPaymentId}`,
-        `${String(property.name)} maintenance`, JSON.stringify({ assetId: property.asset_id, salaryPaymentId }),
-        career.season.id, game.teamId,
-      );
-      this.db.prepare(`INSERT INTO lifestyle_property_maintenance
+        VALUES (?,?,?,'USD',?,?,'lifestyle',?,'property_maintenance',?,?,?,?,?,?)`,
+        )
+        .run(
+          financialTransactionId,
+          career.id,
+          -amount,
+          game.date,
+          timestamp,
+          `lifestyle-property:${String(property.asset_id)}`,
+          game.id,
+          `property-maintenance:${String(property.asset_id)}:${salaryPaymentId}`,
+          `${String(property.name)} maintenance`,
+          JSON.stringify({ assetId: property.asset_id, salaryPaymentId }),
+          career.season.id,
+          game.teamId,
+        );
+      this.db
+        .prepare(
+          `INSERT INTO lifestyle_property_maintenance
         (career_id,property_asset_id,salary_payment_id,financial_transaction_id,amount_usd_cents,next_amount_usd_cents,charged_at)
-        VALUES (?,?,?,?,?,?,?)`).run(career.id, property.asset_id, salaryPaymentId, financialTransactionId, amount, nextAmount, timestamp);
-      this.db.prepare("UPDATE lifestyle_properties SET maintenance_cost_usd_cents=?,maintenance_payment_count=maintenance_payment_count+1,updated_at=? WHERE asset_id=?").run(nextAmount, timestamp, property.asset_id);
-      this.db.prepare("UPDATE lifestyle_commitments SET amount_usd_cents=?,updated_at=? WHERE career_id=? AND source_reference=? AND status='active'").run(nextAmount, timestamp, career.id, `property:${String(property.asset_id)}`);
+        VALUES (?,?,?,?,?,?,?)`,
+        )
+        .run(
+          career.id,
+          property.asset_id,
+          salaryPaymentId,
+          financialTransactionId,
+          amount,
+          nextAmount,
+          timestamp,
+        );
+      this.db
+        .prepare(
+          "UPDATE lifestyle_properties SET maintenance_cost_usd_cents=?,maintenance_payment_count=maintenance_payment_count+1,updated_at=? WHERE asset_id=?",
+        )
+        .run(nextAmount, timestamp, property.asset_id);
+      this.db
+        .prepare(
+          "UPDATE lifestyle_commitments SET amount_usd_cents=?,updated_at=? WHERE career_id=? AND source_reference=? AND status='active'",
+        )
+        .run(
+          nextAmount,
+          timestamp,
+          career.id,
+          `property:${String(property.asset_id)}`,
+        );
+    }
+    const services = this.db
+      .prepare(
+        "SELECT c.*,o.service_id FROM lifestyle_service_contracts c JOIN lifestyle_service_offers o ON o.career_id=c.career_id AND o.season_id=c.season_id AND o.service_id=c.service_id WHERE c.career_id=? AND c.season_id=? AND c.status='active'",
+      )
+      .all(career.id, career.season.id);
+    for (const service of services) {
+      if (
+        this.db
+          .prepare(
+            "SELECT 1 FROM lifestyle_service_payments WHERE service_contract_id=? AND salary_payment_id=?",
+          )
+          .get(service.id, salaryPaymentId)
+      )
+        continue;
+      const definition = lifestyleServiceCatalog.find(
+        (candidate) => candidate.id === service.service_id,
+      )!;
+      const amount = Number(service.price_per_paid_match_usd_cents);
+      const transactionId = randomUUID();
+      this.db
+        .prepare(
+          `INSERT INTO financial_transactions
+        (id,career_id,amount_usd_cents,currency,in_game_date,recorded_at,origin_type,origin_reference,reason,game_id,idempotency_key,description,settlement_metadata,season_id,team_id)
+        VALUES (?,?,?,'USD',?,?,'lifestyle',?,'service_payment',?,?,?,?,?,?)`,
+        )
+        .run(
+          transactionId,
+          career.id,
+          -amount,
+          game.date,
+          timestamp,
+          `lifestyle-service:${String(service.id)}`,
+          game.id,
+          `service-payment:${String(service.id)}:${salaryPaymentId}`,
+          `${definition.name} professional fee`,
+          JSON.stringify({ serviceContractId: service.id, salaryPaymentId }),
+          career.season.id,
+          game.teamId,
+        );
+      this.db
+        .prepare(
+          `INSERT INTO lifestyle_service_payments (career_id,service_contract_id,salary_payment_id,financial_transaction_id,amount_usd_cents,charged_at) VALUES (?,?,?,?,?,?)`,
+        )
+        .run(
+          career.id,
+          service.id,
+          salaryPaymentId,
+          transactionId,
+          amount,
+          timestamp,
+        );
     }
   }
 
@@ -528,7 +1078,10 @@ export class LifestyleService {
     if (!row || row.status !== "owned")
       throw new LifestyleError("Owned Lifestyle item not found.", 404);
     if (row.category === "property")
-      throw new LifestyleError("Properties are active while owned and do not use showcase slots.", 409);
+      throw new LifestyleError(
+        "Properties are active while owned and do not use showcase slots.",
+        409,
+      );
     const timestamp = new Date().toISOString();
     this.db.exec("BEGIN IMMEDIATE");
     try {
@@ -581,10 +1134,14 @@ export class LifestyleService {
         )
         .run(career.id, assetId);
       this.db
-        .prepare("UPDATE lifestyle_properties SET active=0,updated_at=? WHERE asset_id=? AND career_id=?")
+        .prepare(
+          "UPDATE lifestyle_properties SET active=0,updated_at=? WHERE asset_id=? AND career_id=?",
+        )
         .run(timestamp, assetId, career.id);
       this.db
-        .prepare("UPDATE lifestyle_commitments SET status='completed',ended_on=?,updated_at=? WHERE career_id=? AND source_reference=? AND status='active'")
+        .prepare(
+          "UPDATE lifestyle_commitments SET status='completed',ended_on=?,updated_at=? WHERE career_id=? AND source_reference=? AND status='active'",
+        )
         .run(date, timestamp, career.id, `property:${assetId}`);
       this.db
         .prepare(

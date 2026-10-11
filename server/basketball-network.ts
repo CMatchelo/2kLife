@@ -144,13 +144,22 @@ function playerFromRow(row: Record<string, unknown>): BasketballNetworkPlayer {
 
 export class BasketballNetworkService {
   private readonly db: DatabaseSync;
-  private readonly affinityBonuses: (careerId: string) => Record<string, number>;
+  private readonly affinityBonuses: (
+    careerId: string,
+  ) => Record<string, number>;
+  private readonly playerAffinityBonuses: (
+    careerId: string,
+  ) => Record<string, number>;
   constructor(
     db: DatabaseSync,
     affinityBonuses: (careerId: string) => Record<string, number> = () => ({}),
+    playerAffinityBonuses: (
+      careerId: string,
+    ) => Record<string, number> = () => ({}),
   ) {
     this.db = db;
     this.affinityBonuses = affinityBonuses;
+    this.playerAffinityBonuses = playerAffinityBonuses;
     migrateBasketballNetwork(db);
   }
 
@@ -233,6 +242,7 @@ export class BasketballNetworkService {
       .all(careerId)
       .map(playerFromRow);
     const bonuses = this.affinityBonuses(careerId);
+    const playerBonuses = this.playerAffinityBonuses(careerId);
     return {
       teams: this.db
         .prepare(
@@ -242,10 +252,24 @@ export class BasketballNetworkService {
         .map((row) => {
           const team = teamFromRow(row, currentTeamId);
           const lifestyleAffinityBonus = bonuses[team.teamId] ?? 0;
-          return { ...team, affinity: team.affinity + lifestyleAffinityBonus, lifestyleAffinityBonus };
+          return {
+            ...team,
+            affinity: team.affinity + lifestyleAffinityBonus,
+            lifestyleAffinityBonus,
+          };
         }),
-      players: people.filter((person) => person.role === "player"),
-      teammates: people.filter((person) => person.role === "teammate"),
+      players: people
+        .filter((person) => person.role === "player")
+        .map((person) => ({
+          ...person,
+          affinity: person.affinity + (playerBonuses[person.id] ?? 0),
+        })),
+      teammates: people
+        .filter((person) => person.role === "teammate")
+        .map((person) => ({
+          ...person,
+          affinity: person.affinity + (playerBonuses[person.id] ?? 0),
+        })),
     };
   }
 

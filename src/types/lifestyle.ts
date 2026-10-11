@@ -51,6 +51,14 @@ export type LifestylePropertyMarketCity = {
   })[];
 };
 
+export type LifestyleServiceDefinition = {
+  id: string;
+  name: string;
+  identityStyle: IdentityType;
+  pricePerPaidMatchUsdCents: number;
+  hired: boolean;
+};
+
 export type LifestyleAsset = {
   id: string;
   catalogItemId: string;
@@ -103,6 +111,7 @@ export type LifestyleFinancialOverview = {
   liabilitiesUsdCents: number;
   recurringCommitmentsPerPaidMatchUsdCents: number;
   estimatedNetWorthUsdCents: number;
+  remainingSalaryPayments: number;
 };
 
 export type LifestyleOverview = {
@@ -110,6 +119,9 @@ export type LifestyleOverview = {
   identityBonuses: IdentityScores;
   marketplace: LifestyleCatalogItem[];
   propertyMarketplace: LifestylePropertyMarketCity[];
+  services: LifestyleServiceDefinition[];
+  hiredServiceCount: number;
+  serviceLimit: number;
   ownedAssets: LifestyleAsset[];
   activeCommitments: LifestyleCommitment[];
   history: FinancialTransaction[];

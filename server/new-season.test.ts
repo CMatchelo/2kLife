@@ -204,6 +204,7 @@ test("activation is idempotent, creates fresh state, and preserves historical ga
   const store = new CareerStore(":memory:");
   try {
     const first = store.create(firstDraft());
+    store.lifestyle.hireService(first, "personal-trainer", randomUUID());
     const oldGameId = first.season.games[0].id;
     completeDirectly(store, first.id);
     const draft = readyDraft(store, first.id);
@@ -226,6 +227,16 @@ test("activation is idempotent, creates fresh state, and preserves historical ga
     assert.equal(started.season.postseason, null);
     assert.equal(started.seasons.length, 2);
     assert.equal(started.seasons[0].games[0].id, oldGameId);
+    assert.equal(store.lifestyle.overview(started).hiredServiceCount, 0);
+    assert.equal(store.lifestyle.overview(started).services.length, 6);
+    assert.equal(
+      store.db
+        .prepare(
+          "SELECT status FROM lifestyle_service_contracts WHERE career_id=? AND season_id=?",
+        )
+        .get(first.id, first.season.id)!.status,
+      "completed",
+    );
     assert.notEqual(started.season.games[0].id, draft.games[0].id);
     const retried = store.startNewSeason(first.id, { requestId });
     assert.equal(retried.season.id, started.season.id);

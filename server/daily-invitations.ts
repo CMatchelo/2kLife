@@ -767,6 +767,21 @@ export class DailyInvitationService {
       typeof selected.gameplayData.eventDescription === "string"
         ? selected.gameplayData.eventDescription
         : fallbackDailyEvent(selected).description;
+    const lifestyleIdentity =
+      selected.type === "team"
+        ? "team"
+        : selected.type === "player"
+          ? "star"
+          : selected.type === "fan" || selected.type === "charity"
+            ? "fan"
+            : null;
+    const lifestyleMultiplier = attended
+      ? this.store.lifestyle.eventBonusMultiplier(
+          career.id,
+          career.season.id,
+          lifestyleIdentity,
+        )
+      : 1;
     if (selected.type === "sponsor") {
       const contract = this.db
         .prepare(
@@ -833,32 +848,56 @@ export class DailyInvitationService {
         }
       }
     } else if (selected.type === "team") {
-      teamAffinity = attended ? 1 : -1;
-      if (attended) identities.team = 1;
+      teamAffinity = attended ? lifestyleMultiplier : -1;
+      if (attended) identities.team = lifestyleMultiplier;
       updatedTeamAffinity = this.adjustAffinity(
         "team",
         career.id,
         selected.targetTeamId!,
-        teamAffinity,
+        attended ? 1 : -1,
         `${reference}:affinity`,
         timestamp,
       );
+      if (attended && lifestyleMultiplier > 1)
+        this.store.lifestyle.applyEventAffinityBonus(
+          career.id,
+          "team",
+          selected.targetTeamId!,
+          `${reference}:lifestyle-affinity`,
+          lifestyleMultiplier - 1,
+        );
+      updatedTeamAffinity +=
+        this.store.lifestyle.teamAffinityBonuses(career.id)[
+          selected.targetTeamId!
+        ] ?? 0;
     } else if (selected.type === "player") {
-      playerAffinity = attended ? 1 : -1;
-      if (attended) identities.star = 1;
+      playerAffinity = attended ? lifestyleMultiplier : -1;
+      if (attended) identities.star = lifestyleMultiplier;
       updatedPlayerAffinity = this.adjustAffinity(
         "player",
         career.id,
         selected.targetNetworkPlayerId!,
-        playerAffinity,
+        attended ? 1 : -1,
         `${reference}:affinity`,
         timestamp,
       );
+      if (attended && lifestyleMultiplier > 1)
+        this.store.lifestyle.applyEventAffinityBonus(
+          career.id,
+          "player",
+          selected.targetNetworkPlayerId!,
+          `${reference}:lifestyle-affinity`,
+          lifestyleMultiplier - 1,
+        );
+      updatedPlayerAffinity +=
+        this.store.lifestyle.playerAffinityBonuses(career.id)[
+          selected.targetNetworkPlayerId!
+        ] ?? 0;
     } else if (selected.type === "fan") {
-      if (attended) identities.fan = 1;
+      if (attended) identities.fan = lifestyleMultiplier;
     } else {
       if (attended) {
-        identities.fan = 1;
+        identities.fan = lifestyleMultiplier;
         followers = this.integer(750, 2000);
       } else {
         payment = -charityRefusalDonationUsdCents(balanceBaseline);
@@ -894,6 +933,8 @@ export class DailyInvitationService {
             Math.floor(followerBaseline * 0.1),
           );
     }
+    if (attended && followers > 0 && lifestyleMultiplier > 1)
+      followers = Math.round(followers * lifestyleMultiplier);
     if (followers) {
       const currentFollowers = Number(player.socialMedia.currentFollowers);
       const applied = Math.min(
@@ -924,7 +965,7 @@ export class DailyInvitationService {
         sourceType: "daily_invitation",
         sourceId: selected.id,
         identity,
-        points: 1,
+        points: identities[identity],
       });
       player.identity.careerScores = emptyIdentity();
       for (const action of player.identity.actions)

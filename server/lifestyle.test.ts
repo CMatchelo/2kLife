@@ -87,6 +87,14 @@ test("collectible catalog has 36 stable tiered items and depreciation honors mon
     new Set(lifestyleItemCatalog.map((item) => item.identityBonus)),
     new Set([1, 2, 3]),
   );
+  assert.equal(
+    lifestyleItemCatalog.every(
+      (item) =>
+        item.careerConnections.length > 0 &&
+        item.careerConnections.every((connection) => connection.trim()),
+    ),
+    true,
+  );
   assert.equal(completedCalendarMonths("2026-01-31", "2026-02-28"), 1);
   assert.deepEqual(
     depreciatedValue(1_000_000, 10, "2026-01-31", "2026-02-28"),
@@ -189,7 +197,9 @@ test("Lifestyle overview uses the shared ledger and separates assets, commitment
     const overview = store.lifestyle.overview(career);
     assert.equal(overview.finances.cashBalanceUsdCents, 250_000);
     assert.equal(overview.finances.assetValueUsdCents, 450_000);
-    assert.equal(overview.finances.estimatedNetWorthUsdCents, 700_000);
+    assert.equal(overview.finances.liabilitiesUsdCents, 820_000);
+    assert.equal(overview.finances.estimatedNetWorthUsdCents, -120_000);
+    assert.equal(overview.finances.remainingSalaryPayments, 82);
     assert.equal(
       overview.finances.recurringCommitmentsPerPaidMatchUsdCents,
       10_000,
@@ -253,6 +263,12 @@ test("purchases, showcase replacement, and sales are idempotent and ledger-backe
       store.get(career.id)!.profile.identity.effectiveCareerScores!.fan,
       1,
     );
+    assert.deepEqual(
+      store.lifestyle.activeCareerConnections(career.id),
+      lifestyleItemCatalog.find(
+        (item) => item.id === "omega-swatch-moonswatch",
+      )!.careerConnections,
+    );
 
     overview = store.lifestyle.purchase(
       career,
@@ -313,9 +329,12 @@ test("properties enforce city choices, add active bonuses, charge maintenance wi
       },
     });
     store.basketballNetwork.addTeam(career.id, { teamId: "LAL" });
-    store.db.prepare(`INSERT INTO financial_transactions
+    store.db
+      .prepare(
+        `INSERT INTO financial_transactions
       (id,career_id,amount_usd_cents,currency,in_game_date,recorded_at,origin_type,origin_reference,reason,idempotency_key,description)
-      VALUES (?,?,2000000000,'USD','2026-10-01',?,'salary','test:cash','nba_salary',?,'Test cash')`)
+      VALUES (?,?,2000000000,'USD','2026-10-01',?,'salary','test:cash','nba_salary',?,'Test cash')`,
+      )
       .run(randomUUID(), career.id, new Date().toISOString(), randomUUID());
 
     let overview = store.lifestyle.purchaseProperty(
@@ -326,11 +345,39 @@ test("properties enforce city choices, add active bonuses, charge maintenance wi
       randomUUID(),
     );
     assert.equal(lifestylePropertyCatalog.length, 9);
-    assert.equal(overview.ownedAssets[0].property?.maintenanceCostUsdCents, 50_000);
+    assert.equal(
+      overview.ownedAssets[0].property?.maintenanceCostUsdCents,
+      50_000,
+    );
     assert.equal(overview.identityBonuses.team, 1);
-    assert.equal(store.basketballNetwork.get(career.id).teams.find((team) => team.teamId === "LAL")?.affinity, 1);
-    assert.throws(() => store.lifestyle.purchaseProperty(career, "downtown-penthouse", "los-angeles", "LAL", randomUUID()), /property type/);
-    assert.throws(() => store.lifestyle.purchaseProperty(career, "suburban-half-court", "los-angeles", "LAL", randomUUID()), /identity/);
+    assert.equal(
+      store.basketballNetwork
+        .get(career.id)
+        .teams.find((team) => team.teamId === "LAL")?.affinity,
+      1,
+    );
+    assert.throws(
+      () =>
+        store.lifestyle.purchaseProperty(
+          career,
+          "downtown-penthouse",
+          "los-angeles",
+          "LAL",
+          randomUUID(),
+        ),
+      /property type/,
+    );
+    assert.throws(
+      () =>
+        store.lifestyle.purchaseProperty(
+          career,
+          "suburban-half-court",
+          "los-angeles",
+          "LAL",
+          randomUUID(),
+        ),
+      /identity/,
+    );
 
     career = store.updateGame(career.id, career.season.games[0].id, {
       status: "completed",
@@ -339,13 +386,103 @@ test("properties enforce city choices, add active bonuses, charge maintenance wi
       played: false,
     })!;
     overview = store.lifestyle.overview(career);
-    assert.equal(overview.history.filter((entry) => entry.reason === "property_maintenance").length, 1);
-    assert.equal(overview.ownedAssets[0].property?.maintenanceCostUsdCents, 50_100);
+    assert.equal(
+      overview.history.filter(
+        (entry) => entry.reason === "property_maintenance",
+      ).length,
+      1,
+    );
+    assert.equal(
+      overview.ownedAssets[0].property?.maintenanceCostUsdCents,
+      50_100,
+    );
 
-    overview = store.lifestyle.sell(career, overview.ownedAssets[0].id, randomUUID());
+    overview = store.lifestyle.sell(
+      career,
+      overview.ownedAssets[0].id,
+      randomUUID(),
+    );
     assert.equal(overview.identityBonuses.team, 0);
     assert.equal(overview.activeCommitments.length, 0);
-    assert.equal(store.basketballNetwork.get(career.id).teams.find((team) => team.teamId === "LAL")?.affinity, 0);
+    assert.equal(
+      store.basketballNetwork
+        .get(career.id)
+        .teams.find((team) => team.teamId === "LAL")?.affinity,
+      0,
+    );
+  } finally {
+    store.close();
+  }
+});
+
+test("seasonal professional agreements have durable prices, a four-contract limit, and salary-linked fees", () => {
+  const store = new CareerStore(":memory:");
+  try {
+    store.lifestyle = new LifestyleService(store.db, () => 0.4);
+    let career = store.create({
+      ...draft(),
+      season: {
+        ...draft().season,
+        salaryTerms: {
+          annualSalaryUsdCents: 2_000_000_000,
+          remainingContractSeasons: 1,
+          regularSeasonGameCount: 82,
+        },
+      },
+    });
+    let overview = store.lifestyle.overview(career);
+    assert.equal(overview.services.length, 6);
+    assert.equal(
+      new Set(
+        overview.services.map((service) => service.pricePerPaidMatchUsdCents),
+      ).size,
+      1,
+    );
+    const price = overview.services[0].pricePerPaidMatchUsdCents;
+    assert.equal(price, Math.round((2_000_000_000 / 82) * 0.1));
+
+    for (const service of overview.services.slice(0, 4))
+      overview = store.lifestyle.hireService(career, service.id, randomUUID());
+    assert.equal(overview.hiredServiceCount, 4);
+    assert.throws(
+      () =>
+        store.lifestyle.hireService(
+          career,
+          overview.services[4].id,
+          randomUUID(),
+        ),
+      /four professionals/,
+    );
+    assert.equal(
+      store.lifestyle.eventBonusMultiplier(career.id, career.season.id, "team"),
+      1.2,
+    );
+    assert.equal(
+      store.lifestyle.eventBonusMultiplier(career.id, career.season.id, "fan"),
+      1,
+    );
+    assert.equal(overview.finances.liabilitiesUsdCents, price * 4 * 82);
+
+    career = store.updateGame(career.id, career.season.games[0].id, {
+      status: "completed",
+      teamScore: 100,
+      opponentScore: 90,
+      played: false,
+    })!;
+    overview = store.lifestyle.overview(career);
+    assert.equal(overview.finances.remainingSalaryPayments, 81);
+    assert.equal(overview.finances.liabilitiesUsdCents, price * 4 * 81);
+    assert.equal(
+      overview.history.filter((entry) => entry.reason === "service_payment")
+        .length,
+      4,
+    );
+    assert.equal(
+      store.db
+        .prepare("SELECT COUNT(*) count FROM lifestyle_service_payments")
+        .get()!.count,
+      4,
+    );
   } finally {
     store.close();
   }
@@ -371,6 +508,40 @@ test("deleting a career removes its empty Lifestyle foundation rows safely", () 
         .count,
       0,
     );
+  } finally {
+    store.close();
+  }
+});
+
+test("loading a legacy career creates missing seasonal service prices once", () => {
+  const store = new CareerStore(":memory:");
+  try {
+    const career = store.create(draft());
+    store.db
+      .prepare("DELETE FROM lifestyle_service_offers WHERE career_id=?")
+      .run(career.id);
+    assert.equal(
+      store.db
+        .prepare(
+          "SELECT COUNT(*) count FROM lifestyle_service_offers WHERE career_id=?",
+        )
+        .get(career.id)!.count,
+      0,
+    );
+    store.get(career.id);
+    const first = store.db
+      .prepare(
+        "SELECT service_id,price_per_paid_match_usd_cents FROM lifestyle_service_offers WHERE career_id=? ORDER BY service_id",
+      )
+      .all(career.id);
+    store.get(career.id);
+    const second = store.db
+      .prepare(
+        "SELECT service_id,price_per_paid_match_usd_cents FROM lifestyle_service_offers WHERE career_id=? ORDER BY service_id",
+      )
+      .all(career.id);
+    assert.equal(first.length, 6);
+    assert.deepEqual(second, first);
   } finally {
     store.close();
   }

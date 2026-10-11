@@ -839,15 +839,24 @@ export function connectionServer(
       const lifestylePropertyPurchase = req.url?.match(
         /^\/api\/careers\/([\w-]+)\/lifestyle\/properties\/([\w-]+)\/purchase$/,
       );
+      const lifestyleServiceHire = req.url?.match(
+        /^\/api\/careers\/([\w-]+)\/lifestyle\/services\/([\w-]+)\/hire$/,
+      );
       const lifestyleAssetAction = req.url?.match(
         /^\/api\/careers\/([\w-]+)\/lifestyle\/assets\/([\w-]+)\/(showcase|unshowcase|sell)$/,
       );
       if (
         careers &&
         req.method === "POST" &&
-        (lifestylePurchase || lifestylePropertyPurchase || lifestyleAssetAction)
+        (lifestylePurchase ||
+          lifestylePropertyPurchase ||
+          lifestyleServiceHire ||
+          lifestyleAssetAction)
       ) {
-        const careerId = (lifestylePurchase ?? lifestylePropertyPurchase ?? lifestyleAssetAction)![1];
+        const careerId = (lifestylePurchase ??
+          lifestylePropertyPurchase ??
+          lifestyleServiceHire ??
+          lifestyleAssetAction)![1];
         const career = careers.get(careerId);
         if (!career) return send(404, { message: "Career not found." });
         const body = (await readBody(
@@ -887,6 +896,15 @@ export function connectionServer(
             ),
           );
         }
+        if (lifestyleServiceHire)
+          return send(
+            200,
+            careers.lifestyle.hireService(
+              career,
+              lifestyleServiceHire[2],
+              body.requestId,
+            ),
+          );
         const [, , assetId, action] = lifestyleAssetAction!;
         return send(
           200,
