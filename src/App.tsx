@@ -8,14 +8,28 @@ import OffseasonFreeAgency from "./career/OffseasonFreeAgency";
 import { api } from "./career/api";
 import type { Career, CareerSummary } from "./types/career";
 
-const careerViews: { value: CareerView; label: string }[] = [
-  { value: "progress", label: "Season progress" },
-  { value: "info", label: "Player info" },
-  { value: "sponsors", label: "Sponsors" },
-  { value: "finances", label: "Finances" },
-  { value: "lifestyle", label: "Lifestyle" },
-  { value: "config", label: "Settings" },
-];
+const careerNavigation = [
+  { label: "Season", value: "progress" },
+  {
+    label: "Career",
+    items: [
+      { label: "Career History", value: "info" },
+      { label: "Network", value: "network" },
+      { label: "Sponsors", value: "sponsors" },
+    ],
+  },
+  {
+    label: "Off Court",
+    items: [
+      { label: "Finances", value: "finances" },
+      { label: "Lifestyle", value: "lifestyle" },
+    ],
+  },
+  { label: "Settings", value: "config" },
+] satisfies Array<
+  | { label: string; value: CareerView; items?: never }
+  | { label: string; items: Array<{ label: string; value: CareerView }>; value?: never }
+>;
 
 function CareerViewIcon({ view }: { view: CareerView }) {
   const shared = {
@@ -37,6 +51,15 @@ function CareerViewIcon({ view }: { view: CareerView }) {
       <svg {...shared}>
         <circle cx="12" cy="8" r="3.5" />
         <path d="M5 20c.7-4 3-6 7-6s6.3 2 7 6" />
+      </svg>
+    );
+  if (view === "network")
+    return (
+      <svg {...shared}>
+        <circle cx="12" cy="7" r="3" />
+        <circle cx="5" cy="17" r="2.5" />
+        <circle cx="19" cy="17" r="2.5" />
+        <path d="m10 9-3.5 5.5M14 9l3.5 5.5M7.5 17h9" />
       </svg>
     );
   if (view === "sponsors")
@@ -85,22 +108,77 @@ function CareerNavigation({
         mobile ? "flex flex-col" : "hidden items-stretch md:flex lg:gap-2"
       }
     >
-      {careerViews.map((item) => (
-        <button
-          key={item.value}
-          type="button"
-          aria-current={view === item.value ? "page" : undefined}
-          className={`flex cursor-pointer items-center gap-2 border-b-2 bg-transparent px-1 py-3 text-left text-sm font-semibold transition-colors hover:border-gold hover:text-white lg:px-2 ${
-            view === item.value
-              ? "border-gold text-white"
-              : "border-transparent text-slate-300"
-          }`}
-          onClick={() => onSelect(item.value)}
-        >
-          <CareerViewIcon view={item.value} />
-          {item.label}
-        </button>
-      ))}
+      {careerNavigation.map((item) => {
+        if (item.value) {
+          return (
+            <button
+              key={item.value}
+              type="button"
+              aria-current={view === item.value ? "page" : undefined}
+              className={`flex cursor-pointer items-center gap-2 border-b-2 bg-transparent px-1 py-3 text-left text-sm font-semibold transition-colors hover:border-gold hover:text-white lg:px-2 ${
+                view === item.value
+                  ? "border-gold text-white"
+                  : "border-transparent text-slate-300"
+              }`}
+              onClick={() => onSelect(item.value)}
+            >
+              <CareerViewIcon view={item.value} />
+              {item.label}
+            </button>
+          );
+        }
+        const activeItem = item.items.find((child) => child.value === view);
+        return (
+          <details
+            key={item.label}
+            className={`group relative ${mobile ? "border-b border-divider/60" : ""}`}
+          >
+            <summary
+              className={`flex cursor-pointer list-none items-center gap-2 border-b-2 px-1 py-3 text-sm font-semibold transition-colors hover:border-gold hover:text-white lg:px-2 ${
+                activeItem
+                  ? "border-gold text-white"
+                  : "border-transparent text-slate-300"
+              }`}
+            >
+              <CareerViewIcon view={activeItem?.value ?? item.items[0].value} />
+              {item.label}
+              <span
+                aria-hidden="true"
+                className="text-xs transition-transform group-open:rotate-180"
+              >
+                ▾
+              </span>
+            </summary>
+            <div
+              className={
+                mobile
+                  ? "flex flex-col pb-2 pl-6"
+                  : "absolute left-0 top-full z-30 mt-1 min-w-48 overflow-hidden rounded-lg border border-divider bg-[#0d161f] py-1 shadow-xl"
+              }
+            >
+              {item.items.map((child) => (
+                <button
+                  key={child.value}
+                  type="button"
+                  aria-current={view === child.value ? "page" : undefined}
+                  className={`flex w-full cursor-pointer items-center gap-2 px-4 py-2.5 text-left text-sm font-semibold hover:bg-slate-800 hover:text-white ${
+                    view === child.value ? "text-gold" : "text-slate-300"
+                  }`}
+                  onClick={(event) => {
+                    event.currentTarget
+                      .closest("details")
+                      ?.removeAttribute("open");
+                    onSelect(child.value);
+                  }}
+                >
+                  <CareerViewIcon view={child.value} />
+                  {child.label}
+                </button>
+              ))}
+            </div>
+          </details>
+        );
+      })}
     </nav>
   );
 }

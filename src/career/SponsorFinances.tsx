@@ -1,10 +1,7 @@
 import { useEffect, useState } from "react";
 import type { Career } from "../types/career";
-import type { SignatureShoe } from "../types/signature-shoe";
 import type { SponsorsOverview } from "../types/sponsor";
 import { api } from "./api";
-import SignatureShoeLaunchModal from "./SignatureShoeLaunchModal";
-import SignatureShoesBoard from "./SignatureShoesBoard";
 import { teamName } from "../domain/teams";
 
 const currency = new Intl.NumberFormat("en-US", {
@@ -17,9 +14,6 @@ export default function SponsorFinances({ career }: { career: Career }) {
   const [overview, setOverview] = useState<SponsorsOverview | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [launchingShoe, setLaunchingShoe] = useState<SignatureShoe | null>(
-    null,
-  );
 
   async function load() {
     setLoading(true);
@@ -170,20 +164,6 @@ export default function SponsorFinances({ career }: { career: Career }) {
           </>
         )}
       </section>
-      <SignatureShoesBoard
-        shoes={overview?.signatureShoes ?? []}
-        onLaunch={setLaunchingShoe}
-      />
-      {launchingShoe && (
-        <SignatureShoeLaunchModal
-          careerId={career.id}
-          shoe={launchingShoe}
-          onLaunched={() => {
-            setLaunchingShoe(null);
-            void load();
-          }}
-        />
-      )}
     </div>
   );
 }

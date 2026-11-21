@@ -14,6 +14,9 @@ import type {
 } from "../types/sponsor";
 import { api } from "./api";
 import SponsorApproachModal from "./SponsorApproachModal";
+import SignatureShoeLaunchModal from "./SignatureShoeLaunchModal";
+import SignatureShoesBoard from "./SignatureShoesBoard";
+import type { SignatureShoe } from "../types/signature-shoe";
 
 const brandById = new Map(
   sponsorCatalog.brands.map((brand) => [brand.id, brand]),
@@ -294,7 +297,7 @@ function ConfirmDialog({
 
 export default function Sponsors({ career }: { career: Career }) {
   const [sponsorView, setSponsorView] = useState<
-    "contracts" | "discover" | "blocked"
+    "contracts" | "shoes" | "discover" | "blocked"
   >("contracts");
   const careerId = career.id;
   const [overview, setOverview] = useState<SponsorsOverview | null>(null);
@@ -321,6 +324,9 @@ export default function Sponsors({ career }: { career: Career }) {
     chosen: string;
     reviewing: boolean;
   } | null>(null);
+  const [launchingShoe, setLaunchingShoe] = useState<SignatureShoe | null>(
+    null,
+  );
 
   async function reviewReplacement(entryId: string) {
     try {
@@ -443,7 +449,7 @@ export default function Sponsors({ career }: { career: Career }) {
           Choose one sponsor area to view.
         </p>
         <div
-          className="mt-5 grid gap-3 sm:grid-cols-3"
+          className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4"
           role="tablist"
           aria-label="Sponsor sections"
         >
@@ -456,6 +462,7 @@ export default function Sponsors({ career }: { career: Career }) {
                   ? `${approaches.length} offer group${approaches.length === 1 ? "" : "s"} waiting`
                   : "Active and completed deals",
               ],
+              ["shoes", "Signature Shoes", "Launches and sales"],
               ["discover", "Discover", "Potential sponsors"],
               ["blocked", "Blocked", "Brand restrictions"],
             ] as const
@@ -1300,6 +1307,12 @@ export default function Sponsors({ career }: { career: Career }) {
           </section>
         </div>
       )}
+      {sponsorView === "shoes" && (
+        <SignatureShoesBoard
+          shoes={overview?.signatureShoes ?? []}
+          onLaunch={setLaunchingShoe}
+        />
+      )}
       {confirming && (
         <ConfirmDialog
           brand={confirming.brand}
@@ -1307,6 +1320,16 @@ export default function Sponsors({ career }: { career: Career }) {
           saving={saving}
           onCancel={() => setConfirming(null)}
           onConfirm={() => void mutate()}
+        />
+      )}
+      {launchingShoe && (
+        <SignatureShoeLaunchModal
+          careerId={career.id}
+          shoe={launchingShoe}
+          onLaunched={() => {
+            setLaunchingShoe(null);
+            void load();
+          }}
         />
       )}
       {openApproach && (

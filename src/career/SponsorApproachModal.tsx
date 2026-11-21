@@ -129,6 +129,12 @@ export default function SponsorApproachModal({
             const dates = [
               ...(offer.confirmedSchedule ?? offer.appearanceSchedule.entries),
             ].sort((a, b) => a.date.localeCompare(b.date));
+            const overlapsByDate = new Map(
+              offer.schedule.overlaps.map((overlap) => [
+                overlap.date,
+                overlap.brands,
+              ]),
+            );
             const status =
               offer.status === "accepted"
                 ? "Contract active"
@@ -265,24 +271,36 @@ export default function SponsorApproachModal({
                       </span>
                     </h4>
                     <ol className="mt-3 grid list-none gap-2 text-sm sm:grid-cols-2 md:grid-cols-3">
-                      {dates.map((entry, index) => (
-                        <li
-                          key={entry.id}
-                          className="rounded-md border border-slate-600 bg-[#0d161f] px-3 py-2"
-                        >
-                          <span className="mr-2 text-slate-400">
-                            {index + 1}.
-                          </span>
-                          <time dateTime={entry.date} className="font-bold">
-                            {entry.date}
-                          </time>
-                          {entry.replacedDate && (
-                            <span className="block text-xs text-slate-400">
-                              Replaces {entry.replacedDate}
+                      {dates.map((entry, index) => {
+                        const overlappingBrands = overlapsByDate.get(
+                          entry.date,
+                        );
+                        return (
+                          <li
+                            key={entry.id}
+                            className={`rounded-md border px-3 py-2 ${overlappingBrands?.length ? "border-amber-400/70 bg-amber-950/30" : "border-slate-600 bg-[#0d161f]"}`}
+                          >
+                            <span className="mr-2 text-slate-400">
+                              {index + 1}.
                             </span>
-                          )}
-                        </li>
-                      ))}
+                            <time dateTime={entry.date} className="font-bold">
+                              {entry.date}
+                            </time>
+                            {entry.replacedDate && (
+                              <span className="block text-xs text-slate-400">
+                                Replaces {entry.replacedDate}
+                              </span>
+                            )}
+                            {!!overlappingBrands?.length && (
+                              <span className="mt-1 block text-xs font-bold text-amber-300">
+                                Already booked for {overlappingBrands.join(
+                                  ", ",
+                                )}
+                              </span>
+                            )}
+                          </li>
+                        );
+                      })}
                     </ol>
                   </section>
                 </div>

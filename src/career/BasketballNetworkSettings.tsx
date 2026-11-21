@@ -437,10 +437,6 @@ export default function BasketballNetworkSettings({
         be used in future events, relationships, contract discussions, and trade
         stories.
       </p>
-      <p className="supporting-detail mt-2">
-        For now, this section has no gameplay effect. In the future, these
-        relationships will influence trades and contract negotiations.
-      </p>
       {loading && (
         <p className="mt-5" role="status">
           Loading basketball network…

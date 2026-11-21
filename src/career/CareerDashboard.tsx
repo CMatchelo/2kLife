@@ -216,6 +216,7 @@ function SponsorSettlementModal({
 export type CareerView =
   | "progress"
   | "info"
+  | "network"
   | "sponsors"
   | "finances"
   | "lifestyle"
@@ -232,8 +233,8 @@ export default function CareerDashboard({
 }) {
   const [current, setCurrent] = useState(career);
   const [settingsSection, setSettingsSection] = useState<
-    "network" | "ai" | "calendar"
-  >("network");
+    "ai" | "calendar"
+  >("ai");
   const [month, setMonth] = useState(
     current.currentDate?.slice(0, 7) ??
       current.season.games[0]?.date.slice(0, 7) ??
@@ -615,6 +616,8 @@ export default function CareerDashboard({
           <PlayerRecords career={current} />
           <PersonalLife socialMedia={current.profile.socialMedia} />
         </div>
+      ) : view === "network" ? (
+        <BasketballNetworkSettings career={current} />
       ) : view === "sponsors" ? (
         <Sponsors career={current} />
       ) : view === "finances" ? (
@@ -636,13 +639,12 @@ export default function CareerDashboard({
               Choose one area to configure.
             </p>
             <div
-              className="mt-5 grid gap-3 sm:grid-cols-3"
+              className="mt-5 grid gap-3 sm:grid-cols-2"
               role="tablist"
               aria-label="Settings categories"
             >
               {(
                 [
-                  ["network", "Basketball Network", "Teams and relationships"],
                   ["ai", "AI Provider", "Interviews and connection"],
                   ["calendar", "Calendar", "Season boundary and off days"],
                 ] as const
@@ -667,9 +669,6 @@ export default function CareerDashboard({
               ))}
             </div>
           </section>
-          {settingsSection === "network" && (
-            <BasketballNetworkSettings career={current} />
-          )}
           {settingsSection === "ai" && (
             <section className="career-card dashboard-card">
               <h2 className="section-title">AI configuration</h2>

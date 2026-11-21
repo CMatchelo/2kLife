@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import type { Career } from "../types/career";
 import type { Game } from "../types/game";
 import type { BoxScore } from "../types/stats";
+import type { ExtractedBoxScore } from "../domain/boxScoreImport";
 import {
   type GameDetails,
   parseGameDetails,
@@ -46,6 +47,58 @@ export default function MatchEditor({
     node.showModal();
     return () => node.close();
   }, []);
+  async function fillFromScreenshot() {
+    if (!statImage) return;
+    setError("");
+    setExtracting(true);
+    try {
+      if (
+        !["image/png", "image/jpeg", "image/webp"].includes(statImage.type) ||
+        statImage.size > 4 * 1024 * 1024
+      )
+        throw new Error("Use a PNG, JPEG, or WebP image up to 4 MiB.");
+      const dataUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result));
+        reader.onerror = () => reject(new Error("Image could not be read."));
+        reader.readAsDataURL(statImage);
+      });
+      const connection = await api<ConnectionSnapshot>("ai/status");
+      if (!connection.selectedProvider || !connection.importReady)
+        throw new Error(
+          "Connect and test an AI provider before filling match information from an image.",
+        );
+      const extracted = await api<ExtractedBoxScore>("ai/box-score", {
+        provider: connection.selectedProvider,
+        image: {
+          mediaType: statImage.type,
+          data: dataUrl.split(",")[1],
+        },
+      });
+      setFields((current) => ({
+        ...current,
+        status: "completed",
+        teamScore:
+          game.location === "away"
+            ? extracted.awayTeamScore
+            : extracted.homeTeamScore,
+        opponentScore:
+          game.location === "away"
+            ? extracted.homeTeamScore
+            : extracted.awayTeamScore,
+        played: true,
+        stats: extracted.stats,
+      }));
+    } catch (cause) {
+      setError(
+        cause instanceof Error
+          ? cause.message
+          : "Could not read match information from this image.",
+      );
+    } finally {
+      setExtracting(false);
+    }
+  }
   return createPortal(
     <dialog
       ref={dialog}
@@ -90,6 +143,51 @@ export default function MatchEditor({
           {teamName(career.teams, game.teamId)} vs{" "}
           {teamName(career.teams, game.opponentId)}
         </p>
+        <section className="space-y-3 rounded-xl border border-divider bg-cream p-4">
+          <div>
+            <h3 className="font-bold">Fill from a screenshot</h3>
+            <p className="mt-1 text-sm text-muted">
+              This fills the final score and your selected player&apos;s box
+              score. In NBA 2K, open Calendar, select the game, then choose
+              View Box Score. Highlight your player before taking the
+              screenshot.
+            </p>
+          </div>
+          <details className="text-sm">
+            <summary className="cursor-pointer font-semibold">
+              View example screenshot
+            </summary>
+            <img
+              src="/model/match_details_sample.jpg"
+              alt="Example NBA 2K box-score screen with the player's row highlighted and the final score visible"
+              className="mt-3 w-full rounded-lg border border-divider"
+            />
+          </details>
+          <div className="flex flex-wrap items-end gap-3">
+            <label className="career-field min-w-56 flex-1">
+              <span>Match box-score screenshot</span>
+              <input
+                type="file"
+                accept="image/png,image/jpeg,image/webp"
+                disabled={saving || extracting}
+                onChange={(event) => {
+                  setError("");
+                  setStatImage(event.target.files?.[0] ?? null);
+                }}
+              />
+            </label>
+            <button
+              type="button"
+              className="ai-secondary"
+              disabled={!statImage || extracting || saving}
+              onClick={fillFromScreenshot}
+            >
+              {extracting
+                ? "Reading screenshot…"
+                : "Fill match details from screenshot"}
+            </button>
+          </div>
+        </section>
         <fieldset disabled={saving || extracting} className="space-y-4">
           {/*
           Temporary shortcut for testing records and postgame interviews.
@@ -440,96 +538,21 @@ export default function MatchEditor({
                   Record your points, shooting, assists, rebounds, and other
                   player stats. Adding a box score sets Played to Yes.
                 </p>
-                <div className="flex flex-wrap items-end gap-3">
-                  <button
-                    type="button"
-                    className="ai-secondary"
-                    onClick={() =>
-                      setFields({
-                        ...fields,
-                        played: true,
-                        stats: Object.fromEntries(
-                          Object.keys(statLabels).map((key) => [key, 0]),
-                        ) as BoxScore,
-                      })
-                    }
-                  >
-                    Add my box score
-                  </button>
-                  <label className="career-field min-w-56">
-                    <span>Box score screenshot</span>
-                    <input
-                      type="file"
-                      accept="image/png,image/jpeg,image/webp"
-                      onChange={(event) => {
-                        setError("");
-                        setStatImage(event.target.files?.[0] ?? null);
-                      }}
-                    />
-                  </label>
-                  <button
-                    type="button"
-                    className="ai-secondary"
-                    disabled={!statImage || extracting}
-                    onClick={async () => {
-                      if (!statImage) return;
-                      setError("");
-                      setExtracting(true);
-                      try {
-                        if (
-                          !["image/png", "image/jpeg", "image/webp"].includes(
-                            statImage.type,
-                          ) ||
-                          statImage.size > 4 * 1024 * 1024
-                        )
-                          throw new Error(
-                            "Use a PNG, JPEG, or WebP image up to 4 MiB.",
-                          );
-                        const dataUrl = await new Promise<string>(
-                          (resolve, reject) => {
-                            const reader = new FileReader();
-                            reader.onload = () =>
-                              resolve(String(reader.result));
-                            reader.onerror = () =>
-                              reject(new Error("Image could not be read."));
-                            reader.readAsDataURL(statImage);
-                          },
-                        );
-                        const connection =
-                          await api<ConnectionSnapshot>("ai/status");
-                        if (
-                          !connection.selectedProvider ||
-                          !connection.importReady
-                        )
-                          throw new Error(
-                            "Connect and test an AI provider before filling stats from an image.",
-                          );
-                        const stats = await api<BoxScore>("ai/box-score", {
-                          provider: connection.selectedProvider,
-                          image: {
-                            mediaType: statImage.type,
-                            data: dataUrl.split(",")[1],
-                          },
-                        });
-                        setFields((current) => ({
-                          ...current,
-                          played: true,
-                          stats,
-                        }));
-                      } catch (cause) {
-                        setError(
-                          cause instanceof Error
-                            ? cause.message
-                            : "Could not read stats from this image.",
-                        );
-                      } finally {
-                        setExtracting(false);
-                      }
-                    }}
-                  >
-                    {extracting ? "Reading image…" : "Fill using image"}
-                  </button>
-                </div>
+                <button
+                  type="button"
+                  className="ai-secondary"
+                  onClick={() =>
+                    setFields({
+                      ...fields,
+                      played: true,
+                      stats: Object.fromEntries(
+                        Object.keys(statLabels).map((key) => [key, 0]),
+                      ) as BoxScore,
+                    })
+                  }
+                >
+                  Add my box score
+                </button>
               </>
             )}
           </section>
