@@ -276,6 +276,7 @@ Framework-free core logic, imported by server (and reusable client-side).
   See §9 and `src/data/README.md` for the full schema/validation rules — read that file directly
   for sponsor-catalog work.
 - **`teams.ts`**: `modernTeams` (30 real NBA teams id/name), `teamLogo()`, `teamName()`.
+- **`teamPresentation.ts`**: Modern NBA arena cities, venues, and banner colors keyed by team ID.
 - **`import.ts`**: AI schema/prompt to extract a schedule from NBA2K calendar screenshots (red
   card = away, blue = home — baked-in UI convention); `normalizeImport()` flags
   duplicates/warnings for user review rather than silently accepting bad data.
@@ -328,11 +329,11 @@ Framework-free core logic, imported by server (and reusable client-side).
   dispatches on `AdvanceDayResult.kind` to the right modal (match editor / interview /
   standings / postseason schedule / sponsor offers / sponsor settlements / daily invitations).
   Also `saveCalendar()`, `prepareInterview()`, `loadSponsorMessages()`. Renders `SeasonProgress`,
-  `PlayerInfo`+`PlayerRecords`+`PersonalLife`, `Sponsors`, `SponsorFinances`, `LifestyleDashboard`, settings tabs, plus
+  `CareerHistory`, `Sponsors`, `SponsorFinances`, `LifestyleDashboard`, settings tabs, plus
   `ScheduleView`, `PostseasonProgress`, `CalendarSettings`, and modals: `MatchEditor`,
   `FinalStandingsModal`, `PostseasonScheduleModal`, `InterviewModal`, `SponsorApproachModal`,
   `SponsorSettlementModal`/`SponsorMessageLoading` (local to this file),
-  `DailyInvitationModal`/`DailyEventResultModal`, `SignatureShoeLaunchModal`, and the mandatory
+  `SignatureShoeLaunchModal`, and the mandatory
   January `ContractAgentLoading`/`ContractOfferPopup` flow.
 - `career/NewCareer.tsx`: career-creation wizard (uses `CalendarSetup`, `TeamManager`,
   `SalaryFields`, `fields.tsx`), supports screenshot import via `/api/ai/import`, and captures
@@ -341,8 +342,9 @@ Framework-free core logic, imported by server (and reusable client-side).
   game → `MatchEditor`/`GameEditor`.
 - `career/MatchEditor.tsx` / `GameEditor.tsx`: record a completed match's box score vs schedule a
   new fixture. `MatchEditor` can prefill a reviewed box score from `/api/ai/box-score`.
-- `career/SeasonProgress.tsx`, `PlayerInfo.tsx`, `PlayerRecords.tsx`, `PersonalLife.tsx`: stat
-  dashboards (NBA-style averages, bio info, career/season records, follower history).
+- `career/CareerHistory.tsx`: season history and read-only completed reviews, career/season highs,
+  team stints, player profile, contract decisions, and follower history.
+- `career/SeasonProgress.tsx`: active-season NBA-style averages.
 - `career/PostseasonProgress.tsx`, `PostseasonScheduleModal.tsx`, `FinalStandingsModal.tsx`:
   bracket display/entry (uses `.postseason-*` CSS in `index.css`).
 - `career/SeasonReviewModal.tsx`: five-step optional awards wizard and final league summary;
@@ -355,11 +357,13 @@ Framework-free core logic, imported by server (and reusable client-side).
   cards, focused offer details, and mandatory contract-selection confirmation.
 - `career/Sponsors.tsx`, `SponsorFinances.tsx`, `SponsorApproachModal.tsx`,
   `SignatureShoesBoard.tsx`, `SignatureShoeLaunchModal.tsx`: sponsor/contract UI, ledger view,
-  shoe launch form.
+  shoe launch form. Finances also shows NBA salary payments by season.
 - `career/LifestyleDashboard.tsx`: Lifestyle overview, owned/showcased collectibles,
   always-available marketplace, purchase/sale history, and transactional item actions.
-- `career/DailyInvitationModal.tsx` (+ `DailyEventResultModal`): off-day invitation
-  selection/resolution.
+- `career/SeasonOverview.tsx`: shared team-branded career banner, Next Matchup and Next day, and
+  active/potential sponsor previews in saved order.
+- `career/OffCourtInvites.tsx`: modal invitation loading, then inline selection and results.
+  Pending invitations disable Next day until an invitation is accepted or all are refused.
 - `career/InterviewModal.tsx`: post-game Q&A UI ("press conference" theme, `pressBackground.jpg`,
   `.interview-dialog` CSS).
 - `career/BasketballNetworkSettings.tsx`, `CalendarSettings.tsx`, `CalendarSetup.tsx`,
@@ -390,7 +394,10 @@ Historical/planning, may be stale vs shipped behavior:
 Key rules (full detail in `src/data/README.md`):
 
 - Money = safe-integer USD **cents** (`fixedPaymentUsdCents: 3000000` = $30,000).
-- Required appearances = `ceil(durationMatches / 5)`; per-event payments rebalanced so minimum
+- Required appearances are 4–5 for entry, 6–7 for middle, and 9–10 for top. New offers
+  target `ceil((requiredEvents + 1) * 1.5)` dates, with a minimum of `requiredEvents + 1`
+  confirmed off-days. Catalog durations are at least three matches above the target.
+  Per-event payments are rebalanced so minimum
   appearances ≈ same total compensation.
 - Percentages are fractions 0–1. 4 permanent milestones + 1 dynamic milestone = 0.2 interest each.
 - IDs are stable and brand-independent (rename brand, keep ID). Milestone refs are stable
@@ -423,8 +430,8 @@ Key rules (full detail in `src/data/README.md`):
    eligibility recalc. Selected interview → AI Q&A → +1 identity score. Advancing past a played
    day runs sponsor settlement/offer checks (may pause for modals), moves the date forward, and
    on the new date either surfaces the next scheduled game or (confirmed off day) rolls an event
-   window and presents `DailyInvitationModal` (sponsor appearances + AI-flavored invitations, ≤1
-   attended/day) before landing.
+   window, then loads and displays sponsor appearances and AI-flavored invitations inline on the
+   Season screen. At most one invitation can be attended per day.
 3. **Contracts**: on January 15 of the final contract season, progression pauses before that
    day's activity for one current-team extension. Accepted terms remain future-dated; rejection
    preserves offseason eligibility. Contract calculations are deterministic and messages have AI

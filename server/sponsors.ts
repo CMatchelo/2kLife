@@ -80,6 +80,10 @@ export function sponsorOfferTerms(
   };
 }
 
+function targetAppearanceDates(requiredEvents: number): number {
+  return Math.ceil((requiredEvents + 1) * 1.5);
+}
+
 function validateInputs(inputs: SponsorEligibilityInputs) {
   for (const category of inputs.occupiedCategories ?? [])
     if (!categories.has(category))
@@ -1232,6 +1236,20 @@ export class SponsorService {
     };
   }
 
+  private availableSigningDates(career: Career, end: string) {
+    const booked = new Set(
+      this.db.prepare(
+        `SELECT a.appearance_date FROM sponsor_contract_appearances a
+         JOIN sponsor_contracts c ON c.id = a.contract_id
+         WHERE a.career_id = ? AND c.status = 'active'
+           AND a.status IN ('scheduled', 'calendar_conflict')`,
+      ).all(career.id).map((row) => String(row.appearance_date)),
+    );
+    return new Set(
+      this.confirmedOffDays(career, career.currentDate!, end).filter((date) => !booked.has(date)),
+    );
+  }
+
   private prepareSigning(
     career: Career,
     offer: SponsorOffer,
@@ -1246,20 +1264,21 @@ export class SponsorService {
         "No future contract game is recorded. Add future games and confirm off days before signing.",
       );
     const entries = this.offerEntries(offer.id);
-    const valid = new Set(
-      this.confirmedOffDays(career, career.currentDate!, end),
-    );
+    const valid = this.availableSigningDates(career, end);
     const kept = entries.filter((entry) => valid.has(entry.date));
     const invalid = entries.filter((entry) => !valid.has(entry.date));
     const candidates = [...valid].filter(
       (date) => !kept.some((entry) => entry.date === date),
     );
-    if (candidates.length < invalid.length)
+    if (valid.size < offer.terms.requiredEvents + 1)
       throw new SponsorOfferError(
-        `Only ${candidates.length} confirmed replacement off days are available for ${invalid.length} dates. Confirm more calendar months or add future games, then review this offer again before its three-match deadline.`,
+        `Only ${valid.size} unbooked, confirmed off days are available. This offer needs at least ${offer.terms.requiredEvents + 1}. Confirm more calendar months or add future games, then review this offer again before its three-match deadline.`,
       );
-    const dates = this.selectDates(candidates, invalid.length);
-    const replaced = invalid.map((entry, index) => ({
+    const dates = this.selectDates(
+      candidates,
+      Math.min(candidates.length, invalid.length),
+    );
+    const replaced = invalid.slice(0, dates.length).map((entry, index) => ({
       ...entry,
       date: dates[index],
       source: "signing_replacement" as const,
@@ -1494,7 +1513,18 @@ export class SponsorService {
         return [];
       }
       return [
-        { brand, state, end, dates: this.selectDates(candidates, needed) },
+        {
+          brand,
+          state,
+          end,
+          dates: this.selectDates(
+            candidates,
+            Math.min(
+              candidates.length,
+              targetAppearanceDates(brand.baseContract.requiredEvents),
+            ),
+          ),
+        },
       ];
     });
     if (!schedulable.length)
@@ -1934,12 +1964,10 @@ export class SponsorService {
               offer.terms.durationMatches,
             );
             const valid = actualEnd
-              ? new Set(
-                  this.confirmedOffDays(career, career.currentDate!, actualEnd),
-                )
+              ? this.availableSigningDates(career, actualEnd)
               : new Set<string>();
             if (
-              review.finalSchedule.length !== offer.terms.requiredEvents + 1 ||
+              review.finalSchedule.length < offer.terms.requiredEvents + 1 ||
               review.finalSchedule.some((entry) => !valid.has(entry.date)) ||
               new Set(review.finalSchedule.map((entry) => entry.date)).size !==
                 review.finalSchedule.length
@@ -2310,7 +2338,10 @@ export class SponsorService {
     const groupId = String(group.id),
       offerId = randomUUID(),
       selectedAt = now();
-    const dates = this.selectDates(candidates, needed);
+    const dates = this.selectDates(
+      candidates,
+      Math.min(candidates.length, targetAppearanceDates(terms.requiredEvents)),
+    );
     const entries = dates.map((date) => ({
       id: randomUUID(),
       offerId,

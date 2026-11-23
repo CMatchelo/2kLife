@@ -19,7 +19,7 @@ const title = (value: string) =>
   value.replaceAll("_", " ").replace(/^./, (letter) => letter.toUpperCase());
 const personalityTrait = (value: string) => `${title(value)} personality trait`;
 
-type Section = "overview" | "owned" | "marketplace" | "history";
+type Section = "overview" | "owned" | "marketplace";
 type OwnedCategory = "all" | "property" | "collectible" | "service";
 type MarketplaceCategory =
   | "property"
@@ -29,7 +29,6 @@ const sections: { id: Section; label: string }[] = [
   { id: "overview", label: "Overview" },
   { id: "owned", label: "Owned & Active" },
   { id: "marketplace", label: "Marketplace" },
-  { id: "history", label: "History" },
 ];
 const categories: { id: MarketplaceCategory; label: string }[] = [
   { id: "property", label: "Houses" },
@@ -48,42 +47,63 @@ const historyLabels: Record<string, string> = {
 
 const itemPresentation: Record<
   LifestyleAsset["category"],
-  { mark: string; label: string; backdrop: string }
+  { label: string; backdrop: string }
 > = {
   property: {
-    mark: "HOME",
     label: "Property",
     backdrop: "from-emerald-950 via-emerald-700 to-slate-950",
   },
   vehicle: {
-    mark: "DRIVE",
     label: "Car collection",
     backdrop: "from-blue-950 via-blue-700 to-slate-950",
   },
   jewelry: {
-    mark: "ICE",
     label: "Jewelry collection",
     backdrop: "from-fuchsia-950 via-purple-700 to-slate-950",
   },
   artwork: {
-    mark: "ART",
     label: "Art collection",
     backdrop: "from-orange-950 via-red-700 to-slate-950",
   },
   watch: {
-    mark: "TIME",
     label: "Watch collection",
     backdrop: "from-amber-950 via-yellow-700 to-slate-950",
   },
 };
 
+const carImages: Readonly<Record<string, string>> = {
+  "volvo-xc90": "volvoxc90.png",
+  "cadillac-escalade-v": "cadillacescaladev.png",
+  "mercedes-maybach-gls-600": "MercedesMaybachGLS600.png",
+  "porsche-911-turbo-s": "porshe911.png",
+  "ferrari-sf90-stradale": "ferraris90.png",
+  "bugatti-chiron-super-sport": "bugattichiron.png",
+  "ford-mustang-dark-horse": "fordmustang.png",
+  "nissan-gt-r-nismo": "nissangtr.png",
+  "ford-gt": "fordgt.png",
+};
+
+const houseImages: Readonly<Record<string, string>> = {
+  "downtown-personal-gym": "downtownaptoteam_1.png",
+  "downtown-penthouse": "downtownaptostar.png",
+  "downtown-rooftop": "downtownaptofan.png",
+  "suburban-half-court": "suburbanhouseteam.png",
+  "suburban-showroom": "suburbanhousestar.png",
+  "suburban-gathering": "suburbanhousefans.png",
+  "estate-full-court": "luxuryestateteam.png",
+  "estate-helipad": "luxuryestatestar.png",
+  "estate-pavilion": "luxuryestatefans.png",
+};
+
 function ItemCardVisual({
+  catalogItemId,
   category,
   tier,
   identity,
   bonus,
   active = false,
 }: {
+  catalogItemId: string;
   category: LifestyleAsset["category"];
   tier: string;
   identity: string;
@@ -91,47 +111,36 @@ function ItemCardVisual({
   active?: boolean;
 }) {
   const presentation = itemPresentation[category];
+  const carImage = category === "vehicle" ? carImages[catalogItemId] : undefined;
+  const houseImage = category === "property" ? houseImages[catalogItemId] : undefined;
+  const image = houseImage ? `/items/houses/${houseImage}` : carImage ? `/items/cars/${carImage}` : undefined;
   return (
-    <div
-      className={`relative h-36 overflow-hidden bg-gradient-to-br ${presentation.backdrop} p-4`}
-    >
-      <div className="absolute -right-3 top-2 rotate-[-8deg] text-5xl font-black italic tracking-tighter text-white/10">
-        {presentation.mark}
-      </div>
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_120%,rgba(242,214,117,0.4),transparent_45%)]" />
-      <div className="relative flex h-full flex-col justify-between">
-        <div className="flex items-start justify-between gap-2">
-          <span className="rounded bg-black/35 px-2 py-1 text-[10px] font-black uppercase tracking-[0.2em] text-white">
-            {title(tier)} tier
-          </span>
-          {active && (
-            <span className="rounded-full bg-gold px-3 py-1 text-[10px] font-black uppercase tracking-wider text-ink shadow-lg">
-              Active lineup
-            </span>
-          )}
+    <div className="min-w-0">
+      {image ? (
+        <img
+          src={image}
+          alt=""
+          loading="lazy"
+          className="block aspect-video w-full object-cover"
+        />
+      ) : (
+        <div
+          className={`grid aspect-video place-items-center bg-gradient-to-br p-2 text-center ${presentation.backdrop}`}
+        >
+          <span className="text-xs font-bold uppercase tracking-wide text-white">{presentation.label}</span>
         </div>
-        <div className="flex items-end justify-between gap-3">
-          <div>
-            <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-white/65">
-              {presentation.label}
-            </p>
-            <p className="mt-1 text-sm font-black uppercase text-white">
-              {personalityTrait(identity)}
-            </p>
-          </div>
-          <div className="leading-none text-gold drop-shadow-lg">
-            <span className="text-2xl font-black">+</span>
-            <span className="text-5xl font-black italic">{bonus}</span>
-          </div>
-        </div>
-      </div>
+      )}
+      <p className="mt-1.5 text-xs text-muted">
+        {category === "property" ? tier : `${title(tier)} tier`} · <span className="text-gold">+{bonus} {personalityTrait(identity)}</span>
+      </p>
+      {active && <p className="text-xs font-bold text-gold">Active lineup</p>}
     </div>
   );
 }
 
 function EmptyState({ children }: { children: string }) {
   return (
-    <div className="rounded-xl border border-dashed border-slate-600 bg-slate-900/35 px-5 py-10 text-center text-muted">
+    <div className="py-4 text-sm text-muted">
       {children}
     </div>
   );
@@ -148,30 +157,31 @@ function AssetCard({
 }) {
   return (
     <article
-      className={`overflow-hidden rounded-2xl border shadow-xl ${
-        asset.showcased ? "border-gold shadow-gold/10" : "border-slate-700"
+      className={`min-w-0 border-b pb-4 grid grid-cols-[minmax(0,7rem)_minmax(0,1fr)] items-start gap-3 sm:grid-cols-[minmax(0,12rem)_minmax(0,1fr)] sm:gap-5 ${
+        asset.showcased ? "border-gold" : "border-slate-700"
       }`}
     >
       <ItemCardVisual
+        catalogItemId={asset.catalogItemId}
         category={asset.category}
         tier={asset.property ? asset.property.cityName : (asset.tier ?? "item")}
         identity={asset.identityStyle ?? ""}
         bonus={asset.identityBonus}
         active={asset.showcased || !!asset.property}
       />
-      <div className="bg-slate-900/95 p-4">
+      <div className="min-w-0">
         <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted">
           {asset.property ? "My property" : "My collection"}
         </p>
         <h3 className="mt-1 text-lg font-black text-white">{asset.name}</h3>
-        <dl className="mt-4 grid grid-cols-2 gap-2 text-sm">
-          <div className="rounded-lg bg-slate-950/75 p-3">
+        <dl className="mt-4 grid gap-2 text-sm sm:grid-cols-2">
+          <div className="border-l border-divider pl-3">
             <dt className="text-xs uppercase tracking-wide text-muted">Paid</dt>
             <dd className="mt-1 font-black">
               {money(asset.purchasePriceUsdCents)}
             </dd>
           </div>
-          <div className="rounded-lg bg-slate-950/75 p-3">
+          <div className="border-l border-divider pl-3">
             <dt className="text-xs uppercase tracking-wide text-muted">
               Value now
             </dt>
@@ -179,13 +189,13 @@ function AssetCard({
               {money(asset.currentValueUsdCents)}
             </dd>
           </div>
-          <div className="rounded-lg bg-slate-950/75 p-3">
+          <div className="border-l border-divider pl-3">
             <dt className="text-xs uppercase tracking-wide text-muted">
               Signed
             </dt>
             <dd className="mt-1 font-bold">{asset.purchasedOn}</dd>
           </div>
-          <div className="rounded-lg bg-slate-950/75 p-3">
+          <div className="border-l border-divider pl-3">
             <dt className="text-xs uppercase tracking-wide text-muted">
               Value change
             </dt>
@@ -195,7 +205,7 @@ function AssetCard({
           </div>
         </dl>
         {asset.property && (
-          <div className="mt-3 rounded-lg border border-slate-700 bg-slate-950/50 p-3 text-sm">
+          <div className="mt-3 border-t border-divider pt-3 text-sm">
             <p>
               <strong>{asset.property.featureName}</strong>
             </p>
@@ -206,9 +216,6 @@ function AssetCard({
             <p className="mt-1">
               Maintenance: {money(asset.property.maintenanceCostUsdCents)} per
               paid match
-            </p>
-            <p className="mt-1 text-xs text-muted">
-              Maintenance costs may increase over time.
             </p>
           </div>
         )}
@@ -381,29 +388,24 @@ export default function LifestyleDashboard({
 
   return (
     <section
-      className="career-card dashboard-card"
+      className="min-w-0"
       aria-labelledby="lifestyle-title"
     >
-      <h2 id="lifestyle-title" className="screen-title">
+      <h2 id="lifestyle-title" className="font-display text-3xl font-extrabold">
         Lifestyle
       </h2>
-      <span className="screen-accent" aria-hidden="true" />
-      <p className="supporting-detail mt-2">
-        Manage your assets, commitments, and life away from basketball.
-      </p>
 
       <div
-        className="mt-6 flex flex-wrap gap-2 border-b border-divider"
-        role="tablist"
+        className="mt-3 flex flex-wrap gap-x-5 border-b border-divider"
+        role="group"
         aria-label="Lifestyle sections"
       >
         {sections.map((item) => (
           <button
             key={item.id}
             type="button"
-            role="tab"
-            aria-selected={section === item.id}
-            className={`cursor-pointer border-b-2 px-3 py-2 text-sm font-bold ${section === item.id ? "border-gold text-gold" : "border-transparent text-muted hover:text-white"}`}
+            aria-pressed={section === item.id}
+            className="history-tab"
             onClick={() => setSection(item.id)}
           >
             {item.label}
@@ -431,7 +433,7 @@ export default function LifestyleDashboard({
 
       {!loading && overview && section === "overview" && (
         <>
-          <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+          <div className="mt-6 grid gap-5 border-y border-divider py-5 sm:grid-cols-2 lg:grid-cols-5">
             {[
               [
                 "Cash balance",
@@ -457,10 +459,10 @@ export default function LifestyleDashboard({
             ].map(([label, value, color]) => (
               <div
                 key={String(label)}
-                className="rounded-xl border border-slate-700 bg-slate-900/60 p-4"
+                className="min-w-0 border-l border-divider pl-3"
               >
                 <span className="text-sm text-muted">{label}</span>
-                <strong className={`mt-1 block text-xl ${color}`}>
+                <strong className={`font-display mt-1 block break-words text-3xl ${color}`}>
                   {money(Number(value))}
                 </strong>
               </div>
@@ -470,7 +472,7 @@ export default function LifestyleDashboard({
             {(["team", "star", "fan"] as const).map((identity) => (
               <span
                 key={identity}
-                className="rounded-full border border-slate-700 px-3 py-1"
+                className="border-l border-divider px-3 py-1"
               >
                 +{overview.identityBonuses[identity]}{" "}
                 {personalityTrait(identity)} from Lifestyle
@@ -484,8 +486,8 @@ export default function LifestyleDashboard({
             selling a property ends it.
           </p>
           {!!overview.activeCommitments.length && (
-            <div className="mt-5 rounded-xl border border-slate-700 bg-slate-900/50 p-4">
-              <h3 className="font-bold">Active commitments</h3>
+            <div className="mt-7">
+              <h3 className="season-heading border-b-2">Active commitments</h3>
               <ul className="mt-3 space-y-2 text-sm">
                 {overview.activeCommitments.map((commitment) => (
                   <li
@@ -501,6 +503,46 @@ export default function LifestyleDashboard({
               </ul>
             </div>
           )}
+          <section className="mt-8" aria-labelledby="lifestyle-history-title">
+            <h3 id="lifestyle-history-title" className="season-heading border-b-2">Lifestyle history</h3>
+            <div className="max-h-[24rem] overflow-auto">
+              {!overview.history.length ? (
+                <EmptyState>
+                  No Lifestyle transactions have been recorded.
+                </EmptyState>
+              ) : (
+                <table className="history-table">
+                  <thead className="sticky top-0 bg-night">
+                    <tr>
+                      <th className="p-2">Date</th>
+                      <th className="p-2">Description</th>
+                      <th className="p-2 text-right">Amount</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {overview.history.map((entry) => (
+                      <tr key={entry.id} className="border-t border-divider/60">
+                        <td className="p-2">{entry.inGameDate}</td>
+                        <td className="p-2">
+                          <span className="block">
+                            {entry.description ?? entry.originReference}
+                          </span>
+                          <span className="text-xs text-muted">
+                            {historyLabels[entry.reason] ?? title(entry.reason)}
+                          </span>
+                        </td>
+                        <td
+                          className={`p-2 text-right font-bold ${entry.amountUsdCents >= 0 ? "text-green-300" : "text-red-300"}`}
+                        >
+                          {money(entry.amountUsdCents)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          </section>
         </>
       )}
 
@@ -513,7 +555,7 @@ export default function LifestyleDashboard({
                   key={filter}
                   type="button"
                   onClick={() => setOwnedCategory(filter)}
-                  className={`rounded-full px-4 py-2 text-sm font-bold ${ownedCategory === filter ? "bg-gold text-ink" : "border border-slate-600 text-slate-200"}`}
+                  aria-pressed={ownedCategory === filter} className="history-tab"
                 >
                   {filter === "all"
                     ? "All assets"
@@ -526,6 +568,11 @@ export default function LifestyleDashboard({
               ),
             )}
           </div>
+          {visibleAssets.some((asset) => asset.property) && (
+            <p className="mb-4 border-l-2 border-gold pl-3 text-sm text-muted">
+              Property maintenance is charged per paid match and may increase over time.
+            </p>
+          )}
           {ownedCategory === "service" ? (
             !hiredServices.length ? (
               <EmptyState>No professionals are under contract.</EmptyState>
@@ -534,7 +581,7 @@ export default function LifestyleDashboard({
                 {hiredServices.map((service) => (
                   <article
                     key={service.id}
-                    className="rounded-xl border border-gold/50 bg-gold/10 p-4"
+                    className="border-b border-divider py-4"
                   >
                     <p className="text-xs font-bold uppercase tracking-widest text-gold">
                       {title(service.identityStyle)} lifestyle
@@ -582,7 +629,7 @@ export default function LifestyleDashboard({
               <button
                 key={item.id}
                 type="button"
-                className={`rounded-full px-4 py-2 text-sm font-bold ${category === item.id ? "bg-gold text-ink" : "border border-slate-600 text-slate-200"}`}
+                aria-pressed={category === item.id} className="history-tab"
                 onClick={() => setCategory(item.id)}
               >
                 {item.label}
@@ -597,6 +644,9 @@ export default function LifestyleDashboard({
                 </EmptyState>
               ) : (
                 <>
+                  <p className="border-l-2 border-gold pl-3 text-sm text-muted">
+                    Properties grant personality and team relationship bonuses while owned. Maintenance is charged per paid match and may increase over time.
+                  </p>
                   <div>
                     <p className="mb-2 text-xs font-black uppercase tracking-[0.2em] text-muted">
                       Choose your city
@@ -607,10 +657,11 @@ export default function LifestyleDashboard({
                           key={city.cityId}
                           type="button"
                           onClick={() => setSelectedCityId(city.cityId)}
+                          aria-pressed={selectedPropertyCity?.cityId === city.cityId}
                           className={
                             selectedPropertyCity?.cityId === city.cityId
-                              ? "min-w-44 rounded-xl border border-gold bg-gold/10 p-3 text-left shadow-lg shadow-gold/10"
-                              : "min-w-44 rounded-xl border border-slate-700 bg-slate-900/60 p-3 text-left hover:border-slate-500"
+                              ? "min-w-44 border-b-2 border-gold p-3 text-left"
+                              : "min-w-44 border-b-2 border-divider p-3 text-left hover:border-slate-500"
                           }
                         >
                           <span className="block font-black">
@@ -625,7 +676,7 @@ export default function LifestyleDashboard({
                       ))}
                     </div>
                   </div>
-                  <div className="grid grid-cols-3 gap-2 rounded-xl bg-slate-950/60 p-1">
+                  <div className="flex flex-wrap gap-x-5 border-b border-divider">
                     {(
                       [
                         ["downtown_apartment", "Downtown"],
@@ -637,10 +688,11 @@ export default function LifestyleDashboard({
                         key={propertyType}
                         type="button"
                         onClick={() => setSelectedPropertyType(propertyType)}
+                        aria-pressed={selectedPropertyType === propertyType}
                         className={
                           selectedPropertyType === propertyType
-                            ? "rounded-lg bg-gold px-3 py-2 text-sm font-black text-ink"
-                            : "rounded-lg px-3 py-2 text-sm font-black text-slate-300 hover:bg-slate-800"
+                            ? "border-b-2 border-gold py-2 text-sm font-bold text-gold"
+                            : "border-b-2 border-transparent py-2 text-sm font-bold text-muted hover:text-white"
                         }
                       >
                         {label}
@@ -654,7 +706,7 @@ export default function LifestyleDashboard({
                     .map((city) => (
                       <section
                         key={city.cityId}
-                        className="rounded-xl border border-slate-700 bg-slate-900/40 p-4"
+                        className="min-w-0"
                       >
                         <h3 className="text-xl font-black">{city.cityName}</h3>
                         <p className="mt-1 text-sm text-muted">
@@ -680,101 +732,101 @@ export default function LifestyleDashboard({
                               return (
                                 <article
                                   key={property.id}
-                                  className="flex h-full flex-col rounded-xl border border-slate-700 bg-slate-900/60 p-4"
+                                  className="grid min-w-0 grid-cols-[minmax(0,7rem)_minmax(0,1fr)] items-start gap-3 border-b border-divider pb-4 sm:grid-cols-[minmax(0,9rem)_minmax(0,1fr)]"
                                 >
-                                  <p className="text-xs font-bold uppercase tracking-widest text-gold">
-                                    {personalityTrait(property.identityStyle)} ·
-                                    +{property.identityBonus}
-                                  </p>
-                                  <h4 className="mt-1 text-lg font-bold">
-                                    {property.name}
-                                  </h4>
-                                  <p className="text-sm text-muted">
-                                    {property.featureName}
-                                  </p>
-                                  <p className="mt-3 text-sm leading-relaxed text-slate-300">
-                                    {lifestylePropertyDescription(
-                                      property.id,
-                                      city.cityId,
-                                      city.cityName,
+                                  <ItemCardVisual
+                                    catalogItemId={property.id}
+                                    category="property"
+                                    tier={city.cityName}
+                                    identity={property.identityStyle}
+                                    bonus={property.identityBonus}
+                                  />
+                                  <div className="min-w-0">
+                                    <h4 className="font-display text-xl font-black leading-tight sm:text-2xl">
+                                      {property.name}
+                                    </h4>
+                                    <p className="text-sm text-muted">
+                                      {property.featureName}
+                                    </p>
+                                    <p className="mt-3 text-sm leading-relaxed text-slate-300">
+                                      {lifestylePropertyDescription(
+                                        property.id,
+                                        city.cityId,
+                                        city.cityName,
+                                      )}
+                                    </p>
+                                    <p className="mt-2 text-lg font-black">
+                                      {money(property.priceUsdCents)}
+                                    </p>
+                                    <p className="mt-1 text-sm">
+                                      +{property.affinityBonus} team relationship
+                                    </p>
+                                    {city.teams.length > 1 && (
+                                      <label className="mt-3 block text-sm text-muted">
+                                        Associated team
+                                        <select
+                                          className="mt-1 w-full rounded-lg border border-slate-600 bg-slate-950 p-2 text-white"
+                                          value={team.teamId}
+                                          onChange={(event) =>
+                                            setPropertyTeams((current) => ({
+                                              ...current,
+                                              [city.cityId]: event.target.value,
+                                            }))
+                                          }
+                                        >
+                                          {city.teams.map((choice) => (
+                                            <option
+                                              key={choice.teamId}
+                                              value={choice.teamId}
+                                            >
+                                              {choice.teamName}
+                                            </option>
+                                          ))}
+                                        </select>
+                                      </label>
                                     )}
-                                  </p>
-                                  <p className="mt-3 text-2xl font-black">
-                                    {money(property.priceUsdCents)}
-                                  </p>
-                                  <p className="mt-1 text-sm">
-                                    +{property.identityBonus}{" "}
-                                    {personalityTrait(property.identityStyle)}{" "}
-                                    and +{property.affinityBonus} team
-                                    relationship while owned
-                                  </p>
-                                  {city.teams.length > 1 && (
-                                    <label className="mt-3 block text-sm text-muted">
-                                      Associated team
-                                      <select
-                                        className="mt-1 w-full rounded-lg border border-slate-600 bg-slate-950 p-2 text-white"
-                                        value={team.teamId}
-                                        onChange={(event) =>
-                                          setPropertyTeams((current) => ({
-                                            ...current,
-                                            [city.cityId]: event.target.value,
-                                          }))
-                                        }
-                                      >
-                                        {city.teams.map((choice) => (
-                                          <option
-                                            key={choice.teamId}
-                                            value={choice.teamId}
-                                          >
-                                            {choice.teamName}
-                                          </option>
-                                        ))}
-                                      </select>
-                                    </label>
-                                  )}
-                                  <p className="mt-2 text-xs text-muted">
-                                    Maintenance starts at{" "}
-                                    {money(
-                                      Math.round(
-                                        property.priceUsdCents * 0.0005,
-                                      ),
-                                    )}{" "}
-                                    per paid match. Maintenance costs may
-                                    increase over time.
-                                  </p>
-                                  <div className="mt-auto h-4 shrink-0" />
-                                  <button
-                                    type="button"
-                                    className="ai-primary w-full disabled:cursor-not-allowed"
-                                    disabled={
-                                      !affordable ||
-                                      !!property.unavailableReason ||
-                                      !!busyKey
-                                    }
-                                    onClick={() => {
-                                      const after =
-                                        overview.finances.cashBalanceUsdCents -
-                                        property.priceUsdCents;
-                                      if (
-                                        window.confirm(
-                                          `Purchase ${property.name} in ${city.cityName} for ${money(property.priceUsdCents)}?\nAssociated team: ${team.teamName}\nBalance after purchase: ${money(after)}\nThis starts a per-paid-match maintenance commitment and initial depreciation will be 8–12%.`,
+                                    <p className="mt-2 text-xs text-muted">
+                                      Maintenance starts at{" "}
+                                      {money(
+                                        Math.round(
+                                          property.priceUsdCents * 0.0005,
+                                        ),
+                                      )}{" "}
+                                      per paid match.
+                                    </p>
+                                    <button
+                                      type="button"
+                                      className="ai-primary mt-3 text-sm disabled:cursor-not-allowed"
+                                      disabled={
+                                        !affordable ||
+                                        !!property.unavailableReason ||
+                                        !!busyKey
+                                      }
+                                      onClick={() => {
+                                        const after =
+                                          overview.finances.cashBalanceUsdCents -
+                                          property.priceUsdCents;
+                                        if (
+                                          window.confirm(
+                                            `Purchase ${property.name} in ${city.cityName} for ${money(property.priceUsdCents)}?\nAssociated team: ${team.teamName}\nBalance after purchase: ${money(after)}\nThis starts a per-paid-match maintenance commitment and initial depreciation will be 8–12%.`,
+                                          )
                                         )
-                                      )
-                                        void mutate(
-                                          `property:${city.cityId}:${property.id}`,
-                                          `careers/${career.id}/lifestyle/properties/${property.id}/purchase`,
-                                          {
-                                            cityId: city.cityId,
-                                            associatedTeamId: team.teamId,
-                                          },
-                                        );
-                                    }}
-                                  >
-                                    {property.unavailableReason ??
-                                      (affordable
-                                        ? "Purchase"
-                                        : `Need ${money(property.priceUsdCents - overview.finances.cashBalanceUsdCents)} more`)}
-                                  </button>
+                                          void mutate(
+                                            `property:${city.cityId}:${property.id}`,
+                                            `careers/${career.id}/lifestyle/properties/${property.id}/purchase`,
+                                            {
+                                              cityId: city.cityId,
+                                              associatedTeamId: team.teamId,
+                                            },
+                                          );
+                                      }}
+                                    >
+                                      {property.unavailableReason ??
+                                        (affordable
+                                          ? "Purchase"
+                                          : `Need ${money(property.priceUsdCents - overview.finances.cashBalanceUsdCents)} more`)}
+                                    </button>
+                                  </div>
                                 </article>
                               );
                             })}
@@ -787,130 +839,126 @@ export default function LifestyleDashboard({
           )}
           {category === "service" && (
             <div className="mt-5">
-              <div className="mb-4 rounded-xl border border-gold/40 bg-gold/10 p-4">
+              <div className="mb-5 border-l-2 border-gold pl-3">
                 <strong>
                   {overview.hiredServiceCount} of {overview.serviceLimit}{" "}
                   professionals under contract
                 </strong>
                 <p className="mt-1 text-sm text-muted">
-                  You may hire up to four professionals each season.
+                  You may hire up to {overview.serviceLimit} professionals each season.
+                  You hire a professional through the end of the current season. The agreement cannot be cancelled early.
                 </p>
               </div>
-              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+              <div className="grid gap-x-6 gap-y-8 md:grid-cols-2 xl:grid-cols-3">
                 {overview.services.map((service) => (
                   <article
                     key={service.id}
-                    className="flex h-full flex-col rounded-xl border border-slate-700 bg-slate-900/60 p-4"
+                    className="grid min-w-0 grid-cols-[minmax(0,7rem)_minmax(0,1fr)] items-start gap-3 border-b border-divider pb-4 sm:grid-cols-[minmax(0,9rem)_minmax(0,1fr)]"
                   >
-                    <p className="text-xs font-bold uppercase tracking-widest text-gold">
-                      {title(service.identityStyle)} lifestyle
-                    </p>
-                    <h3 className="mt-1 text-lg font-bold">{service.name}</h3>
-                    <p className="mt-3 text-2xl font-black">
-                      {money(service.pricePerPaidMatchUsdCents)}
-                    </p>
-                    <p className="text-sm text-muted">per paid match</p>
-                    <p className="mt-1 text-xs text-muted">
-                      Estimated remaining agreement:{" "}
-                      {money(
-                        service.pricePerPaidMatchUsdCents *
-                          overview.finances.remainingSalaryPayments,
-                      )}
-                    </p>
-                    <p className="mt-3 font-bold text-green-300">
-                      +20% rewards from {title(service.identityStyle)} lifestyle
-                      events
-                    </p>
-                    <p className="mt-3 text-sm">
-                      You’re hiring this professional through the end of the
-                      current season. The agreement cannot be cancelled early.
-                    </p>
-                    <div className="mt-auto h-4 shrink-0" />
-                    <button
-                      type="button"
-                      className="ai-primary w-full disabled:cursor-not-allowed"
-                      disabled={
-                        service.hired ||
-                        overview.hiredServiceCount >= overview.serviceLimit ||
-                        !!busyKey
-                      }
-                      onClick={() => {
-                        if (
-                          window.confirm(
-                            `Hire ${service.name} for ${money(service.pricePerPaidMatchUsdCents)} per paid match through the end of the season?\nEstimated remaining agreement: ${money(service.pricePerPaidMatchUsdCents * overview.finances.remainingSalaryPayments)} across ${overview.finances.remainingSalaryPayments} salary-paying games.\nThis professional agreement cannot be terminated early.`,
+                    <div className="flex aspect-video min-w-0 flex-col justify-center gap-1 border-l-2 border-gold bg-cream/50 px-2 sm:px-3">
+                      <p className="font-display text-lg font-extrabold text-gold sm:text-xl">
+                        {money(service.pricePerPaidMatchUsdCents)}
+                      </p>
+                      <p className="text-xs text-muted">per paid match</p>
+                    </div>
+                    <div className="min-w-0">
+                      <h3 className="font-display text-xl font-black leading-tight text-white sm:text-2xl">{service.name}</h3>
+                      <p className="mt-2 text-xs text-muted">
+                        Estimated remaining agreement:{" "}
+                        {money(service.pricePerPaidMatchUsdCents * overview.finances.remainingSalaryPayments)}
+                      </p>
+                      <p className="mt-1 text-sm font-semibold text-green-300">
+                        +20% rewards from {title(service.identityStyle)} lifestyle events
+                      </p>
+                      <button
+                        type="button"
+                        className="ai-primary mt-3 text-sm disabled:cursor-not-allowed"
+                        disabled={
+                          service.hired ||
+                          overview.hiredServiceCount >= overview.serviceLimit ||
+                          !!busyKey
+                        }
+                        onClick={() => {
+                          if (
+                            window.confirm(
+                              `Hire ${service.name} for ${money(service.pricePerPaidMatchUsdCents)} per paid match through the end of the season?\nEstimated remaining agreement: ${money(service.pricePerPaidMatchUsdCents * overview.finances.remainingSalaryPayments)} across ${overview.finances.remainingSalaryPayments} salary-paying games.\nThis professional agreement cannot be terminated early.`,
+                            )
                           )
-                        )
-                          void mutate(
-                            `service:${service.id}`,
-                            `careers/${career.id}/lifestyle/services/${service.id}/hire`,
-                          );
-                      }}
-                    >
-                      {service.hired
-                        ? "Under contract through season end"
-                        : overview.hiredServiceCount >= overview.serviceLimit
-                          ? "Four-contract limit reached"
-                          : "Hire professional"}
-                    </button>
+                            void mutate(
+                              `service:${service.id}`,
+                              `careers/${career.id}/lifestyle/services/${service.id}/hire`,
+                            );
+                        }}
+                      >
+                        {service.hired
+                          ? "Under contract through season end"
+                          : overview.hiredServiceCount >= overview.serviceLimit
+                            ? "Four-contract limit reached"
+                            : "Hire professional"}
+                      </button>
+                    </div>
                   </article>
                 ))}
               </div>
             </div>
           )}
           {category !== "property" && category !== "service" && (
-            <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+            <div className="mt-5 grid gap-x-6 gap-y-8 md:grid-cols-2 xl:grid-cols-3">
               {visibleItems.map((item) => {
                 const affordable =
                   overview.finances.cashBalanceUsdCents >= item.priceUsdCents;
                 return (
                   <article
                     key={item.id}
-                    className="flex h-full flex-col overflow-hidden rounded-2xl border border-slate-700 bg-slate-900/95 pb-4 shadow-xl transition duration-200 hover:-translate-y-1 hover:border-gold/60 hover:shadow-gold/10"
+                    className="grid min-w-0 grid-cols-[minmax(0,7rem)_minmax(0,1fr)] items-start gap-3 border-b border-divider pb-4 sm:grid-cols-[minmax(0,9rem)_minmax(0,1fr)]"
                   >
                     <ItemCardVisual
+                      catalogItemId={item.id}
                       category={item.category}
                       tier={item.tier}
                       identity={item.identityStyle}
                       bonus={item.identityBonus}
                     />
-                    <h3 className="mx-4 mt-4 min-h-14 text-lg font-black leading-tight text-white">
-                      {item.name}
-                    </h3>
-                    <p className="mx-4 mt-3 border-t border-slate-700 pt-3 text-2xl font-black">
-                      {money(item.priceUsdCents)}
-                    </p>
-                    <p className="mx-4 mt-1 text-xs text-muted">
-                      Lifestyle bonus activates when this item is showcased.
-                    </p>
-                    {item.ownedCount > 0 && (
-                      <p className="mx-4 mt-2 inline-block rounded-full border border-gold/40 bg-gold/10 px-2 py-1 text-[10px] font-black uppercase text-gold">
-                        Owned {item.ownedCount}
+                    <div className="flex min-w-0 flex-col">
+                      <h3 className="font-display text-xl font-black leading-tight text-white sm:text-2xl">
+                        {item.name}
+                      </h3>
+                      <p className="mt-2 text-lg font-black">
+                        {money(item.priceUsdCents)}
                       </p>
-                    )}
-                    <div className="mt-auto h-4 shrink-0" />
-                    <button
-                      type="button"
-                      className="ai-primary mx-4 w-[calc(100%-2rem)] disabled:cursor-not-allowed"
-                      disabled={!affordable || !!busyKey}
-                      onClick={() => {
-                        const after =
-                          overview.finances.cashBalanceUsdCents -
-                          item.priceUsdCents;
-                        if (
-                          window.confirm(
-                            `Purchase ${item.name} for ${money(item.priceUsdCents)}?\nBalance after purchase: ${money(after)}\nInitial depreciation will be 8–12%.`,
+                      <p className="mt-1 text-xs text-muted">
+                        Lifestyle bonus activates when this item is showcased.
+                      </p>
+                      {item.ownedCount > 0 && (
+                        <p className="mt-2 inline-block rounded-full border border-gold/40 bg-gold/10 px-2 py-1 text-[10px] font-black uppercase text-gold">
+                          Owned {item.ownedCount}
+                        </p>
+                      )}
+                      <div className="mt-auto h-4 shrink-0" />
+                      <button
+                        type="button"
+                        className="ai-primary self-start text-sm disabled:cursor-not-allowed"
+                        disabled={!affordable || !!busyKey}
+                        onClick={() => {
+                          const after =
+                            overview.finances.cashBalanceUsdCents -
+                            item.priceUsdCents;
+                          if (
+                            window.confirm(
+                              `Purchase ${item.name} for ${money(item.priceUsdCents)}?\nBalance after purchase: ${money(after)}\nInitial depreciation will be 8–12%.`,
+                            )
                           )
-                        )
-                          void mutate(
-                            `purchase:${item.id}`,
-                            `careers/${career.id}/lifestyle/items/${item.id}/purchase`,
-                          );
-                      }}
-                    >
-                      {affordable
-                        ? "Add to collection"
-                        : `Need ${money(item.priceUsdCents - overview.finances.cashBalanceUsdCents)} more`}
-                    </button>
+                            void mutate(
+                              `purchase:${item.id}`,
+                              `careers/${career.id}/lifestyle/items/${item.id}/purchase`,
+                            );
+                        }}
+                      >
+                        {affordable
+                          ? "Add to collection"
+                          : `Need ${money(item.priceUsdCents - overview.finances.cashBalanceUsdCents)} more`}
+                      </button>
+                    </div>
                   </article>
                 );
               })}
@@ -919,45 +967,6 @@ export default function LifestyleDashboard({
         </div>
       )}
 
-      {!loading && overview && section === "history" && (
-        <div className="mt-6 overflow-auto">
-          {!overview.history.length ? (
-            <EmptyState>
-              No Lifestyle transactions have been recorded.
-            </EmptyState>
-          ) : (
-            <table className="w-full text-left text-sm">
-              <thead>
-                <tr>
-                  <th className="p-2">Date</th>
-                  <th className="p-2">Description</th>
-                  <th className="p-2 text-right">Amount</th>
-                </tr>
-              </thead>
-              <tbody>
-                {overview.history.map((entry) => (
-                  <tr key={entry.id} className="border-t border-divider/60">
-                    <td className="p-2">{entry.inGameDate}</td>
-                    <td className="p-2">
-                      <span className="block">
-                        {entry.description ?? entry.originReference}
-                      </span>
-                      <span className="text-xs text-muted">
-                        {historyLabels[entry.reason] ?? title(entry.reason)}
-                      </span>
-                    </td>
-                    <td
-                      className={`p-2 text-right font-bold ${entry.amountUsdCents >= 0 ? "text-green-300" : "text-red-300"}`}
-                    >
-                      {money(entry.amountUsdCents)}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-        </div>
-      )}
     </section>
   );
 }

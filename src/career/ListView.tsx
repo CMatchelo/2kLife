@@ -6,66 +6,61 @@ import type { Game } from "../types/game";
 interface ListViewProps {
   games: Game[];
   teams: Team[];
+  currentDate?: string | null;
+  currentTeamId?: string;
   onEdit?: (game: Game) => void;
 }
 
-export default function ListView({ games, teams, onEdit }: ListViewProps) {
-  const activeGames = games.filter((game) => game.status !== "notNeeded");
-  const label = (game: Game) =>
-    `${game.location === "home" ? "Home" : "Away"} · ${teamName(teams, game.opponentId)} · ${categoryNames[game.category]}`;
+export default function ListView({
+  games,
+  teams,
+  currentDate,
+  currentTeamId,
+  onEdit,
+}: ListViewProps) {
+  const activeGames = games
+    .filter((game) => game.status !== "notNeeded")
+    .sort((a, b) => a.date.localeCompare(b.date));
 
   return (
-    <ul className="space-y-2">
-      {[...activeGames]
-        .sort((a, b) => a.date.localeCompare(b.date))
-        .map((game) => {
-          const logo = teamLogo(game.opponentId);
-          return (
-            <li key={game.id}>
-              <button
-                type="button"
-                disabled={!onEdit}
-                onClick={() => onEdit?.(game)}
-                className={`schedule-game ${game.location} flex items-center gap-3 text-left`}
-              >
-                {logo && (
-                  <img
-                    src={logo}
-                    alt=""
-                    className="h-10 w-10 shrink-0 object-contain"
-                  />
-                )}
-                <span className="min-w-0 w-100">
-                  <strong>{game.date}</strong> · {label(game)}
-                  <span className="block text-xs">
-                    Your team: {teamName(teams, game.teamId)}
+    <ul className="text-sm" aria-label="All season games">
+      {activeGames.map((game) => {
+        const logo = teamLogo(game.opponentId);
+        const { teamScore, opponentScore } = game;
+        const outcome = teamScore !== undefined && opponentScore !== undefined
+          ? Math.sign(teamScore - opponentScore)
+          : null;
+        return (
+          <li key={game.id}>
+            <button
+              type="button"
+              disabled={!onEdit}
+              aria-current={game.date === currentDate ? "date" : undefined}
+              onClick={() => onEdit?.(game)}
+              className={`season-game-row ${game.location}`}
+            >
+              <time dateTime={game.date} className="whitespace-nowrap text-xs font-semibold">{game.date}</time>
+              <span className="flex min-w-0 items-center gap-2">
+                {logo && <img src={logo} alt="" className="size-8 shrink-0 object-contain" />}
+                <span className="min-w-0">
+                  <strong>{teamName(teams, game.opponentId)}</strong>
+                  <span className="block text-xs text-muted">
+                    {categoryNames[game.category]}
+                    {game.teamId !== currentTeamId && ` · ${teamName(teams, game.teamId)}`}
                   </span>
                 </span>
-                {game.played && (
-                  <div
-                    className={`flex items-center gap-1 text-lg font-bold ${
-                      game.teamScore !== undefined &&
-                      game.opponentScore !== undefined &&
-                      game.teamScore > game.opponentScore
-                        ? "text-green-700"
-                        : "text-red-700"
-                    }`}
-                  >
-                    <span>{game.teamScore}</span>
-                    <span>{game.location === "home" ? "vs" : "@"}</span>
-                    <span>{game.opponentScore}</span>
-                  </div>
-                )}
-              </button>
-            </li>
-          );
-        })}
-      {!activeGames.length && (
-        <li className="text-muted">
-          No scheduled games yet. You can start with a partial or empty
-          calendar.
-        </li>
-      )}
+              </span>
+              <span className="text-xs text-muted">{game.location === "home" ? "Home" : "Away"}</span>
+              <span className={`whitespace-nowrap font-bold ${outcome === 1 ? "text-green-400" : outcome === -1 ? "text-red-400" : "text-muted"}`}>
+                {outcome !== null
+                  ? `${outcome > 0 ? "W " : outcome < 0 ? "L " : ""}${game.teamScore}–${game.opponentScore}`
+                  : game.status === "completed" ? "Completed" : "Scheduled"}
+              </span>
+            </button>
+          </li>
+        );
+      })}
+      {!activeGames.length && <li className="text-muted">No scheduled games yet.</li>}
     </ul>
   );
 }

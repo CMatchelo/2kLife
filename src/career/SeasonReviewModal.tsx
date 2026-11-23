@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
+import type { Season } from "../types/season";
 import type { Career } from "../types/career";
 import type {
   CompletedSeasonReview,
@@ -712,5 +714,43 @@ export default function SeasonReviewModal({
         )}
       </section>
     </div>
+  );
+}
+
+export function HistoricalSeasonReview({
+  career,
+  season,
+  review,
+  onClose,
+}: {
+  career: Career;
+  season: Season;
+  review: CompletedSeasonReview;
+  onClose: () => void;
+}) {
+  const ref = useRef<HTMLDialogElement>(null);
+  useEffect(() => {
+    const dialog = ref.current!;
+    dialog.showModal();
+    return () => dialog.close();
+  }, []);
+
+  return createPortal(
+    <dialog
+      ref={ref}
+      aria-labelledby="historical-season-review-title"
+      className="ai-dialog w-[min(70rem,calc(100%-2rem))]! border border-divider bg-[#0d161f] p-5! text-white sm:p-7!"
+      onCancel={(event) => {
+        event.preventDefault();
+        onClose();
+      }}
+    >
+      <header className="mb-5 flex flex-wrap items-center justify-between gap-3 border-b border-divider pb-3">
+        <h2 id="historical-season-review-title" className="text-2xl font-extrabold">{season.year} Season Review</h2>
+        <button type="button" className="ai-secondary" onClick={onClose}>Close</button>
+      </header>
+      <LeagueReview career={{ ...career, season }} awards={review.awards} completed={review} />
+    </dialog>,
+    document.body,
   );
 }

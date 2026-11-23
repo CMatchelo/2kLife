@@ -1,6 +1,7 @@
 import { createPortal } from "react-dom";
 import { useEffect, useRef, useState } from "react";
 import type {
+  SponsorActiveContract,
   SponsorApproachGroup,
   SponsorOfferMutation,
 } from "../types/sponsor";
@@ -19,18 +20,23 @@ export default function SponsorApproachModal({
   initial,
   onClose,
   onChanged,
+  inlineOfferId,
+  activeContracts,
 }: {
   careerId: string;
   initial: SponsorApproachGroup;
   onClose: () => void;
   onChanged?: () => void;
+  inlineOfferId?: string;
+  activeContracts?: SponsorActiveContract[];
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
   const [group, setGroup] = useState(initial);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState("");
   useEffect(() => {
-    const node = dialog.current!;
+    const node = dialog.current;
+    if (!node) return;
     node.showModal();
     return () => node.close();
   }, []);
@@ -96,41 +102,37 @@ export default function SponsorApproachModal({
       setBusy(null);
     }
   }
-  return createPortal(
-    <dialog
-      ref={dialog}
-      className="interview-dialog max-h-[92vh] w-[min(1040px,94vw)] overflow-y-auto rounded-2xl text-white"
-      aria-labelledby="sponsor-approach-title"
-      onCancel={(event) => {
-        event.preventDefault();
-        void standbyAndClose();
-      }}
-      onClick={(event) => {
-        if (event.target === event.currentTarget) void standbyAndClose();
-      }}
-    >
-      <div className="space-y-5 p-4 sm:p-7">
-        <div className="sticky top-0 z-10 flex items-center justify-between gap-4 rounded-lg bg-[#0d161f] py-2 shadow-lg">
+  const content = (
+      <div className={inlineOfferId ? "space-y-4" : "space-y-5 p-4 sm:p-7"}>
+        <div className={inlineOfferId ? "flex items-center justify-between gap-3" : "sticky top-0 z-10 flex items-center justify-between gap-4 rounded-lg bg-[#0d161f] py-2 shadow-lg"}>
           <h2 id="sponsor-approach-title" className="text-2xl font-black">
-            Your agent has sponsor news
+            {inlineOfferId ? "Offer details" : "Your agent has sponsor news"}
           </h2>
           <button
             type="button"
             className={secondary}
             disabled={!!busy}
-            onClick={() => void standbyAndClose()}
+            onClick={inlineOfferId ? onClose : () => void standbyAndClose()}
           >
-            Close
+            {inlineOfferId ? "Back to offers" : "Close"}
           </button>
         </div>
         <p className="leading-relaxed text-slate-200">{group.introduction}</p>
         <div className="space-y-4">
-          {group.offers.map((offer) => {
+          {group.offers.filter((offer) => !inlineOfferId || offer.id === inlineOfferId).map((offer) => {
             const dates = [
               ...(offer.confirmedSchedule ?? offer.appearanceSchedule.entries),
             ].sort((a, b) => a.date.localeCompare(b.date));
+            const overlaps = activeContracts && !offer.confirmedSchedule
+              ? dates.map(({ date }) => ({
+                  date,
+                  brands: activeContracts.filter((contract) => contract.appearanceSchedule.some(
+                    (entry) => entry.date === date && (entry.status === "scheduled" || entry.status === "calendar_conflict"),
+                  )).map((contract) => contract.brandName),
+                }))
+              : offer.confirmedSchedule ? [] : offer.schedule.overlaps;
             const overlapsByDate = new Map(
-              offer.schedule.overlaps.map((overlap) => [
+              overlaps.map((overlap) => [
                 overlap.date,
                 overlap.brands,
               ]),
@@ -145,9 +147,9 @@ export default function SponsorApproachModal({
             return (
               <article
                 key={offer.id}
-                className="overflow-hidden rounded-xl border border-slate-600 bg-[#0d161f] text-slate-100 shadow-lg"
+                className={inlineOfferId ? "border-t border-divider text-slate-100" : "overflow-hidden rounded-xl border border-slate-600 bg-[#0d161f] text-slate-100 shadow-lg"}
               >
-                <div className="grid gap-4 p-4 sm:p-5 md:grid-cols-[minmax(11rem,15rem)_minmax(0,1fr)] md:items-center">
+                <div className={inlineOfferId ? "grid gap-4 p-4" : "grid gap-4 p-4 sm:p-5 md:grid-cols-[minmax(11rem,15rem)_minmax(0,1fr)] md:items-center"}>
                   <div className="flex min-w-0 flex-row items-center gap-4 md:flex-col md:items-start">
                     <img
                       src={`/sponsors/${offer.brandId}.png`}
@@ -440,6 +442,23 @@ export default function SponsorApproachModal({
           </p>
         )}
       </div>
+  );
+
+  if (inlineOfferId) return content;
+  return createPortal(
+    <dialog
+      ref={dialog}
+      className="interview-dialog max-h-[92vh] w-[min(1040px,94vw)] overflow-y-auto rounded-2xl text-white"
+      aria-labelledby="sponsor-approach-title"
+      onCancel={(event) => {
+        event.preventDefault();
+        void standbyAndClose();
+      }}
+      onClick={(event) => {
+        if (event.target === event.currentTarget) void standbyAndClose();
+      }}
+    >
+      {content}
     </dialog>,
     document.body,
   );

@@ -1,127 +1,108 @@
+import { useState } from "react";
 import type { Career } from "../types/career";
 import { emptyMatchRecords, recordKeys } from "../domain/matchRecords";
 import { statLabels } from "../domain/gameDetails";
 import { teamName } from "../domain/teams";
+
+const views = [
+  ["current", "Current season"],
+  ["regularSeason", "Regular season"],
+  ["playoffs", "Playoffs"],
+] as const;
+
 export default function PlayerRecords({ career }: { career: Career }) {
-  const records = career.profile.matchRecords ?? emptyMatchRecords();
+  const [view, setView] = useState<(typeof views)[number][0]>("current");
+  const [currentCategory, setCurrentCategory] = useState<"regularSeason" | "playoffs">("regularSeason");
+  const category = view === "current" ? currentCategory : view;
+  const allRecords = view === "current" ? career.season.matchRecords : career.profile.matchRecords;
+  const records = (allRecords ?? emptyMatchRecords())[category];
+  const gamesById = new Map(career.seasons.flatMap((season) => season.games.map((game) => [game.id, game] as const)));
+
   return (
-    <section className="career-card dashboard-card space-y-6">
-      <div>
-        <h2 className="section-title">Player records · Career-wide</h2>
+    <section aria-labelledby="career-highs-title">
+      <h3 id="career-highs-title" className="season-heading">Career Highs</h3>
+      <div className="flex flex-wrap gap-x-4" role="group" aria-label="Record scope">
+        {views.map(([value, label]) => (
+          <button
+            key={value}
+            type="button"
+            aria-pressed={view === value}
+            onClick={() => setView(value)}
+            className="history-tab"
+          >
+            {label}
+          </button>
+        ))}
       </div>
-      <p className="supporting-detail">
-        Single-game highs from recorded matches. Previously saved matches enter
-        records when edited and saved.
-      </p>
-      {(["regularSeason", "playoffs"] as const).map((category) => {
-        const hasRecords = recordKeys.some((key) => records[category][key]);
-        const highlights = recordKeys.slice(0, 3).map((key) => ({
-          label: statLabels[key],
-          value: records[category][key]?.value ?? "—",
-        }));
-        if (!hasRecords)
-          return (
-            <div key={category} className="nested-panel p-4">
-              <h3 className="font-bold">
-                {category === "regularSeason" ? "Regular season" : "Playoffs"}
-              </h3>
-              <p className="mt-1 text-sm text-muted">No records yet.</p>
-            </div>
-          );
-        return (
-          <details key={category} className="nested-panel group">
-            <summary className="cursor-pointer list-none p-4 focus-visible:rounded-xl">
-              <span className="flex flex-wrap items-center justify-between gap-3">
-                <span>
-                  <strong className="block text-lg">
-                    {category === "regularSeason"
-                      ? "Regular season"
-                      : "Playoffs"}
-                  </strong>
-                  <span className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted">
-                    {highlights.map((highlight) => (
-                      <span key={highlight.label}>
-                        {highlight.label}:{" "}
-                        <b className="text-slate-100">{highlight.value}</b>
-                      </span>
-                    ))}
-                  </span>
-                </span>
-                <span className="font-semibold text-gold group-open:hidden">
-                  View all records
-                </span>
-                <span className="hidden font-semibold text-gold group-open:inline">
-                  Hide records
-                </span>
-              </span>
-            </summary>
-            <div className="overflow-x-auto border-t border-divider p-2 sm:p-4">
-              <table className="w-full text-left text-sm">
-                <caption className="sr-only">
-                  {category === "regularSeason" ? "Regular season" : "Playoffs"}{" "}
-                  records
-                </caption>
-                <thead>
-                  <tr className="border-b border-divider">
-                    <th scope="col" className="p-2">
-                      Statistic
-                    </th>
-                    <th scope="col" className="p-2">
-                      Record
-                    </th>
-                    <th scope="col" className="p-2">
-                      Matches
-                    </th>
+      {view === "current" && (
+        <label className="my-3 flex items-center gap-3 text-sm text-muted">
+          Game type
+          <select
+            className="border border-divider bg-cream p-1.5 text-white"
+            value={currentCategory}
+            onChange={(event) => setCurrentCategory(event.target.value === "playoffs" ? "playoffs" : "regularSeason")}
+          >
+            <option value="regularSeason">Regular season</option>
+            <option value="playoffs">Playoffs</option>
+          </select>
+        </label>
+      )}
+      {recordKeys.some((key) => records[key]) ? (
+        <div className="overflow-x-auto">
+          <table className="history-table">
+            <thead>
+              <tr>
+                <th scope="col">Statistic</th>
+                <th scope="col">High</th>
+                <th scope="col" className="whitespace-nowrap">Match date</th>
+                <th scope="col">Opponent</th>
+              </tr>
+            </thead>
+            <tbody>
+              {recordKeys.map((key) => {
+                const record = records[key];
+                const matches = (record?.gameIds ?? [])
+                  .flatMap((id) => {
+                    const game = gamesById.get(id);
+                    return game ? [game] : [];
+                  })
+                  .sort((a, b) => b.date.localeCompare(a.date));
+                const [latest, ...ties] = matches;
+                return (
+                  <tr key={key}>
+                    <th scope="row">{statLabels[key]}</th>
+                    <td className="font-bold tabular-nums">{record?.value ?? "—"}</td>
+                    <td className="whitespace-nowrap">
+                      {latest ? <time dateTime={latest.date}>{latest.date}</time> : "—"}
+                    </td>
+                    <td>
+                      {latest
+                        ? `${latest.location === "home" ? "vs" : "at"} ${teamName(career.teams, latest.opponentId)}`
+                        : record ? "Match details unavailable" : "—"}
+                      {ties.length > 0 && (
+                        <details className="mt-1 text-sm">
+                          <summary className="season-details cursor-pointer">
+                            {ties.length} tied {ties.length === 1 ? "match" : "matches"}
+                          </summary>
+                          <ul className="mt-2 space-y-1 text-muted">
+                            {ties.map((game) => (
+                              <li key={game.id}>
+                                <time dateTime={game.date}>{game.date}</time> · {game.location === "home" ? "vs" : "at"} {teamName(career.teams, game.opponentId)}
+                              </li>
+                            ))}
+                          </ul>
+                        </details>
+                      )}
+                    </td>
                   </tr>
-                </thead>
-                <tbody>
-                  {recordKeys.map((key) => (
-                    <tr key={key} className="border-b border-divider/50">
-                      <th scope="row" className="p-2 font-medium">
-                        {statLabels[key]}
-                      </th>
-                      <td className="p-2 font-bold">
-                        {records[category][key]?.value ?? "—"}
-                      </td>
-                      <td className="p-2">
-                        {(() => {
-                          const gameIds = records[category][key]?.gameIds;
-                          if (!gameIds?.length) return "No record yet";
-                          const matches = gameIds
-                            .map((id) =>
-                              career.season.games.find(
-                                (game) => game.id === id,
-                              ),
-                            )
-                            .filter((game) => game !== undefined)
-                            .sort((a, b) => b.date.localeCompare(a.date));
-                          const latest = matches[0];
-                          const otherCount = gameIds.length - 1;
-                          return (
-                            <div>
-                              <span>
-                                {latest
-                                  ? `${latest.date} · ${teamName(career.teams, latest.opponentId)} · ${latest.location === "home" ? "Home" : "Away"}`
-                                  : "Previous season match"}
-                              </span>
-                              {otherCount > 0 && (
-                                <span className="mt-1 block text-muted">
-                                  and {otherCount} other{" "}
-                                  {otherCount === 1 ? "match" : "matches"}
-                                </span>
-                              )}
-                            </div>
-                          );
-                        })()}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </details>
-        );
-      })}
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <p className="py-4 text-sm text-muted">No records yet.</p>
+      )}
     </section>
   );
 }

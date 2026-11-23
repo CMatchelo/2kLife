@@ -59,7 +59,7 @@ const categoryImages: Record<CommercialCategory, string> = {
   soft_drinks: "/category/soft_bevarages.png",
 };
 
-function Logo({
+export function SponsorLogo({
   brandId,
   brandName,
   large = false,
@@ -72,7 +72,7 @@ function Logo({
     <img
       src={`/sponsors/${brandId}.png`}
       alt={`${brandName} logo`}
-      className={`${large ? "h-16 w-16 sm:h-20 sm:w-20" : "h-9 w-9"} rounded-md object-contain`}
+      className={`${large ? "h-16 w-16 sm:h-20 sm:w-20" : "h-9 w-9"} shrink-0 rounded-md object-contain`}
       onError={(event) => {
         event.currentTarget.onerror = null;
         event.currentTarget.src = "/sponsors/2k.png";
@@ -149,11 +149,11 @@ function MilestoneDetails({ state }: { state: SponsorBrandState }) {
   const dynamic = state.dynamicMilestone;
   const required = dynamic.definition.threshold * 100;
   return (
-    <div className="rounded-xl border border-slate-600 bg-[#2a3947] p-4 text-slate-100">
+    <div className="text-slate-100">
       <h4 className="mb-3 text-base font-bold">All five milestones</h4>
       <div className="overflow-x-auto">
-        <table className="min-w-[48rem] w-full text-sm">
-          <thead className="bg-gold text-ink">
+        <table className="history-table min-w-[40rem]">
+          <thead>
             <tr className="border-b border-slate-600">
               <th scope="col" className="p-3 text-left">
                 Description
@@ -245,7 +245,7 @@ function ConfirmDialog({
   return createPortal(
     <dialog
       ref={ref}
-      className="ai-dialog rounded-2xl border border-divider bg-butter text-ink"
+      className="ai-dialog rounded-2xl border border-divider bg-butter text-slate-100"
       aria-labelledby="sponsor-confirm-title"
       onCancel={(event) => {
         event.preventDefault();
@@ -314,9 +314,7 @@ export default function Sponsors({ career }: { career: Career }) {
   } | null>(null);
   const [saving, setSaving] = useState(false);
   const [approaches, setApproaches] = useState<SponsorApproachGroup[]>([]);
-  const [openApproach, setOpenApproach] = useState<SponsorApproachGroup | null>(
-    null,
-  );
+  const [openApproach, setOpenApproach] = useState<{ group: SponsorApproachGroup; offerId: string } | null>(null);
   const [replacement, setReplacement] = useState<{
     entryId: string;
     oldDate: string;
@@ -442,101 +440,41 @@ export default function Sponsors({ career }: { career: Career }) {
 
   return (
     <div className="space-y-8">
-      <section className="career-card dashboard-card">
-        <h2 className="screen-title">Sponsors</h2>
-        <span className="screen-accent" aria-hidden="true" />
-        <p className="supporting-detail mt-2">
-          Choose one sponsor area to view.
-        </p>
-        <div
-          className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4"
-          role="tablist"
-          aria-label="Sponsor sections"
-        >
-          {(
-            [
-              [
-                "contracts",
-                "Contracts",
-                approaches.length
-                  ? `${approaches.length} offer group${approaches.length === 1 ? "" : "s"} waiting`
-                  : "Active and completed deals",
-              ],
-              ["shoes", "Signature Shoes", "Launches and sales"],
-              ["discover", "Discover", "Potential sponsors"],
-              ["blocked", "Blocked", "Brand restrictions"],
-            ] as const
-          ).map(([value, label, description]) => (
+      <header>
+        <h2 className="text-3xl font-extrabold font-display">Sponsors</h2>
+        <div className="mt-3 flex flex-wrap gap-x-5 border-b border-divider" role="group" aria-label="Sponsor sections">
+          {([
+            ["contracts", approaches.length ? `Contracts (${approaches.length} pending)` : "Contracts"],
+            ["discover", "Discover"],
+            ["shoes", "Signature Shoes"],
+            ["blocked", "Blocked"],
+          ] as const).map(([value, label]) => (
             <button
               key={value}
               type="button"
-              role="tab"
-              aria-selected={sponsorView === value}
-              className={`nested-panel cursor-pointer p-4 text-left transition-colors hover:border-gold ${
-                sponsorView === value
-                  ? "border-gold bg-gold/10"
-                  : "border-divider bg-cream"
-              }`}
+              className="history-tab"
+              aria-pressed={sponsorView === value}
               onClick={() => setSponsorView(value)}
             >
-              <strong className="block">{label}</strong>
-              <span className="mt-1 block text-sm text-muted">
-                {description}
-              </span>
+              {label}
             </button>
           ))}
         </div>
-      </section>
+      </header>
       {sponsorView === "contracts" && (
         <>
-          {approaches.length > 0 && (
-            <section
-              className="career-card dashboard-card"
-              aria-labelledby="pending-offers-title"
-            >
-              <h2 id="pending-offers-title" className="section-title">
-                Sponsor offers
-              </h2>
-              <p className="mt-2 text-muted">
-                Closing an approach does not refuse it. Review it again before
-                its match boundary expires.
-              </p>
-              <div className="mt-4 flex flex-wrap gap-3">
-                {approaches.map((approach) => (
-                  <button
-                    key={approach.id}
-                    type="button"
-                    className="ai-primary"
-                    onClick={() => setOpenApproach(approach)}
-                  >
-                    Review{" "}
-                    {
-                      approach.offers.filter(
-                        (offer) => offer.status === "pending",
-                      ).length
-                    }{" "}
-                    offer
-                    {approach.offers.filter(
-                      (offer) => offer.status === "pending",
-                    ).length === 1
-                      ? ""
-                      : "s"}
-                  </button>
-                ))}
-              </div>
-            </section>
-          )}
+          <div className="grid items-start gap-8 lg:grid-cols-2">
           <section
-            className="career-card dashboard-card"
+            className="min-w-0"
             aria-labelledby="active-contracts-title"
           >
-            <h2 id="active-contracts-title" className="section-title">
+            <h2 id="active-contracts-title" className="season-heading border-b-2">
               Active contracts
             </h2>
             <p className="mt-2 text-sm text-muted">
               Projected if no more sponsor events are attended.
             </p>
-            <div className="mt-5 grid gap-5 xl:grid-cols-2">
+            <div className="mt-5 grid gap-5">
               {overview?.activeContracts.map((contract) => {
                 const isExpanded = expandedContract === contract.id;
                 const remainingAppearances = Math.max(
@@ -565,12 +503,12 @@ export default function Sponsors({ career }: { career: Career }) {
                 return (
                   <article
                     key={contract.id}
-                    className="overflow-hidden rounded-2xl border border-slate-600 bg-[#0d161f] shadow-xl"
+                    className="min-w-0 border-t border-divider"
                   >
-                    <div className="border-b border-slate-700 bg-[#121f2b] p-5">
+                    <div className="border-b border-divider bg-cream/40 px-3 py-4">
                       <div className="flex items-start justify-between gap-4">
                         <div className="flex min-w-0 items-center gap-4">
-                          <Logo
+                          <SponsorLogo
                             brandId={contract.brandId}
                             brandName={contract.brandName}
                             large
@@ -584,7 +522,7 @@ export default function Sponsors({ career }: { career: Career }) {
                             </h3>
                           </div>
                         </div>
-                        <span className="rounded-full border border-emerald-400/50 bg-emerald-400/10 px-3 py-1 text-xs font-black uppercase tracking-wide text-emerald-300">
+                        <span className="rounded-none border border-emerald-400/50 bg-emerald-400/10 px-3 py-1 text-xs font-black uppercase tracking-wide text-emerald-300">
                           Active
                         </span>
                       </div>
@@ -595,9 +533,9 @@ export default function Sponsors({ career }: { career: Career }) {
                         </p>
                       )}
                     </div>
-                    <div className="space-y-5 p-5">
+                    <div className="space-y-5 px-3 py-4">
                       <dl className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-                        <div className="rounded-xl border border-slate-700 bg-slate-900/70 p-3 sm:col-span-2">
+                        <div className="border-l border-divider pl-3 sm:col-span-2">
                           <dt className="text-xs font-bold uppercase tracking-wide text-slate-400">
                             Fixed contract
                           </dt>
@@ -605,7 +543,7 @@ export default function Sponsors({ career }: { career: Career }) {
                             {money(contract.fixedPaymentUsdCents)}
                           </dd>
                         </div>
-                        <div className="rounded-xl border border-slate-700 bg-slate-900/70 p-3">
+                        <div className="border-l border-divider pl-3">
                           <dt className="text-xs font-bold uppercase tracking-wide text-slate-400">
                             Per game
                           </dt>
@@ -613,7 +551,7 @@ export default function Sponsors({ career }: { career: Career }) {
                             {money(contract.perMatchUsdCents)}
                           </dd>
                         </div>
-                        <div className="rounded-xl border border-slate-700 bg-slate-900/70 p-3">
+                        <div className="border-l border-divider pl-3">
                           <dt className="text-xs font-bold uppercase tracking-wide text-slate-400">
                             Per event
                           </dt>
@@ -631,9 +569,9 @@ export default function Sponsors({ career }: { career: Career }) {
                               games
                             </span>
                           </div>
-                          <div className="mt-2 h-2 overflow-hidden rounded-full bg-slate-700">
+                          <div className="mt-2 h-2 overflow-hidden rounded-none bg-slate-700">
                             <div
-                              className="h-full rounded-full bg-sky-400"
+                              className="h-full rounded-none bg-sky-400"
                               style={{ width: `${matchProgress}%` }}
                             />
                           </div>
@@ -651,9 +589,9 @@ export default function Sponsors({ career }: { career: Career }) {
                               {contract.requiredEvents}
                             </span>
                           </div>
-                          <div className="mt-2 h-2 overflow-hidden rounded-full bg-slate-700">
+                          <div className="mt-2 h-2 overflow-hidden rounded-none bg-slate-700">
                             <div
-                              className="h-full rounded-full bg-gold"
+                              className="h-full rounded-none bg-gold"
                               style={{ width: `${attendanceProgress}%` }}
                             />
                           </div>
@@ -688,7 +626,7 @@ export default function Sponsors({ career }: { career: Career }) {
                     {isExpanded && (
                       <div
                         id={`contract-${contract.id}`}
-                        className="border-t border-slate-600 bg-[#101b27] p-5"
+                        className="border-t border-divider bg-cream/35 p-4"
                       >
                         <dl className="grid gap-4 text-sm sm:grid-cols-2">
                           <div>
@@ -856,25 +794,71 @@ export default function Sponsors({ career }: { career: Career }) {
                 );
               })}
               {!loading && overview?.activeContracts.length === 0 && (
-                <p className="rounded-xl border border-slate-700 bg-[#0d161f] p-6 text-center text-muted xl:col-span-2">
+                <p className="py-4 text-muted ">
                   No active sponsor contracts are recorded for this career.
                 </p>
               )}
             </div>
           </section>
 
+          <section className="min-w-0 lg:border-l lg:border-divider lg:pl-6" aria-labelledby="sponsor-offers-title">
+            <h2 id="sponsor-offers-title" className="season-heading border-b-2">Sponsor offers</h2>
+            <div className="mt-4">
+              {openApproach ? (
+                <SponsorApproachModal
+                  key={openApproach.offerId}
+                  careerId={careerId}
+                  initial={openApproach.group}
+                  inlineOfferId={openApproach.offerId}
+                  activeContracts={overview?.activeContracts}
+                  onChanged={() => void load()}
+                  onClose={() => setOpenApproach(null)}
+                />
+              ) : (
+                <>
+                  {loading && <p role="status" className="text-muted">Loading offers.</p>}
+                  {error && (
+                    <div role="alert" className="text-red-300">
+                      <p>{error}</p>
+                      <button type="button" className="season-details" onClick={() => void load()}>Retry</button>
+                    </div>
+                  )}
+                  {!loading && !error && !approaches.some((group) => group.offers.some((offer) => offer.status === "pending")) && (
+                    <p className="text-muted">No pending sponsor offers.</p>
+                  )}
+                  <ul className="space-y-4">
+                    {approaches.flatMap((group) => group.offers.filter((offer) => offer.status === "pending").map((offer) => (
+                      <li key={offer.id} className="flex flex-wrap items-center gap-3 border-b border-divider pb-4">
+                        <SponsorLogo brandId={offer.brandId} brandName={offer.brandName} />
+                        <div className="min-w-0 flex-1">
+                          <h3 className="font-bold">{offer.brandName}</h3>
+                          <p className="text-sm text-muted">{labels[offer.category]}</p>
+                          <p className="text-sm">{money(offer.terms.perMatchUsdCents)} per game · {offer.terms.durationMatches} games</p>
+                        </div>
+                        <button type="button" className="season-details" aria-label={`See details for ${offer.brandName}`}
+                          onClick={() => setOpenApproach({ group, offerId: offer.id })}>
+                          See details
+                        </button>
+                      </li>
+                    )))}
+                  </ul>
+                </>
+              )}
+            </div>
+          </section>
+          </div>
           <section
-            className="career-card dashboard-card"
+            className="min-w-0"
             aria-labelledby="completed-contracts-title"
           >
-            <h2 id="completed-contracts-title" className="section-title">
+            <h2 id="completed-contracts-title" className="season-heading border-b-2">
               Completed contracts
             </h2>
-            <div className="mt-5 space-y-3">
+            <div className="mt-4 divide-y divide-divider">
               {overview?.completedContracts.map((contract) => (
                 <details
                   key={contract.id}
-                  className="rounded-xl border border-divider bg-cream p-4"
+                  className="border-b border-divider pb-3"
                 >
                   <summary className="cursor-pointer font-black">
                     {contract.brandName} · {contract.startDate} to{" "}
@@ -970,12 +954,12 @@ export default function Sponsors({ career }: { career: Career }) {
 
       {sponsorView === "discover" && (
         <section
-          className="overflow-hidden rounded-2xl border border-slate-700 bg-[#091119] p-5 text-slate-100 shadow-xl md:p-7"
+          className="min-w-0"
           aria-labelledby="potential-sponsors-title"
         >
-          <div className="flex flex-wrap items-end justify-between gap-5 border-b border-slate-700 pb-5">
+          <div className="flex flex-wrap items-end justify-between gap-5 pb-3">
             <div>
-              <h2 id="potential-sponsors-title" className="section-title">
+              <h2 id="potential-sponsors-title" className="season-heading border-b-2">
                 Potential sponsors
               </h2>
               <p className="mt-2 text-sm text-slate-400">
@@ -1039,7 +1023,7 @@ export default function Sponsors({ career }: { career: Career }) {
             </div>
           )}
           {!loading && !error && (
-            <div className="mt-5 space-y-3">
+            <div className="mt-4 divide-y divide-divider">
               {potential.map((state) => {
                 const brand = brandById.get(state.brandId)!;
                 const isExpanded = expanded === brand.id;
@@ -1049,10 +1033,10 @@ export default function Sponsors({ career }: { career: Career }) {
                 return (
                   <article
                     key={brand.id}
-                    className="overflow-hidden rounded-xl border border-slate-600 bg-[#0d161f] shadow-lg"
+                    className="min-w-0"
                   >
                     <div
-                      className="relative grid gap-5 p-4 sm:p-5 lg:grid-cols-[minmax(15rem,1.2fr)_minmax(12rem,.85fr)_minmax(16rem,1fr)_auto] lg:items-center"
+                      className="grid gap-4 py-4 sm:grid-cols-2 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,.85fr)_minmax(0,1fr)_auto] xl:items-center"
                       style={{
                         backgroundImage: `linear-gradient(90deg, rgb(7 14 21) 0%, rgb(7 14 21) 25%, rgb(7 14 21 / 0%) 75%, rgb(7 14 21 / 0%) 100%), url(${categoryImages[brand.category]})`,
                         backgroundPosition: "center, center",
@@ -1061,7 +1045,7 @@ export default function Sponsors({ career }: { career: Career }) {
                       }}
                     >
                       <div className="flex min-w-0 items-center gap-4">
-                        <Logo brandId={brand.id} brandName={brand.name} large />
+                        <SponsorLogo brandId={brand.id} brandName={brand.name} large />
                         <h3 className="truncate text-2xl font-black sm:text-3xl">
                           {brand.name}
                         </h3>
@@ -1092,7 +1076,7 @@ export default function Sponsors({ career }: { career: Career }) {
                           {brand.preferredIdentities.map((identity) => (
                             <span
                               key={identity}
-                              className="rounded-full border border-slate-500 bg-slate-800/80 px-3 py-1 text-sm capitalize"
+                              className="rounded-none border border-slate-500 bg-slate-800/80 px-3 py-1 text-sm capitalize"
                             >
                               {identity}
                             </span>
@@ -1106,7 +1090,7 @@ export default function Sponsors({ career }: { career: Career }) {
                             <span>{completed} of 5 completed</span>
                           </div>
                           <div
-                            className="mt-2 h-2 overflow-hidden rounded-full bg-slate-600"
+                            className="mt-2 h-2 overflow-hidden rounded-none bg-slate-600"
                             role="progressbar"
                             aria-label={`${brand.name} milestone progress`}
                             aria-valuemin={0}
@@ -1114,7 +1098,7 @@ export default function Sponsors({ career }: { career: Career }) {
                             aria-valuenow={completed}
                           >
                             <div
-                              className="h-full rounded-full bg-sky-400 transition-[width]"
+                              className="h-full rounded-none bg-sky-400 transition-[width]"
                               style={{ width: `${completed * 20}%` }}
                             />
                           </div>
@@ -1133,7 +1117,7 @@ export default function Sponsors({ career }: { career: Career }) {
                       </div>
                       <button
                         type="button"
-                        className="w-full cursor-pointer rounded-lg bg-court-red px-4 py-3 font-bold text-white shadow-lg transition-opacity hover:opacity-90 disabled:cursor-wait disabled:opacity-50 lg:w-auto"
+                        className="w-full cursor-pointer rounded-lg bg-court-red px-4 py-3 font-bold text-white transition-opacity hover:opacity-90 disabled:cursor-wait disabled:opacity-50 xl:w-auto"
                         disabled={saving}
                         onClick={() =>
                           setConfirming({
@@ -1149,7 +1133,7 @@ export default function Sponsors({ career }: { career: Career }) {
                     {isExpanded && (
                       <div
                         id={`milestones-${brand.id}`}
-                        className="border-t border-slate-600 bg-[#0d161f] p-3 text-slate-100 sm:p-4"
+                        className="border-t border-divider bg-cream/35 p-3 text-slate-100 sm:p-4"
                       >
                         <MilestoneDetails state={state} />
                       </div>
@@ -1158,7 +1142,7 @@ export default function Sponsors({ career }: { career: Career }) {
                 );
               })}
               {potential.length === 0 && (
-                <p className="rounded-xl border border-slate-700 bg-[#0d161f] p-6 text-center text-slate-400">
+                <p className="py-4 text-slate-400">
                   {overview?.potentialSponsors.length
                     ? "No eligible brands match these filters."
                     : "When a brand becomes interested in your player, it will appear here."}
@@ -1172,22 +1156,22 @@ export default function Sponsors({ career }: { career: Career }) {
       {sponsorView === "blocked" && (
         <div className="grid items-start gap-8 lg:grid-cols-2">
           <section
-            className="overflow-hidden rounded-2xl border border-slate-700 bg-[#091119] p-5 text-slate-100 shadow-xl md:p-7"
+            className="min-w-0"
             aria-labelledby="blocked-by-player-title"
           >
-            <h2 id="blocked-by-player-title" className="section-title">
+            <h2 id="blocked-by-player-title" className="season-heading border-b-2">
               Blocked by you
             </h2>
             <p className="mt-3 text-sm text-slate-400">
               Brands you have asked not to approach your player.
             </p>
-            <div className="mt-5 space-y-3">
+            <div className="mt-4 divide-y divide-divider">
               {overview?.playerBlocks.map((block) => {
                 const brand = brandById.get(block.brandId)!;
                 return (
                   <article
                     key={block.brandId}
-                    className="grid min-h-40 grid-cols-[7rem_1fr] items-center gap-4 overflow-hidden rounded-xl border border-slate-600 p-4"
+                    className="grid grid-cols-[minmax(0,7rem)_minmax(0,1fr)] items-center gap-4 py-4"
                     style={{
                       backgroundImage: `linear-gradient(90deg, rgb(7 14 21) 0%, rgb(7 14 21) 30%, rgb(7 14 21 / 72%) 100%), url(${categoryImages[brand.category]})`,
                       backgroundPosition: "center",
@@ -1195,7 +1179,7 @@ export default function Sponsors({ career }: { career: Career }) {
                     }}
                   >
                     <div className="flex min-w-0 flex-col items-center gap-2 text-center">
-                      <Logo brandId={brand.id} brandName={brand.name} large />
+                      <SponsorLogo brandId={brand.id} brandName={brand.name} large />
                       <h3 className="max-w-full truncate text-lg font-black">
                         {brand.name}
                       </h3>
@@ -1232,7 +1216,7 @@ export default function Sponsors({ career }: { career: Career }) {
                 );
               })}
               {!loading && overview?.playerBlocks.length === 0 && (
-                <p className="rounded-xl border border-slate-700 bg-[#0d161f] p-6 text-center text-slate-400">
+                <p className="py-4 text-slate-400">
                   You have not blocked any brands.
                 </p>
               )}
@@ -1240,22 +1224,22 @@ export default function Sponsors({ career }: { career: Career }) {
           </section>
 
           <section
-            className="overflow-hidden rounded-2xl border border-slate-700 bg-[#091119] p-5 text-slate-100 shadow-xl md:p-7"
+            className="min-w-0"
             aria-labelledby="professionalism-blocks-title"
           >
-            <h2 id="professionalism-blocks-title" className="section-title">
+            <h2 id="professionalism-blocks-title" className="season-heading border-b-2">
               Blocked you — unprofessional behavior
             </h2>
             <p className="mt-3 text-sm text-slate-400">
               Permanent brand decisions cannot be removed.
             </p>
-            <div className="mt-5 space-y-3">
+            <div className="mt-4 divide-y divide-divider">
               {overview?.professionalismBlocks.map((block) => {
                 const brand = brandById.get(block.brandId)!;
                 return (
                   <article
                     key={block.brandId}
-                    className="grid min-h-40 grid-cols-[7rem_1fr] items-center gap-4 overflow-hidden rounded-xl border border-slate-600 p-4"
+                    className="grid grid-cols-[minmax(0,7rem)_minmax(0,1fr)] items-center gap-4 py-4"
                     style={{
                       backgroundImage: `linear-gradient(90deg, rgb(7 14 21) 0%, rgb(7 14 21) 30%, rgb(7 14 21 / 78%) 100%), url(${categoryImages[brand.category]})`,
                       backgroundPosition: "center",
@@ -1263,7 +1247,7 @@ export default function Sponsors({ career }: { career: Career }) {
                     }}
                   >
                     <div className="flex min-w-0 flex-col items-center gap-2 text-center">
-                      <Logo brandId={brand.id} brandName={brand.name} large />
+                      <SponsorLogo brandId={brand.id} brandName={brand.name} large />
                       <h3 className="max-w-full truncate text-lg font-black">
                         {brand.name}
                       </h3>
@@ -1299,7 +1283,7 @@ export default function Sponsors({ career }: { career: Career }) {
                 );
               })}
               {!loading && overview?.professionalismBlocks.length === 0 && (
-                <p className="rounded-xl border border-slate-700 bg-[#0d161f] p-6 text-center text-slate-400">
+                <p className="py-4 text-slate-400">
                   No brands have permanently blocked this player.
                 </p>
               )}
@@ -1328,17 +1312,6 @@ export default function Sponsors({ career }: { career: Career }) {
           shoe={launchingShoe}
           onLaunched={() => {
             setLaunchingShoe(null);
-            void load();
-          }}
-        />
-      )}
-      {openApproach && (
-        <SponsorApproachModal
-          careerId={careerId}
-          initial={openApproach}
-          onChanged={() => void load()}
-          onClose={() => {
-            setOpenApproach(null);
             void load();
           }}
         />

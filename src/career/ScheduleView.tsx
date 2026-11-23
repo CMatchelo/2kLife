@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import type { Game } from "../types/game";
 import type { Team } from "../types/career";
 import type { SponsorActiveContract } from "../types/sponsor";
@@ -16,6 +16,10 @@ export default function ScheduleView({
   onMonth,
   sponsorContracts = [],
   onEdit,
+  dashboard = false,
+  currentTeamId,
+  addGameAction,
+  children,
 }: {
   games: Game[];
   teams: Team[];
@@ -25,6 +29,10 @@ export default function ScheduleView({
   onMonth: (month: string) => void;
   sponsorContracts?: SponsorActiveContract[];
   onEdit?: (game: Game) => void;
+  dashboard?: boolean;
+  currentTeamId?: string;
+  addGameAction?: ReactNode;
+  children?: ReactNode;
 }) {
   const [view, setView] = useState<"month" | "list">("month");
   const months = seasonMonths(year);
@@ -38,8 +46,8 @@ export default function ScheduleView({
     .slice(0, 3);
 
   return (
-    <section aria-label="Season schedule" className="space-y-4">
-      {!!upcoming.length && (
+    <div className="space-y-4">
+      {!dashboard && !!upcoming.length && (
         <div>
           <h3 className="text-sm font-black uppercase tracking-wider text-muted">
             Coming up
@@ -68,38 +76,54 @@ export default function ScheduleView({
           </div>
         </div>
       )}
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <label className="career-field">
-          <span>Calendar month</span>
-          <select
-            className="cursor-pointer! border-court-blue! bg-court-blue! text-white!"
-            value={month}
-            onChange={(e) => onMonth(e.target.value)}
-          >
-            {months.map((value) => (
-              <option key={value}>{value}</option>
-            ))}
-          </select>
-        </label>
-        <div className="flex gap-2" aria-label="Calendar view">
-          <button
-            type="button"
-            className="career-nav-button"
-            aria-pressed={view === "month"}
-            onClick={() => setView("month")}
-          >
-            Month view
-          </button>
-          <button
-            type="button"
-            className="career-nav-button"
-            aria-pressed={view === "list"}
-            onClick={() => setView("list")}
-          >
-            List view · All games
-          </button>
+      {dashboard && (
+        <div className="season-heading flex flex-wrap items-center justify-between gap-2">
+          <h2 id="season-schedule-title">Season Calendar</h2>
+          <div className="flex flex-wrap gap-2 text-xs">
+            {addGameAction}
+            <button type="button" className="ai-secondary" onClick={() => setView(view === "month" ? "list" : "month")}>
+              {view === "month" ? "List view" : "Calendar view"}
+            </button>
+          </div>
         </div>
-      </div>
+      )}
+      {children}
+      {(!dashboard || view === "month") && (
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <label className="career-field">
+            <span>Calendar month</span>
+            <select
+              className="cursor-pointer! border-court-blue! bg-court-blue! text-white!"
+              value={month}
+              onChange={(e) => onMonth(e.target.value)}
+            >
+              {months.map((value) => (
+                <option key={value}>{value}</option>
+              ))}
+            </select>
+          </label>
+          {!dashboard && (
+            <div className="flex gap-2" aria-label="Calendar view">
+              <button
+                type="button"
+                className="career-nav-button"
+                aria-pressed={view === "month"}
+                onClick={() => setView("month")}
+              >
+                Month view
+              </button>
+              <button
+                type="button"
+                className="career-nav-button"
+                aria-pressed={view === "list"}
+                onClick={() => setView("list")}
+              >
+                List view · All games
+              </button>
+            </div>
+          )}
+        </div>
+      )}
       {view === "month" ? (
         <CalendarView
           games={games}
@@ -110,8 +134,8 @@ export default function ScheduleView({
           onEdit={onEdit}
         />
       ) : (
-        <ListView games={games} teams={teams} onEdit={onEdit} />
+        <ListView games={games} teams={teams} currentDate={currentDate} currentTeamId={currentTeamId} onEdit={onEdit} />
       )}
-    </section>
+    </div>
   );
 }

@@ -22,17 +22,17 @@ export default function SignatureShoesBoard({
 }) {
   return (
     <section
-      className="career-card dashboard-card"
+      className="min-w-0"
       aria-labelledby="signature-shoes-title"
     >
-      <h2 id="signature-shoes-title" className="section-title">
+      <h2 id="signature-shoes-title" className="season-heading border-b-2">
         Signature Shoes
       </h2>
       <p className="mt-2 text-sm text-muted">
         Footwear sponsor appearances unlock up to two shoes for each contract.
       </p>
       {!shoes.length ? (
-        <p className="mt-5 rounded-xl border border-divider bg-yellow-50 p-5 text-ink">
+        <p className="mt-4 text-muted">
           Attend events for an active footwear sponsor to unlock your first
           signature shoe.
         </p>
@@ -41,22 +41,22 @@ export default function SignatureShoesBoard({
           {shoes.map((shoe) => (
             <article
               key={shoe.id}
-              className="overflow-hidden rounded-2xl border border-divider bg-cream text-slate-100 shadow-lg"
+              className="min-w-0 border-b border-divider pb-4"
             >
               <div className="flex h-48 items-center justify-center bg-[#101b27] p-4">
                 {shoe.imageUrl ? (
                   <img
-                    className="h-full w-full rounded-lg object-contain"
+                    className="h-full w-full object-contain"
                     src={shoe.imageUrl}
                     alt={`${shoe.name ?? shoe.brandName} signature shoe`}
                   />
                 ) : (
-                  <div className="flex h-full w-full items-center justify-center rounded-lg border-2 border-dashed border-slate-500 text-center font-bold text-slate-300">
+                  <div className="flex h-full w-full items-center justify-center border-2 border-dashed border-slate-500 text-center font-bold text-slate-300">
                     No shoe image
                   </div>
                 )}
               </div>
-              <div className="space-y-3 p-5">
+              <div className="space-y-3 pt-4">
                 <div>
                   <p className="text-xs font-black uppercase tracking-wider text-court-red">
                     {shoe.brandName} · Signature Shoe {shoe.slot}
@@ -66,7 +66,7 @@ export default function SignatureShoesBoard({
                   </h3>
                 </div>
                 <span
-                  className={`inline-flex rounded-full px-3 py-1 text-xs font-black uppercase ${shoe.status === "active" ? "bg-court-blue text-white" : shoe.status === "pendingLaunch" ? "bg-gold" : "bg-slate-700 text-white"}`}
+                  className={`inline-flex text-xs font-black uppercase ${shoe.status === "active" ? "text-sky-300" : shoe.status === "pendingLaunch" ? "text-gold" : "text-muted"}`}
                 >
                   {statusLabel(shoe.status)}
                 </span>
@@ -104,7 +104,7 @@ export default function SignatureShoesBoard({
                     </div>
                     <div className="col-span-2">
                       <dt className="text-muted">Player royalties</dt>
-                      <dd className="text-lg font-black text-court-blue">
+                      <dd className="text-lg font-black text-gold">
                         {money(shoe.lifetimeRoyaltiesUsdCents)}
                       </dd>
                     </div>

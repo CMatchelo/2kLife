@@ -8,7 +8,7 @@ const percentage = (value: number | null) =>
   value === null ? "—" : `${number.format(value)}%`;
 
 export default function SeasonProgress({ current }: { current: Career }) {
-  const stats = current.profile.careerStats.regularSeason;
+  const stats = current.season.regularSeason.stats;
   const hasGames = stats.gamesPlayed > 0;
   const statsDetails = [
     ["PPG", stats.averages.points],
@@ -25,10 +25,10 @@ export default function SeasonProgress({ current }: { current: Career }) {
 
   return (
     <section
-      className="career-card dashboard-card overflow-hidden"
+      className="min-w-0"
       aria-labelledby="season-progress-title"
     >
-      <div className="flex flex-wrap items-end justify-between gap-3 pb-5">
+      <div className="season-heading flex flex-wrap items-end justify-between gap-2">
         <div>
           <p className="text-sm font-bold uppercase tracking-[0.2em] text-court-red">
             {current.season.year}{" "}
@@ -38,21 +38,20 @@ export default function SeasonProgress({ current }: { current: Career }) {
                 ? "completed season"
                 : "regular season"}
           </p>
-          <h2 id="season-progress-title" className="screen-title mt-1">
+          <h2 id="season-progress-title" className="mt-1">
             {hasGames ? "Season averages" : "Your season is ready to begin"}
           </h2>
-          <span className="screen-accent" aria-hidden="true" />
         </div>
-        <p className="rounded-full bg-court-blue px-4 py-2 text-sm font-bold text-white">
+        <p className="text-xs font-semibold text-muted">
           {stats.gamesPlayed} {stats.gamesPlayed === 1 ? "game" : "games"}{" "}
           played
         </p>
       </div>
-      <dl className="mt-5 grid grid-cols-3 gap-px overflow-hidden rounded-xl bg-transparent lg:grid-cols-5">
+      <dl className="season-averages mt-3 grid gap-px bg-divider p-px">
         {statsDetails.map(([label, value]) => (
           <div
             key={label}
-            className="min-w-0 border border-slate-600 bg-transparent p-2 sm:p-4"
+            className="min-w-0 bg-[#101923] px-2 py-2"
           >
             <dt className="break-words text-[10px] font-bold uppercase tracking-wide text-muted sm:text-xs">
               {label}

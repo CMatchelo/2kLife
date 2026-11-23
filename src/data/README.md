@@ -9,7 +9,11 @@ Types are defined in `../types/sponsor.ts` and exported from the types index.
 - Money is stored as safe integer **USD cents**. For example,
   `fixedPaymentUsdCents: 5000000` means US$50,000. These are original base terms;
   no payout or renewal calculations are included.
-- Contract durations and required sponsor appearances are balanced independently. Base
+- Entry deals require 4–5 appearances, middle deals 6–7, and top deals 9–10.
+  New offers target 150% of (required appearances + one), rounded up, and
+  schedule fewer dates when only enough confirmed off-days for the minimum
+  (required appearances + one) or more are available. Base catalog durations
+  are at least three matches longer than the target. Base
   compensation is divided approximately 40% guaranteed, 30% across contract matches,
   and 30% across required appearances. Total base values are $75,000-$125,000 for entry,
   $350,000-$650,000 for middle, and $1.5M-$3M for top-tier contracts.

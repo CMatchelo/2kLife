@@ -389,8 +389,11 @@ function App() {
         </div>
       </header>
       <main
-        className={`mx-auto max-w-6xl px-6 ${
-          career ? "py-10 md:py-12" : "py-16 md:py-24"
+        className={`mx-auto px-4 sm:px-6 ${
+          career?.hasActiveSeason &&
+          (careerView === "progress" || careerView === "info" || careerView === "network" || careerView === "sponsors" || careerView === "finances" || careerView === "lifestyle")
+            ? "max-w-[96rem] py-5 sm:py-7"
+            : career ? "max-w-6xl py-10 md:py-12" : "max-w-6xl py-16 md:py-24"
         }`}
       >
         {creating ? (
@@ -410,6 +413,8 @@ function App() {
               key={`${career.id}:${career.season.id}`}
               career={career}
               view={careerView}
+              onOpenSponsors={() => setCareerView("sponsors")}
+              onOpenFinances={() => setCareerView("finances")}
               onCareerChange={(updated) => {
                 setCareer(updated);
                 setCareerView("progress");

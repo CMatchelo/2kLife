@@ -189,6 +189,18 @@ function PersonEditor({
   );
 }
 
+const relationship = (value: number) => value.toFixed(1);
+
+function NetworkTeamName({ teams, id }: { teams: Career["teams"]; id: string }) {
+  const logo = teamLogo(id);
+  return (
+    <span className="flex items-center gap-2">
+      {logo && <img src={logo} alt="" className="size-7 shrink-0 object-contain" />}
+      <span>{teamName(teams, id)}</span>
+    </span>
+  );
+}
+
 function PeopleTable({
   people,
   role,
@@ -204,103 +216,36 @@ function PeopleTable({
   onEdit: (person: BasketballNetworkPlayer) => void;
   onRemove: (person: BasketballNetworkPlayer) => void;
 }) {
-  const empty =
-    role === "player"
-      ? "No players have been added to your basketball network."
-      : "No teammates have been added to your basketball network.";
-  if (!people.length)
-    return <p className="mt-5 rounded-lg bg-cream p-4 text-sm">{empty}</p>;
+  if (!people.length) return <p className="py-3 text-sm text-muted">No {role}s added.</p>;
+
   return (
-    <div className="mt-5 min-w-0">
-      <div className="space-y-3 sm:hidden">
-        {people.map((person) => (
-          <article
-            key={person.id}
-            className="rounded-lg border border-divider/70 bg-cream p-3 text-sm"
-          >
-            <dl className="grid min-w-0 grid-cols-[minmax(0,0.8fr)_minmax(0,1.35fr)_auto] gap-3">
-              <div className="min-w-0">
-                <dt className="text-xs font-bold uppercase tracking-wide text-muted">
-                  {role === "player" ? "Player" : "Teammate"}
-                </dt>
-                <dd className="mt-1 break-words font-semibold">
-                  {person.name}
-                </dd>
-              </div>
-              <div className="min-w-0">
-                <dt className="text-xs font-bold uppercase tracking-wide text-muted">
-                  Team
-                </dt>
-                <dd className="mt-1 break-words">
-                  {teamName(teams, person.teamId)}{" "}
-                  <span className="text-muted">({person.teamId})</span>
-                </dd>
-              </div>
-              <div>
-                <dt className="text-xs font-bold uppercase tracking-wide text-muted">
-                  Relationship
-                </dt>
-                <dd className="mt-1 font-bold">{person.affinity}</dd>
-              </div>
-            </dl>
-            <div className="mt-3 flex flex-wrap gap-2 border-t border-divider/70 pt-3">
-              <button
-                type="button"
-                className="ai-secondary"
-                disabled={saving}
-                onClick={() => onEdit(person)}
-              >
-                Edit
-              </button>
-              <button
-                type="button"
-                className="ai-secondary text-court-red"
-                disabled={saving}
-                onClick={() => onRemove(person)}
-              >
-                Remove
-              </button>
-            </div>
-          </article>
-        ))}
-      </div>
-      <table className="hidden w-full text-left text-sm sm:table">
+    <div className="overflow-x-auto">
+      <table className="history-table [&_tbody_:is(th,td)]:border-b-0">
         <thead>
-          <tr className="border-b border-divider">
-            <th className="p-2">{role === "player" ? "Player" : "Teammate"}</th>
-            <th className="p-2">Current team</th>
-            <th className="p-2">Relationship</th>
-            <th className="p-2 text-right">Actions</th>
+          <tr>
+            <th scope="col">{role === "player" ? "Player" : "Teammate"}</th>
+            {role === "player" && <th scope="col">Team</th>}
+            <th scope="col" className="text-right">Relationship</th>
+            <th scope="col" className="text-right">Actions</th>
           </tr>
         </thead>
         <tbody>
           {people.map((person) => (
-            <tr key={person.id} className="border-b border-divider/70">
-              <td className="p-2 font-semibold">{person.name}</td>
-              <td className="p-2">
-                {teamName(teams, person.teamId)}{" "}
-                <span className="text-muted">({person.teamId})</span>
-              </td>
-              <td className="p-2 font-bold">{person.affinity}</td>
-              <td className="p-2">
-                <span className="flex justify-end gap-2">
-                  <button
-                    type="button"
-                    className="ai-secondary"
-                    disabled={saving}
-                    onClick={() => onEdit(person)}
-                  >
+            <tr key={person.id}>
+              <th scope="row">{person.name}</th>
+              {role === "player" && <td><NetworkTeamName teams={teams} id={person.teamId} /></td>}
+              <td className="text-right font-bold">{relationship(person.affinity)}</td>
+              <td>
+                <div className="flex flex-wrap justify-end gap-x-3 gap-y-1">
+                  <button type="button" className="season-details" disabled={saving}
+                    aria-label={`Edit ${person.name}`} onClick={() => onEdit(person)}>
                     Edit
                   </button>
-                  <button
-                    type="button"
-                    className="ai-secondary text-court-red"
-                    disabled={saving}
-                    onClick={() => onRemove(person)}
-                  >
+                  <button type="button" className="season-details text-red-300" disabled={saving}
+                    aria-label={`Remove ${person.name}`} onClick={() => onRemove(person)}>
                     Remove
                   </button>
-                </span>
+                </div>
               </td>
             </tr>
           ))}
@@ -425,53 +370,53 @@ export default function BasketballNetworkSettings({
   };
 
   return (
-    <section
-      className="career-card dashboard-card"
-      aria-labelledby="basketball-network-title"
-    >
-      <h2 id="basketball-network-title" className="text-2xl font-bold">
-        Basketball Network
-      </h2>
-      <p className="supporting-detail mt-2">
-        Choose the teams and players who are closest to your career. They will
-        be used in future events, relationships, contract discussions, and trade
-        stories.
-      </p>
-      {loading && (
-        <p className="mt-5" role="status">
-          Loading basketball network…
-        </p>
-      )}
-      {error && !editing && !removing && (
-        <p
-          className="mt-5 rounded-lg border border-court-red/30 p-3 text-court-red"
-          role="alert"
-        >
-          {error}
-        </p>
-      )}
+    <section aria-labelledby="basketball-network-title" className="network-screen">
+      <h2 id="basketball-network-title" className="mb-5 text-3xl font-extrabold">Basketball Network</h2>
+      {loading && <p role="status">Loading basketball network.</p>}
+      {error && !editing && !removing && <p className="mb-4 text-red-300" role="alert">{error}</p>}
       {!loading && (
-        <div className="mt-6 space-y-6">
-          <section
-            className="min-w-0 rounded-xl border border-divider p-4"
-            aria-labelledby="network-teams-title"
-          >
-            <div className="flex flex-wrap items-start justify-between gap-2">
-              <div>
-                <h3 id="network-teams-title" className="text-xl font-bold">
-                  Teams
-                </h3>
-                <p className="text-sm text-muted">
-                  {selectedTeams.length} of 5 teams selected · current team does
-                  not use a slot
-                </p>
-              </div>
-              {teamLimit && (
-                <strong className="text-sm text-court-red">
-                  Team limit reached
-                </strong>
-              )}
+        <div className="grid items-start gap-9 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.25fr)]">
+          <section className="min-w-0 space-y-3" aria-labelledby="network-teams-title">
+            <div className="season-heading border-b-2 flex flex-wrap items-baseline justify-between gap-2">
+              <h3 id="network-teams-title">Teams</h3>
+              <p className="text-xs font-semibold text-muted">{selectedTeams.length} / 5 selected</p>
             </div>
+            <div className="overflow-x-auto">
+              <table className="history-table [&_tbody_:is(th,td)]:border-b-0">
+                <thead>
+                  <tr>
+                    <th scope="col">Team</th>
+                    <th scope="col" className="text-right">Relationship</th>
+                    <th scope="col" className="text-right">Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {[...network.teams].sort((a, b) => Number(b.current) - Number(a.current)).map((team) => (
+                    <tr key={team.teamId}>
+                      <th scope="row">
+                        <NetworkTeamName teams={displayTeams} id={team.teamId} />
+                        {team.current && <span className="mt-1 block text-xs font-normal text-muted">Current team</span>}
+                      </th>
+                      <td className="text-right font-bold">{relationship(team.affinity)}</td>
+                      <td className="text-right">
+                        {team.selected && (
+                          <button
+                            type="button"
+                            className="season-details text-red-300"
+                            aria-label={`Remove ${teamName(displayTeams, team.teamId)}`}
+                            disabled={saving}
+                            onClick={() => void mutate(`teams/${team.teamId}`, undefined, "DELETE")}
+                          >
+                            Remove
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <p className="text-xs text-muted">Your current team is tracked automatically. Selecting it also includes it in your five-team list.</p>
             <form
               className="mt-4 flex min-w-0 flex-wrap items-end gap-3"
               onSubmit={async (event) => {
@@ -507,155 +452,18 @@ export default function BasketballNetworkSettings({
                 {saving ? "Saving…" : "Add team"}
               </button>
             </form>
-            <div className="mt-5 min-w-0">
-              <div className="space-y-3 sm:hidden">
-                {network.teams.map((team) => {
-                  const logo = teamLogo(team.teamId);
-                  return (
-                    <article
-                      key={team.teamId}
-                      className="rounded-lg border border-divider/70 bg-cream p-3 text-sm"
-                    >
-                      <dl className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] gap-3">
-                        <div className="min-w-0">
-                          <dt className="text-xs font-bold uppercase tracking-wide text-muted">
-                            Team
-                          </dt>
-                          <dd className="mt-1 flex min-w-0 items-center gap-2 font-semibold">
-                            {logo && (
-                              <img
-                                src={logo}
-                                alt=""
-                                className="h-7 w-7 shrink-0 object-contain"
-                              />
-                            )}
-                            <span className="min-w-0 break-words">
-                              {teamName(displayTeams, team.teamId)}{" "}
-                              <span className="text-muted">
-                                ({team.teamId})
-                              </span>
-                            </span>
-                          </dd>
-                        </div>
-                        <div>
-                          <dt className="text-xs font-bold uppercase tracking-wide text-muted">
-                            Relationship
-                          </dt>
-                          <dd className="mt-1 font-bold">{team.affinity}</dd>
-                        </div>
-                      </dl>
-                      {team.selected && (
-                        <div className="mt-3 border-t border-divider/70 pt-3">
-                          <button
-                            type="button"
-                            className="ai-secondary text-court-red"
-                            disabled={saving}
-                            onClick={() =>
-                              void mutate(
-                                `teams/${team.teamId}`,
-                                undefined,
-                                "DELETE",
-                              )
-                            }
-                          >
-                            Remove
-                          </button>
-                        </div>
-                      )}
-                    </article>
-                  );
-                })}
-              </div>
-              <table className="hidden w-full text-left text-sm sm:table">
-                <thead>
-                  <tr className="border-b border-divider">
-                    <th className="p-2">Team</th>
-                    <th className="p-2">Relationship</th>
-                    <th className="p-2 text-right">Action</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {network.teams.map((team) => {
-                    const logo = teamLogo(team.teamId);
-                    return (
-                      <tr
-                        key={team.teamId}
-                        className="border-b border-divider/70"
-                      >
-                        <td className="p-2">
-                          <span className="flex items-center gap-2">
-                            {logo && (
-                              <img
-                                src={logo}
-                                alt=""
-                                className="h-7 w-7 object-contain"
-                              />
-                            )}
-                            <span>
-                              {teamName(displayTeams, team.teamId)}{" "}
-                              <span className="text-muted">
-                                ({team.teamId})
-                              </span>
-                            </span>
-                          </span>
-                        </td>
-                        <td className="p-2 font-bold">{team.affinity}</td>
-                        <td className="p-2 text-right">
-                          {team.selected && (
-                            <button
-                              type="button"
-                              className="ai-secondary text-court-red"
-                              disabled={saving}
-                              onClick={() =>
-                                void mutate(
-                                  `teams/${team.teamId}`,
-                                  undefined,
-                                  "DELETE",
-                                )
-                              }
-                            >
-                              Remove
-                            </button>
-                          )}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
           </section>
-          <div className="grid min-w-0 gap-6 lg:grid-cols-2">
-            <section
-              className="min-w-0 rounded-xl border border-divider p-4"
-              aria-labelledby="network-players-title"
-            >
-              <div className="flex flex-wrap items-start justify-between gap-2">
-                <div>
-                  <h3 id="network-players-title" className="text-xl font-bold">
-                    Players
-                  </h3>
-                  <p className="text-sm text-muted">
-                    {network.players.length} of 3 players added
-                  </p>
-                </div>
-                {playerLimit && (
-                  <strong className="text-sm text-court-red">
-                    Player limit reached
-                  </strong>
-                )}
+          <div className="min-w-0 space-y-9 lg:border-l lg:border-divider lg:pl-6">
+            <section className="space-y-3" aria-labelledby="network-players-title">
+              <div className="season-heading border-b-2 flex flex-wrap items-baseline justify-between gap-2">
+                <h3 id="network-players-title">Players</h3>
+                <p className="text-xs font-semibold text-muted">{network.players.length} / 3</p>
               </div>
-              <p className="mt-2 text-sm text-muted">
-                Add up to three players from around the league who are connected
-                to your career.
-              </p>
               {network.players.length > 3 && (
-                <p className="mt-3 rounded-lg border border-court-red/30 p-3 text-sm text-court-red">
-                  This career has more than three saved players from an earlier
-                  version. You can keep and edit them, but you must reduce the
-                  list before adding another.
-                </p>
+                <p className="text-sm text-gold">Remove players until fewer than three remain to add another.</p>
               )}
+              <PeopleTable people={network.players} role="player" teams={displayTeams}
+                saving={saving} onEdit={openEditor} onRemove={openRemove} />
               <form
                 className="mt-4 grid gap-3 sm:grid-cols-2"
                 onSubmit={async (event) => {
@@ -706,41 +514,15 @@ export default function BasketballNetworkSettings({
                   {saving ? "Saving…" : "Add player"}
                 </button>
               </form>
-              <PeopleTable
-                people={network.players}
-                role="player"
-                teams={displayTeams}
-                saving={saving}
-                onEdit={openEditor}
-                onRemove={openRemove}
-              />
             </section>
-            <section
-              className="min-w-0 rounded-xl border border-divider p-4"
-              aria-labelledby="network-teammates-title"
-            >
-              <div className="flex flex-wrap items-start justify-between gap-2">
-                <div>
-                  <h3
-                    id="network-teammates-title"
-                    className="text-xl font-bold"
-                  >
-                    Teammates
-                  </h3>
-                  <p className="text-sm text-muted">
-                    {network.teammates.length} of 3 teammates added
-                  </p>
-                </div>
-                {teammateLimit && (
-                  <strong className="text-sm text-court-red">
-                    Teammate limit reached
-                  </strong>
-                )}
+            <section className="space-y-3" aria-labelledby="network-teammates-title">
+              <div className="season-heading border-b-2 flex flex-wrap items-baseline justify-between gap-2">
+                <h3 id="network-teammates-title">Teammates</h3>
+                <p className="text-xs font-semibold text-muted">{network.teammates.length} / 3</p>
               </div>
-              <p className="mt-2 text-sm text-muted">
-                Add up to three teammates from your current roster. Their team
-                is linked automatically to your current team.
-              </p>
+              <p className="text-sm text-muted">{teamName(displayTeams, career.profile.currentTeamId)}</p>
+              <PeopleTable people={network.teammates} role="teammate" teams={displayTeams}
+                saving={saving} onEdit={openEditor} onRemove={openRemove} />
               <form
                 className="mt-4 space-y-3"
                 onSubmit={async (event) => {
@@ -759,12 +541,6 @@ export default function BasketballNetworkSettings({
                     onChange={(event) => setTeammateName(event.target.value)}
                   />
                 </label>
-                <div>
-                  <span className="block text-sm font-bold">Current team</span>
-                  <p className="mt-1 rounded-lg border border-divider bg-cream p-3">
-                    {teamName(displayTeams, career.profile.currentTeamId)}
-                  </p>
-                </div>
                 <button
                   className="ai-primary"
                   disabled={saving || teammateLimit || !teammateName.trim()}
@@ -772,14 +548,6 @@ export default function BasketballNetworkSettings({
                   {saving ? "Saving…" : "Add teammate"}
                 </button>
               </form>
-              <PeopleTable
-                people={network.teammates}
-                role="teammate"
-                teams={displayTeams}
-                saving={saving}
-                onEdit={openEditor}
-                onRemove={openRemove}
-              />
             </section>
           </div>
         </div>

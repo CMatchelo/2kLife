@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import "./fonts.css";
 
 @theme {
   --color-cream: #182633;
@@ -11,7 +12,8 @@
   --color-court-red: #c9082a;
   --color-night: #091119;
   --color-night-deep: #04080c;
-  --font-sans: "Segoe UI", system-ui, sans-serif;
+  --font-sans: "Barlow", "Segoe UI", system-ui, sans-serif;
+  --font-display: "Barlow Condensed", "Barlow", "Segoe UI", system-ui, sans-serif;
 }
 
 @layer components {
@@ -351,4 +353,164 @@
   background: rgb(245 190 63 / 12%);
   color: var(--color-gold);
   font-size: 1.5rem;
+}
+
+@layer components {
+  .season-layout {
+    display: grid;
+    grid-template-areas: "matchup" "main" "sidebar";
+    gap: 1.5rem;
+    align-items: start;
+  }
+
+  .season-matchup { grid-area: matchup; }
+  .season-main { grid-area: main; }
+  .season-layout > .season-sidebar { grid-area: sidebar; }
+
+  .season-player-banner {
+    position: relative;
+    isolation: isolate;
+    overflow: hidden;
+    padding: clamp(1rem, 2.5vw, 2rem);
+    background: linear-gradient(115deg,
+      color-mix(in srgb, var(--team-secondary, #344761) 45%, #0d161f),
+      color-mix(in srgb, var(--team-primary, #17408b) 52%, #0d161f));
+    clip-path: polygon(1.75rem 0, 100% 0, 100% 100%, 0 100%, 0 1.75rem);
+  }
+
+  .season-player-banner::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    background: linear-gradient(110deg, #080f17 20%, transparent 100%);
+    clip-path: polygon(0 0, 56% 0, 50% 100%, 0 100%);
+  }
+
+  .season-player-watermark {
+    position: absolute;
+    z-index: -1;
+    inset-inline-end: 2%;
+    top: 50%;
+    width: min(43%, 26rem);
+    transform: translateY(-50%);
+    opacity: 0.25;
+    pointer-events: none;
+  }
+
+  .season-heading {
+    @apply border-b border-divider pb-2 text-lg font-black;
+  }
+
+  .season-details {
+    @apply cursor-pointer text-sm font-semibold text-gold underline underline-offset-4;
+  }
+
+  .season-averages { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+
+  .season-averages > div:first-child {
+    background: linear-gradient(115deg, #182f57, #101923);
+  }
+
+  .season-averages > div:nth-child(-n + 3) dd {
+    @apply text-xl;
+  }
+
+  .season-game-row {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    width: 100%;
+    align-items: center;
+    gap: .35rem .75rem;
+    padding: .55rem .7rem;
+    text-align: left;
+    border-inline-start: 2px solid transparent;
+    border-bottom: 1px solid var(--color-divider);
+  }
+
+  .season-game-row.home { background: rgb(23 64 139 / 22%); }
+  .season-game-row.away { background: rgb(201 8 42 / 14%); }
+  .season-game-row[aria-current="date"] { border-inline-start-color: var(--color-gold); }
+  .season-game-row:not(:disabled) { @apply cursor-pointer hover:brightness-125; }
+
+  @media (min-width: 40rem) {
+    .season-averages { grid-template-columns: repeat(21, minmax(0, 1fr)); }
+    .season-averages > div:nth-child(-n + 3) { grid-column: span 7; }
+    .season-averages > div:nth-child(n + 4) { grid-column: span 3; }
+
+    .season-game-row {
+      grid-template-columns: 5.5rem minmax(0, 1fr) 2.5rem 5.2rem;
+    }
+
+    .season-game-row > :last-child { text-align: right; }
+  }
+
+  @media (min-width: 64rem) {
+    .season-layout {
+      grid-template-columns: minmax(0, 1fr) minmax(14rem, 28%);
+      grid-template-areas: "matchup sidebar" "main sidebar";
+    }
+
+    .season-sidebar {
+      border-inline-start: 1px solid var(--color-divider);
+      padding-inline-start: 1.25rem;
+    }
+  }
+
+  @media (min-width: 75rem) {
+    .season-layout {
+      grid-template-columns: minmax(10rem, .95fr) minmax(0, 3fr) minmax(14rem, 1.65fr);
+      grid-template-areas: "matchup main sidebar";
+    }
+  }
+}
+
+@layer components {
+  .history-table {
+    @apply w-full border-collapse text-left text-sm tabular-nums;
+  }
+
+  .history-table :is(th, td) {
+    @apply border-b border-divider px-2 py-2 align-top sm:px-3;
+  }
+
+  .history-table thead {
+    @apply text-xs uppercase tracking-wide text-muted;
+  }
+
+  .history-tab {
+    @apply cursor-pointer border-b-2 border-transparent py-2 text-sm font-semibold text-muted hover:text-white;
+  }
+
+  .history-tab[aria-pressed="true"] {
+    @apply border-gold text-gold;
+  }
+}
+
+@layer components {
+  .network-screen .career-field :is(input, select) {
+    @apply rounded-none;
+  }
+
+  .network-screen .season-details:disabled {
+    @apply cursor-not-allowed opacity-50;
+  }
+}
+
+@layer components {
+  .career-redesigned .season-player-banner :is(h1, .season-player-number),
+  .career-redesigned .season-heading,
+  .career-redesigned .season-averages > div:nth-child(-n + 3) dd,
+  .career-redesigned :is(#career-history-title, #basketball-network-title),
+  #historical-season-review-title {
+    font-family: var(--font-display);
+    font-weight: 800;
+  }
+
+  .career-redesigned .season-heading { font-weight: 700; }
+
+  /* Keep metadata and controls in the reading font within section headers. */
+  .career-redesigned .season-heading :is(p, button) {
+    font-family: var(--font-sans);
+  }
 }

@@ -1,9 +1,7 @@
-import PersonalLife from "./PersonalLife";
+import CareerHistory from "./CareerHistory";
 import InterviewModal from "./InterviewModal";
 import type { InterviewOffer } from "../types/interview";
 import SeasonProgress from "./SeasonProgress";
-import PlayerRecords from "./PlayerRecords";
-import PlayerInfo from "./PlayerInfo";
 import MatchEditor from "./MatchEditor";
 import type { Game } from "../types/game";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -14,24 +12,21 @@ import type { Career } from "../types/career";
 import ScheduleView from "./ScheduleView";
 import GameEditor from "./GameEditor";
 import { api } from "./api";
-import { teamName } from "../domain/teams";
+import { Endorsements, NextMatchup, PlayerBanner } from "./SeasonOverview";
+import { DailyInvitations, EventResults } from "./OffCourtInvites";
 import AIConnection from "../AIConnection";
 import Sponsors from "./Sponsors";
 import SponsorFinances from "./SponsorFinances";
 import LifestyleDashboard from "./LifestyleDashboard";
 import SponsorApproachModal from "./SponsorApproachModal";
 import type {
-  SponsorActiveContract,
   SponsorApproachGroup,
   SponsorContractSettlement,
   SponsorsOverview,
 } from "../types/sponsor";
-import DailyInvitationModal, {
-  DailyEventResultModal,
-} from "./DailyInvitationModal";
 import type {
   DailyDecisionGroup,
-  DailyEventResult,
+  DailyInvitationResolution,
 } from "../types/daily-invitations";
 import BasketballNetworkSettings from "./BasketballNetworkSettings";
 import SignatureShoeLaunchModal from "./SignatureShoeLaunchModal";
@@ -226,10 +221,14 @@ export default function CareerDashboard({
   career,
   view,
   onCareerChange,
+  onOpenSponsors,
+  onOpenFinances,
 }: {
   career: Career;
   view: CareerView;
   onCareerChange?: (career: Career) => void;
+  onOpenSponsors: () => void;
+  onOpenFinances: () => void;
 }) {
   const [current, setCurrent] = useState(career);
   const [settingsSection, setSettingsSection] = useState<
@@ -274,13 +273,12 @@ export default function CareerDashboard({
   } | null>(null);
   const [invitationGroup, setInvitationGroup] =
     useState<DailyDecisionGroup | null>(null);
-  const [eventResults, setEventResults] = useState<DailyEventResult[]>([]);
+  const [eventResolution, setEventResolution] = useState<DailyInvitationResolution | null>(null);
   const [launchingShoe, setLaunchingShoe] = useState<SignatureShoe | null>(
     null,
   );
-  const [sponsorContracts, setSponsorContracts] = useState<
-    SponsorActiveContract[]
-  >([]);
+  const [sponsorsOverview, setSponsorsOverview] = useState<SponsorsOverview | null>(null);
+  const [sponsorsError, setSponsorsError] = useState("");
   const [contractGeneration, setContractGeneration] = useState<{
     groupId: string;
     error: string;
@@ -326,15 +324,18 @@ export default function CareerDashboard({
     let active = true;
     void api<SponsorsOverview>(`careers/${current.id}/sponsors`)
       .then((overview) => {
-        if (active) setSponsorContracts(overview.activeContracts);
+        if (active) {
+          setSponsorsOverview(overview);
+          setSponsorsError("");
+        }
       })
       .catch(() => {
-        if (active) setSponsorContracts([]);
+        if (active) setSponsorsError("Could not load endorsements.");
       });
     return () => {
       active = false;
     };
-  }, [current.id, current.currentDate, view]);
+  }, [current, view]);
 
   async function loadSponsorMessages(groupId: string, transitionId: string) {
     dismissedSponsorGenerations.current.delete(groupId);
@@ -573,8 +574,21 @@ export default function CareerDashboard({
       : current.season.postseason?.playerPostseasonResult
         ? "No player games remain. Complete the remaining playoff bracket below."
         : "Your team is waiting for its next opponent. Resolve the required bracket results below; when the opponent is known, register the matchup schedule to enable Next day.";
+  const nextMatch = current.season.games
+    .filter((game) => game.status === "scheduled" && (!current.currentDate || game.date >= current.currentDate))
+    .sort((a, b) => a.date.localeCompare(b.date))[0];
+  const isMatchDay = current.season.games.some(
+    (game) => game.date === current.currentDate && game.status !== "notNeeded",
+  );
+  const todayResolution = eventResolution?.group.inGameDate === current.currentDate ? eventResolution : null;
+  const nextDayDisabled = dayLoading || calendarSaving || !!editing || !!interviewGame ||
+    adding || !!editingFixture || !!invitationGroup || !!contractGeneration ||
+    !!contractOffer || postseasonNextDayBlocked;
+
+  const redesigned = view === "progress" || view === "info" || view === "network" || view === "sponsors" || view === "finances" || view === "lifestyle";
+
   return (
-    <div className="space-y-8">
+    <div className={redesigned ? "career-redesigned space-y-6" : "space-y-6"}>
       {(dayLoading || calendarSaving) && (
         <p role="status">
           {dayLoading ? "Processing the day…" : "Saving calendar settings…"}
@@ -590,32 +604,16 @@ export default function CareerDashboard({
           {dayMessage}
         </p>
       )}
-      <div className="flex flex-wrap justify-between gap-4">
-        <div>
-          <p className="text-sm font-bold uppercase tracking-widest text-court-red">
-            {current.saveName}
-          </p>
-          <h1 className="mt-2 text-4xl font-black">{p.name}</h1>
-          <p className="mt-3 text-muted">
-            {current.season.era} · {current.season.year} ·{" "}
-            {teamName(current.teams, p.currentTeamId)}
-          </p>
-        </div>
-      </div>
-      {view === "progress" ? (
-        <SeasonProgress current={current} />
-      ) : view === "info" ? (
-        <div className="space-y-8">
-          <PlayerInfo
-            career={current}
-            onCareerChange={(updated) => {
-              setCurrent(updated);
-              onCareerChange?.(updated);
-            }}
-          />
-          <PlayerRecords career={current} />
-          <PersonalLife socialMedia={current.profile.socialMedia} />
-        </div>
+      <PlayerBanner career={current} />
+      {view === "progress" ? null : view === "info" ? (
+        <CareerHistory
+          career={current}
+          onOpenFinances={onOpenFinances}
+          onCareerChange={(updated) => {
+            setCurrent(updated);
+            onCareerChange?.(updated);
+          }}
+        />
       ) : view === "network" ? (
         <BasketballNetworkSettings career={current} />
       ) : view === "sponsors" ? (
@@ -693,120 +691,109 @@ export default function CareerDashboard({
           )}
         </div>
       )}
-      {view === "progress" && (
-        <div className="space-y-8">
-          <section className="career-card dashboard-card">
-            <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <h2 className="section-title">Season schedule</h2>
-              </div>
-              <div className="flex flex-wrap items-center gap-3">
-                {!adding &&
-                  !editingFixture &&
-                  current.season.phase === "regularSeason" && (
-                    <button
-                      type="button"
-                      className="ai-primary"
-                      disabled={dayLoading || calendarSaving}
-                      onClick={() => setAdding(true)}
-                    >
-                      Add game
-                    </button>
-                  )}
-                <button
-                  type="button"
-                  className="ai-primary"
-                  disabled={
-                    dayLoading ||
-                    calendarSaving ||
-                    !!editing ||
-                    !!interviewGame ||
-                    adding ||
-                    !!editingFixture ||
-                    !!invitationGroup ||
-                    !!contractGeneration ||
-                    !!contractOffer ||
-                    postseasonNextDayBlocked
-                  }
-                  title={
-                    postseasonNextDayBlocked
-                      ? postseasonNextDayMessage
-                      : undefined
-                  }
-                  onClick={() => void nextDay()}
-                >
-                  {dayLoading ? "Processing…" : "Next day"}
-                </button>
-              </div>
-            </div>
-            {postseasonNextDayBlocked && (
-              <p
-                className="mb-5 rounded-lg border border-gold/40 bg-gold/10 px-3 py-2 text-sm text-slate-200"
-                role="status"
-              >
-                {postseasonNextDayMessage}
-              </p>
-            )}
-            {(adding || editingFixture) && (
-              <div className="mb-5">
-                <p className="mb-3 text-sm text-muted">
-                  {editingFixture
-                    ? "Update this fixture's date, teams, location, category, or regular-season status."
-                    : "Add a fixture you missed during setup. It is saved to this career right away."}
-                </p>
-                <GameEditor
-                  key={editingFixture?.id ?? "add-game"}
-                  initial={
-                    editingFixture ?? {
-                      date: `${month}-01`,
-                      teamId: p.currentTeamId,
-                      location: "home",
-                      category: "regularSeason",
-                      countsTowardRegularSeason: true,
-                    }
-                  }
-                  teams={current.teams}
-                  year={current.season.year}
-                  onCancel={() => {
-                    setAdding(false);
-                    setEditingFixture(null);
-                  }}
-                  onSave={async (fields) => {
-                    try {
-                      const updated = await api<Career>(
-                        editingFixture
-                          ? `careers/${current.id}/games/${editingFixture.id}/schedule`
-                          : `careers/${current.id}/games`,
-                        fields,
-                      );
-                      setCurrent(updated);
-                      setMonth(fields.date.slice(0, 7));
-                      setAdding(false);
-                      setEditingFixture(null);
-                      return null;
-                    } catch (error) {
-                      return error instanceof Error
-                        ? error.message
-                        : "The game could not be added.";
-                    }
-                  }}
-                />
-              </div>
-            )}
+      <div className={view === "progress" ? "season-layout" : "hidden"}>
+        <div className="season-matchup">
+          <NextMatchup
+            game={nextMatch}
+            teams={current.teams}
+            busy={dayLoading}
+            disabled={nextDayDisabled}
+            blockedReason={
+              invitationGroup
+                ? "Resolve today's invitations first."
+                : postseasonNextDayBlocked
+                  ? postseasonNextDayMessage
+                  : undefined
+            }
+            onNextDay={() => void nextDay()}
+          />
+        </div>
+        <div className="season-main min-w-0 space-y-6">
+          <SeasonProgress current={current} />
+          <section aria-labelledby="season-schedule-title">
             <ScheduleView
+              dashboard
+              currentTeamId={p.currentTeamId}
+              addGameAction={
+                !adding && !editingFixture && current.season.phase === "regularSeason" && (
+                  <button
+                    type="button"
+                    className="ai-primary"
+                    disabled={dayLoading || calendarSaving}
+                    onClick={() => setAdding(true)}
+                  >
+                    Add game
+                  </button>
+                )
+              }
               games={current.season.games}
               teams={current.teams}
               year={current.season.year}
               month={month}
               currentDate={current.currentDate}
               onMonth={setMonth}
-              sponsorContracts={sponsorContracts}
+              sponsorContracts={sponsorsOverview?.activeContracts}
               onEdit={
                 dayLoading || calendarSaving || interviewGame || editingFixture
                   ? undefined
                   : setEditing
               }
-            />
+            >
+              {postseasonNextDayBlocked && (
+                <p
+                  className="mb-5 rounded-lg border border-gold/40 bg-gold/10 px-3 py-2 text-sm text-slate-200"
+                  role="status"
+                >
+                  {postseasonNextDayMessage}
+                </p>
+              )}
+              {(adding || editingFixture) && (
+                <div className="mb-5">
+                  <p className="mb-3 text-sm text-muted">
+                    {editingFixture
+                      ? "Update this fixture's date, teams, location, category, or regular-season status."
+                      : "Add a fixture you missed during setup. It is saved to this career right away."}
+                  </p>
+                  <GameEditor
+                    key={editingFixture?.id ?? "add-game"}
+                    initial={
+                      editingFixture ?? {
+                        date: `${month}-01`,
+                        teamId: p.currentTeamId,
+                        location: "home",
+                        category: "regularSeason",
+                        countsTowardRegularSeason: true,
+                      }
+                    }
+                    teams={current.teams}
+                    year={current.season.year}
+                    onCancel={() => {
+                      setAdding(false);
+                      setEditingFixture(null);
+                    }}
+                    onSave={async (fields) => {
+                      try {
+                        const updated = await api<Career>(
+                          editingFixture
+                            ? `careers/${current.id}/games/${editingFixture.id}/schedule`
+                            : `careers/${current.id}/games`,
+                          fields,
+                        );
+                        setCurrent(updated);
+                        setMonth(fields.date.slice(0, 7));
+                        setAdding(false);
+                        setEditingFixture(null);
+                        return null;
+                      } catch (error) {
+                        return error instanceof Error
+                          ? error.message
+                          : "The game could not be added.";
+                      }
+                    }}
+                  />
+                </div>
+              )}
+            </ScheduleView>
           </section>
           {current.season.postseason && (
             <PostseasonProgress
@@ -829,7 +816,33 @@ export default function CareerDashboard({
             </section>
           )}
         </div>
-      )}
+        <aside className="season-sidebar min-w-0 space-y-9">
+          <Endorsements overview={sponsorsOverview} error={sponsorsError} onSponsors={onOpenSponsors} />
+          <section aria-labelledby="off-court-title">
+            <h2 id="off-court-title" className="season-heading border-b-2">Off-Court Invites</h2>
+            <div className="pt-3">
+              {invitationGroup ? (
+                <DailyInvitations
+                  key={invitationGroup.id}
+                  group={invitationGroup}
+                  followers={current.profile.socialMedia.currentFollowers}
+                  onResolved={(resolution) => {
+                    setCurrent(resolution.career);
+                    setInvitationGroup(null);
+                    setEventResolution(resolution);
+                    const shoe = resolution.result?.unlockedShoe;
+                    if (shoe) setLaunchingShoe(shoe);
+                  }}
+                />
+              ) : todayResolution ? (
+                <EventResults results={todayResolution.results} invitations={todayResolution.group.invitations} />
+              ) : (
+                <p className="text-sm text-muted">{isMatchDay ? "Match day" : "Free day"}</p>
+              )}
+            </div>
+          </section>
+        </aside>
+      </div>
       {editing && (
         <MatchEditor
           key={editing.id}
@@ -958,31 +971,7 @@ export default function CareerDashboard({
           }}
         />
       )}
-      {invitationGroup && (
-        <DailyInvitationModal
-          careerId={current.id}
-          currentFollowers={current.profile.socialMedia.currentFollowers}
-          initial={invitationGroup}
-          onResolved={(resolution) => {
-            setCurrent(resolution.career);
-            setInvitationGroup(null);
-            setEventResults(resolution.results);
-            if (!resolution.result)
-              setDayMessage("All invitations for today were refused.");
-          }}
-        />
-      )}
-      {eventResults[0] && (
-        <DailyEventResultModal
-          result={eventResults[0]}
-          onClose={() => {
-            if (eventResults[0].unlockedShoe)
-              setLaunchingShoe(eventResults[0].unlockedShoe);
-            setEventResults((currentResults) => currentResults.slice(1));
-          }}
-        />
-      )}
-      {launchingShoe && !invitationGroup && !eventResults.length && (
+      {launchingShoe && !invitationGroup && (
         <SignatureShoeLaunchModal
           careerId={current.id}
           shoe={launchingShoe}
