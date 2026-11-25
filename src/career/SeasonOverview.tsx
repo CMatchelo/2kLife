@@ -60,7 +60,7 @@ export function NextMatchup({
   blockedReason?: string;
   onNextDay: () => void;
 }) {
-  const venue = game && teamPresentation(game.location === "home" ? game.teamId : game.opponentId);
+  const venue = game && game.location !== "neutral" && teamPresentation(game.location === "home" ? game.teamId : game.opponentId);
   return (
     <section className="min-w-0" aria-labelledby="next-matchup-title">
       <h2 id="next-matchup-title" className="season-heading">Next Matchup</h2>
@@ -74,7 +74,7 @@ export function NextMatchup({
                 <div key={index} className="contents">
                   {index === 1 && (
                     <span className="text-xs font-bold text-muted">
-                      {game.location === "home" ? "VS" : "AT"}
+                      {game.location === "away" ? "AT" : "VS"}
                     </span>
                   )}
                   <div className="min-w-0 text-xs font-bold">
@@ -85,6 +85,7 @@ export function NextMatchup({
               );
             })}
           </div>
+          {game.location === "neutral" && <p className="text-center text-xs text-muted">Neutral venue</p>}
           {venue && <p className="text-center text-xs text-muted">{venue.arena} · {venue.city}</p>}
         </div>
       ) : (

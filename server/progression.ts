@@ -10,7 +10,7 @@ import type {
   OffDayProcessingResult,
 } from "../src/types/progression.ts";
 import { calendarDate, nextCalendarDate } from "../src/domain/calendarDate.ts";
-import { seasonMonths } from "../src/domain/career.ts";
+import { isCompetitiveGame, seasonMonths } from "../src/domain/career.ts";
 
 export function migrateProgression(db: DatabaseSync) {
   db.exec(`CREATE TABLE IF NOT EXISTS career_progression (
@@ -438,6 +438,7 @@ export function advanceCareerDay(
         const saved = db
           .prepare("SELECT result FROM postgame_processing WHERE game_id = ?")
           .get(game.id);
+        if (!saved && !isCompetitiveGame(game)) continue;
         const result: SponsorProcessingResult = saved
           ? JSON.parse(String(saved.result))
           : (() => {

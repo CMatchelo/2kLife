@@ -1,3 +1,4 @@
+import { locationNames } from "../domain/career";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { Career } from "../types/career";
@@ -78,14 +79,10 @@ export default function MatchEditor({
       setFields((current) => ({
         ...current,
         status: "completed",
-        teamScore:
-          game.location === "away"
-            ? extracted.awayTeamScore
-            : extracted.homeTeamScore,
-        opponentScore:
-          game.location === "away"
-            ? extracted.homeTeamScore
-            : extracted.awayTeamScore,
+        ...(game.location !== "neutral" && {
+          teamScore: game.location === "away" ? extracted.awayTeamScore : extracted.homeTeamScore,
+          opponentScore: game.location === "away" ? extracted.homeTeamScore : extracted.awayTeamScore,
+        }),
         played: true,
         stats: extracted.stats,
       }));
@@ -138,7 +135,7 @@ export default function MatchEditor({
           Match details
         </h2>
         <p className="rounded-lg bg-cream p-3 font-semibold">
-          {game.date} · {game.location === "home" ? "Home" : "Away"}
+          {game.date} · {locationNames[game.location]}
           <br />
           {teamName(career.teams, game.teamId)} vs{" "}
           {teamName(career.teams, game.opponentId)}
@@ -188,6 +185,9 @@ export default function MatchEditor({
             </button>
           </div>
         </section>
+        {game.location === "neutral" && (
+          <p className="text-sm text-muted">Enter both team scores manually for neutral games.</p>
+        )}
         <fieldset disabled={saving || extracting} className="space-y-4">
           {/*
           Temporary shortcut for testing records and postgame interviews.

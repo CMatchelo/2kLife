@@ -33,8 +33,8 @@ Types are defined in `../types/sponsor.ts` and exported from the types index.
 - An `appearanceStreak` requires the threshold in `requiredCount` consecutive
   player appearances. A scheduled game without a player appearance does not
   count as an appearance or break the streak.
-- Every completed game category can satisfy a permanent milestone when the player
-  appeared and has a recorded box score.
+- A completed postseason game or a game counted toward the regular season can
+  satisfy a permanent milestone when the player appeared and has a recorded box score.
 - A `doubleDouble` or `tripleDouble` requires at least `threshold: 10` in at least
   two or three of points, rebounds, assists, steals, and blocks in the same game.
   `requiredCount: 1` means one such game, not one stat category.

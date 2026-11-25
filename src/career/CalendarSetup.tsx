@@ -10,6 +10,7 @@ import type { ConnectionSnapshot } from "../types/connection";
 import type { Game } from "../types/game";
 import {
   gameWarnings,
+  minimumScheduledRegularSeasonGames,
   sameFixture,
   scheduledGame,
   seasonMonths,
@@ -54,6 +55,7 @@ export default function CalendarSetup({
   const [error, setError] = useState("");
   const [summary, setSummary] = useState("");
   const configuredCount = draft.season.salaryTerms.regularSeasonGameCount;
+  const minimumCount = minimumScheduledRegularSeasonGames(configuredCount);
   const countedCount = draft.games.filter(
     (game) => game.countsTowardRegularSeason,
   ).length;
@@ -214,7 +216,7 @@ export default function CalendarSetup({
           Mix screenshots and manual entry. Results are not needed.
         </p>
         <p
-          className={`mt-2 font-semibold ${countedCount === configuredCount ? "text-green-300" : "text-gold"}`}
+          className={`mt-2 font-semibold ${countedCount >= minimumCount && countedCount <= configuredCount ? "text-green-300" : "text-gold"}`}
         >
           Counted regular-season games: {countedCount} of {configuredCount}
         </p>
@@ -588,7 +590,7 @@ export default function CalendarSetup({
               (item) => item.month === value && item.confirmed,
             ),
           ) &&
-            countedCount < configuredCount && (
+            countedCount < minimumCount && (
               <label className="mt-4 flex items-start gap-3">
                 <input
                   type="checkbox"

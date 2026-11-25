@@ -67,6 +67,81 @@ function sequence(values: number[]) {
   return () => values[Math.min(index++, values.length - 1)] ?? 0;
 }
 
+for (const [activityId, identity, followers] of [
+  ["celebrity-night", "star", 0],
+  ["private-training", "team", 0],
+  ["public-pickup", "fan", 0],
+  ["charity-event", null, 1375],
+] as const) {
+  test(`player activity ${activityId} saves its reward and cannot be repeated`, () => {
+    const store = new CareerStore(":memory:");
+    try {
+      const career = offDay(store);
+      const date = career.currentDate!;
+      const player = store.basketballNetwork.addPlayer(career.id, {
+        name: "Network Player",
+        teamId: "BOS",
+      }).players[0];
+      const outgoing = new DailyInvitationService(store, () => 0.5);
+      const request = { requestId: randomUUID(), expectedDate: date, playerId: player.id, activityId };
+
+      assert.equal(outgoing.playerActivityStatus(career).kind, "unavailable");
+      store.db.prepare("INSERT INTO offday_processing VALUES (?,?,?)")
+        .run(career.season.id, date, JSON.stringify({ eventWindowAvailable: false }));
+      assert.equal(outgoing.playerActivityStatus(career).kind, "available");
+      assert.throws(() => outgoing.completePlayerActivity(career.id, {
+        ...request, expectedDate: "2026-10-15",
+      }), /no longer available/);
+      const completed = outgoing.completePlayerActivity(career.id, request);
+      const retry = new DailyInvitationService(store, () => 0).completePlayerActivity(career.id, request);
+      assert.deepEqual(retry.result, completed.result);
+      assert.equal(completed.result.followersGained, followers);
+      assert.equal(
+        retry.career.profile.socialMedia.currentFollowers,
+        career.profile.socialMedia.currentFollowers + followers,
+      );
+      assert.deepEqual(retry.career.profile.identity.careerScores, {
+        star: Number(identity === "star"),
+        team: Number(identity === "team"),
+        fan: Number(identity === "fan"),
+      });
+      assert.equal(store.basketballNetwork.get(career.id).players[0].affinity, 1);
+      assert.deepEqual(outgoing.playerActivityStatus(retry.career), {
+        kind: "completed", result: completed.result,
+      });
+      assert.throws(() => outgoing.completePlayerActivity(career.id, { ...request, requestId: randomUUID() }), /no longer available/);
+      assert.equal(store.delete(career.id), true);
+    } finally {
+      store.close();
+    }
+  });
+}
+
+test("having declined incoming invitations still blocks a player activity", () => {
+  const store = new CareerStore(":memory:");
+  try {
+    const career = offDay(store);
+    const date = career.currentDate!;
+    const player = store.basketballNetwork.addTeammate(career.id, { name: "Teammate" }).teammates[0];
+    const service = new DailyInvitationService(store, () => 0);
+    store.db.prepare("INSERT INTO offday_processing VALUES (?,?,?)")
+      .run(career.season.id, date, JSON.stringify({ eventWindowAvailable: false }));
+    const group = service.ensureForDate(career, date, "test-window")!;
+    const resolved = service.resolve(career, group.id, { requestId: randomUUID(), action: "refuse_all" });
+
+    assert.equal(resolved.group.status, "resolved");
+    assert.equal(service.playerActivityStatus(resolved.career).kind, "unavailable");
+    assert.throws(() => service.completePlayerActivity(career.id, {
+      requestId: randomUUID(),
+      expectedDate: date,
+      playerId: player.id,
+      activityId: "private-training",
+    }), /no longer available/);
+  } finally {
+    store.close();
+  }
+});
+
 test("charity refusal donation is 10% with $5,000 and $5 million bounds", () => {
   assert.equal(charityRefusalDonationUsdCents(0), 500_000);
   assert.equal(charityRefusalDonationUsdCents(2_000_000), 500_000);

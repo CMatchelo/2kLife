@@ -1,6 +1,13 @@
 import type { Team } from "../types/career.ts";
+export const exhibitionTeams: Team[] = [
+  { id: "risingStars", name: "Rising Stars", source: "custom" },
+  { id: "allStars", name: "All Stars", source: "custom" },
+];
+export const isExhibitionTeam = (id: string | undefined) =>
+  exhibitionTeams.some((team) => team.id === id);
 export const teamName = (teams: Team[], id: string) =>
-  teams.find((team) => team.id === id)?.name ?? "Unknown team";
+  teams.find((team) => team.id === id)?.name ??
+  exhibitionTeams.find((team) => team.id === id)?.name ?? "Unknown team";
 const logoSlugById: Record<string, string> = {
   ATL: "hawks",
   BOS: "celtics",
@@ -34,8 +41,13 @@ const logoSlugById: Record<string, string> = {
   WAS: "wizards",
 };
 // Logo image URL for a team, or null for custom teams without a bundled logo.
+const exhibitionLogoById: Record<string, string> = {
+  risingStars: "/teamLogos/risingStarsLogo.jpeg",
+  allStars: "/teamLogos/allStarsLogo.jpg",
+};
 export const teamLogo = (id: string) =>
-  logoSlugById[id] ? `/teamLogos/${logoSlugById[id]}.png` : null;
+  exhibitionLogoById[id] ??
+  (logoSlugById[id] ? `/teamLogos/${logoSlugById[id]}.png` : null);
 export const modernTeams: Team[] = [
   ["ATL", "Atlanta Hawks"],
   ["BOS", "Boston Celtics"],

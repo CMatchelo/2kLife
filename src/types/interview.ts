@@ -31,7 +31,7 @@ type InterviewGame = {
   teamId: string;
   opponentId: string;
   opponentName: string;
-  location: "home" | "away";
+  location: import("./game.ts").Game["location"];
   category: GameCategory;
   countsTowardRegularSeason: boolean;
   status: "completed";

@@ -1,7 +1,13 @@
 import { useState } from "react";
 import type { Game, GameCategory } from "../types/game";
 import type { ImportReview, ScheduleFields, Team } from "../types/career";
-import { categories, categoryNames, gameWarnings } from "../domain/career";
+import {
+  canCountTowardRegularSeason,
+  categories,
+  categoryNames,
+  gameWarnings,
+} from "../domain/career";
+import { exhibitionTeams, isExhibitionTeam } from "../domain/teams";
 import { Field, TeamSelect } from "./fields";
 
 export default function GameEditor({
@@ -24,6 +30,10 @@ export default function GameEditor({
   const [fields, setFields] = useState<Partial<Game>>(initial);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
+  const gameTeams = [
+    ...teams.filter((team) => !isExhibitionTeam(team.id)),
+    ...exhibitionTeams,
+  ];
   function change(key: keyof ScheduleFields, value: string | boolean) {
     setFields((previous) => ({
       ...previous,
@@ -31,7 +41,7 @@ export default function GameEditor({
       ...(key === "category"
         ? {
             countsTowardRegularSeason:
-              value !== "playoffs" && value !== "playIn",
+              canCountTowardRegularSeason(value as GameCategory),
           }
         : {}),
     }));
@@ -86,14 +96,14 @@ export default function GameEditor({
         </Field>
         <Field label="Your team">
           <TeamSelect
-            teams={teams}
+            teams={gameTeams}
             value={fields.teamId ?? ""}
             onChange={(value) => change("teamId", value)}
           />
         </Field>
         <Field label="Opponent">
           <TeamSelect
-            teams={teams}
+            teams={gameTeams}
             value={fields.opponentId ?? ""}
             onChange={(value) => change("opponentId", value)}
           />
@@ -107,6 +117,7 @@ export default function GameEditor({
             <option value="">Choose location</option>
             <option value="home">Home</option>
             <option value="away">Away</option>
+            <option value="neutral">Neutral</option>
           </select>
         </Field>
         <Field label="Game category">
@@ -128,7 +139,7 @@ export default function GameEditor({
           type="checkbox"
           checked={fields.countsTowardRegularSeason ?? true}
           disabled={
-            fields.category === "playoffs" || fields.category === "playIn"
+            !canCountTowardRegularSeason(fields.category)
           }
           onChange={(e) =>
             change("countsTowardRegularSeason", e.target.checked)
@@ -137,7 +148,7 @@ export default function GameEditor({
         Counts toward regular season
       </label>
       <p className="text-sm text-muted">
-        New entries default to counting. Selecting playoffs or play-in switches
+        New regular-season and NBA Cup entries default to counting. Postseason and exhibition games switch
         this off. NBA Cup starts checked: review it, because not every Cup game
         counts. Pregame ranks and results can be recorded later.
       </p>

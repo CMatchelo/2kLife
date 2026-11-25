@@ -5,7 +5,13 @@ import type { BoxScore, StatsSummary } from "../types/stats.ts";
 import { calendarDate } from "./calendarDate.ts";
 import type { SeasonSalaryTerms } from "../types/season.ts";
 
+import { isExhibitionTeam } from "./teams.ts";
+
 export const NBA_REGULAR_SEASON_GAME_LIMIT = 82;
+
+export function minimumScheduledRegularSeasonGames(configured: number) {
+  return configured === NBA_REGULAR_SEASON_GAME_LIMIT ? 80 : configured;
+}
 
 export function salaryTermsErrors(
   terms: Partial<SeasonSalaryTerms> | null | undefined,
@@ -50,17 +56,18 @@ export function calendarSalaryErrors(
   if (!terms || !Number.isInteger(terms.regularSeasonGameCount)) return [];
   const counted = countedRegularSeasonGames(games);
   const configured = Number(terms.regularSeasonGameCount);
+  const minimum = minimumScheduledRegularSeasonGames(configured);
   if (counted > configured)
     return [
       `The calendar has ${counted} counted regular-season games, exceeding the configured maximum of ${configured}.`,
     ];
-  if (allMonthsConfirmed && counted !== configured)
+  if (allMonthsConfirmed && counted < minimum)
     return [
-      `Complete calendar coverage requires exactly ${configured} counted regular-season games; the calendar currently has ${counted}.`,
+      `Complete calendar coverage requires at least ${minimum} counted regular-season games. The calendar currently has ${counted}.`,
     ];
   if (
     !allMonthsConfirmed &&
-    counted < configured &&
+    counted < minimum &&
     !incompleteCalendarConfirmed
   )
     return [
@@ -74,13 +81,27 @@ export const categories: GameCategory[] = [
   "playoffs",
   "playIn",
   "nbaCup",
+  "risingStars",
+  "allStars",
 ];
 export const categoryNames = {
   regularSeason: "Regular season",
   playoffs: "Playoffs",
   playIn: "Play-in",
   nbaCup: "NBA Cup",
+  risingStars: "Rising Stars",
+  allStars: "All Stars",
 };
+export const locationNames = { home: "Home", away: "Away", neutral: "Neutral" };
+export const isPostseason = (category: GameCategory | undefined) =>
+  category === "playoffs" || category === "playIn";
+export const isExhibition = (category: GameCategory | undefined) =>
+  category === "risingStars" || category === "allStars";
+export const canCountTowardRegularSeason = (category: GameCategory | undefined) =>
+  !isPostseason(category) && !isExhibition(category);
+export const isCompetitiveGame = (game: Pick<Game, "category" | "countsTowardRegularSeason">) =>
+  isPostseason(game.category) ||
+  (canCountTowardRegularSeason(game.category) && game.countsTowardRegularSeason);
 export const positions = ["PG", "SG", "SF", "PF", "C"] as const;
 export function normalizeSeason(value: string): string | null {
   const match = value.trim().match(/^(\d{4})\s*[-–—]\s*(\d{2})$/);
@@ -135,24 +156,27 @@ export function gameWarnings(
   )
     errors.date =
       "Choose a real date between July of the starting year and June of the next year.";
-  if (!teams.some((team) => team.id === game.teamId))
+  if (!isExhibitionTeam(game.teamId) && !teams.some((team) => team.id === game.teamId))
     errors.teamId = "Choose your team.";
-  if (!teams.some((team) => team.id === game.opponentId))
+  if (!isExhibitionTeam(game.opponentId) && !teams.some((team) => team.id === game.opponentId))
     errors.opponentId = "Choose a recognized opponent, or add a custom team.";
-  if (game.teamId && game.teamId === game.opponentId)
+  if ((isExhibitionTeam(game.teamId) || isExhibitionTeam(game.opponentId)) &&
+      !isExhibition(game.category))
+    errors.category = "Choose an exhibition category for exhibition teams.";
+  if (game.teamId && game.teamId === game.opponentId && !isExhibitionTeam(game.teamId))
     errors.opponentId = "Your team cannot be its own opponent.";
-  if (game.location !== "home" && game.location !== "away")
-    errors.location = "Choose Home or Away.";
+  if (game.location !== "home" && game.location !== "away" && game.location !== "neutral")
+    errors.location = "Choose Home, Away, or Neutral.";
   if (!categories.includes(game.category!))
     errors.category = "Choose a category.";
   if (typeof game.countsTowardRegularSeason !== "boolean")
     errors.countsTowardRegularSeason = "Review regular-season inclusion.";
   if (
-    (game.category === "playoffs" || game.category === "playIn") &&
+    !canCountTowardRegularSeason(game.category) &&
     game.countsTowardRegularSeason !== false
   )
     errors.countsTowardRegularSeason =
-      "Playoffs and play-in cannot count toward the regular season.";
+      "Postseason and exhibition games cannot count toward the regular season.";
   for (const key of ["currentPosition", "opponentPosition"] as const)
     if (
       game[key] !== undefined &&
@@ -173,7 +197,7 @@ export function scheduledGame(
     location: fields.location,
     category: fields.category,
     countsTowardRegularSeason:
-      fields.category === "playoffs" || fields.category === "playIn"
+      !canCountTowardRegularSeason(fields.category)
         ? false
         : fields.countsTowardRegularSeason,
     status: "scheduled",

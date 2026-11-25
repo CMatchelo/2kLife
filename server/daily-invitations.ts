@@ -4,6 +4,10 @@ import type { CareerStore } from "./careers.ts";
 import type { Career } from "../src/types/career.ts";
 import type { Provider } from "./providers/shared.ts";
 import { modernTeams, teamName } from "../src/domain/teams.ts";
+import { playerActivities } from "../src/domain/playerActivities.ts";
+import type { IdentityAction, PlayerIdentity } from "../src/types/identity.ts";
+import type { MyProfile } from "../src/types/profile.ts";
+import type { PlayerActivityRequest, PlayerActivityResponse, PlayerActivityResult, PlayerActivityStatus } from "../src/types/player-activity.ts";
 import {
   charityRefusalDonationUsdCents,
   fallbackDailyEvent,
@@ -26,6 +30,18 @@ import type {
 
 const now = () => new Date().toISOString();
 const emptyIdentity = () => ({ star: 0, team: 0, fan: 0 });
+
+function recordIdentity(identity: PlayerIdentity, action: IdentityAction) {
+  identity.actions.push(action);
+  identity.careerScores = emptyIdentity();
+  for (const entry of identity.actions)
+    identity.careerScores[entry.identity] += entry.points;
+  identity.recentScores = emptyIdentity();
+  for (const entry of [...identity.actions]
+    .sort((a, b) => a.date.localeCompare(b.date))
+    .slice(-10))
+    identity.recentScores[entry.identity] += entry.points;
+}
 export class DailyInvitationError extends Error {
   readonly status: number;
   constructor(message: string, status = 409) {
@@ -35,6 +51,15 @@ export class DailyInvitationError extends Error {
 }
 
 export function migrateDailyInvitations(db: DatabaseSync) {
+  db.exec(`CREATE TABLE IF NOT EXISTS player_activities (
+    career_id TEXT NOT NULL REFERENCES careers(id) ON DELETE CASCADE,
+    in_game_date TEXT NOT NULL,
+    request_id TEXT NOT NULL,
+    player_id TEXT NOT NULL,
+    result TEXT NOT NULL,
+    PRIMARY KEY (career_id, in_game_date),
+    UNIQUE (career_id, request_id)
+  )`);
   db.exec(`CREATE TABLE IF NOT EXISTS daily_decision_groups (
     id TEXT PRIMARY KEY, career_id TEXT NOT NULL REFERENCES careers(id), in_game_date TEXT NOT NULL,
     event_window_id TEXT, status TEXT NOT NULL DEFAULT 'pending', resolved_at TEXT,
@@ -130,6 +155,109 @@ export class DailyInvitationService {
   private get db() {
     return this.store.db;
   }
+  private charityFollowers() {
+    return this.integer(750, 2000);
+  }
+
+  playerActivityStatus(career: Career): PlayerActivityStatus {
+    const date = career.currentDate;
+    if (!date) return { kind: "unavailable" };
+    const completed = this.db
+      .prepare("SELECT result FROM player_activities WHERE career_id=? AND in_game_date=?")
+      .get(career.id, date);
+    if (completed) return { kind: "completed", result: JSON.parse(String(completed.result)) };
+
+    if (
+      !career.hasActiveSeason ||
+      (career.season.phase === "regularSeason" && career.season.seasonEndDate && date >= career.season.seasonEndDate) ||
+      career.season.games.some((game) => game.date === date && game.status !== "notNeeded") ||
+      !career.coverage.some((item) => item.month === date.slice(0, 7) && item.confirmed) ||
+      this.db.prepare("SELECT 1 FROM day_transitions WHERE career_id=? AND to_date=? AND phase='entering'").get(career.id, date)
+    ) return { kind: "unavailable" };
+
+    const offDay = this.db
+      .prepare("SELECT result FROM offday_processing WHERE season_id=? AND date=?")
+      .get(career.season.id, date);
+    if (
+      !offDay || JSON.parse(String(offDay.result)).eventWindowAvailable ||
+      this.db.prepare("SELECT 1 FROM daily_invitations WHERE career_id=? AND in_game_date=?").get(career.id, date) ||
+      this.scheduledSponsorAppearances(career.id, date).length
+    ) return { kind: "unavailable" };
+
+    const players = this.db
+      .prepare("SELECT id,name,role FROM career_network_players WHERE career_id=? AND active=1 ORDER BY name COLLATE NOCASE,id")
+      .all(career.id)
+      .map((row) => ({
+        id: String(row.id),
+        name: String(row.name),
+        role: row.role === "teammate" ? "teammate" as const : "player" as const,
+      }));
+    return players.length ? { kind: "available", players } : { kind: "unavailable" };
+  }
+
+  completePlayerActivity(careerId: string, request: PlayerActivityRequest): PlayerActivityResponse {
+    const activity = playerActivities.find((item) => item.id === request.activityId);
+    if (!activity) throw new DailyInvitationError("Choose a player activity.", 400);
+
+    let result: PlayerActivityResult;
+    this.db.exec("BEGIN IMMEDIATE");
+    try {
+      const career = this.store.get(careerId);
+      if (!career) throw new DailyInvitationError("Career not found.", 404);
+      const prior = this.db
+        .prepare("SELECT player_id,result FROM player_activities WHERE career_id=? AND request_id=?")
+        .get(careerId, request.requestId);
+      if (prior) {
+        result = JSON.parse(String(prior.result));
+        if (result.date !== request.expectedDate || prior.player_id !== request.playerId || result.activityId !== activity.id)
+          throw new DailyInvitationError("This request identifier was already used.");
+      } else {
+        const status = this.playerActivityStatus(career);
+        if (career.currentDate !== request.expectedDate || status.kind !== "available")
+          throw new DailyInvitationError("A player invite is no longer available for this day.");
+        const target = status.players.find((player) => player.id === request.playerId);
+        if (!target) throw new DailyInvitationError("Choose an active player from your network.");
+
+        const date = request.expectedDate;
+        const reference = `player-activity:${careerId}:${date}`;
+        const row = this.db.prepare("SELECT data FROM players WHERE career_id=?").get(careerId)!;
+        const profile: MyProfile = JSON.parse(String(row.data));
+        const followersGained = activity.identity === null
+          ? Math.max(0, Math.min(this.charityFollowers(), 1_000_000_000 - profile.socialMedia.currentFollowers))
+          : 0;
+
+        this.adjustAffinity("player", careerId, target.id, 1, reference, now());
+        if (activity.identity)
+          recordIdentity(profile.identity, {
+            id: randomUUID(),
+            date,
+            sourceType: "player_activity",
+            sourceId: reference,
+            identity: activity.identity,
+            points: 1,
+          });
+        if (followersGained) {
+          profile.socialMedia.currentFollowers += followersGained;
+          profile.socialMedia.history.push({
+            id: randomUUID(),
+            date,
+            change: followersGained,
+            reason: `${activity.title} with ${target.name}.`,
+            idempotencyReference: reference,
+          });
+        }
+        this.db.prepare("UPDATE players SET data=? WHERE career_id=?").run(JSON.stringify(profile), careerId);
+        result = { date, playerName: target.name, activityId: activity.id, followersGained };
+        this.db.prepare("INSERT INTO player_activities VALUES (?,?,?,?,?)")
+          .run(careerId, date, request.requestId, target.id, JSON.stringify(result));
+      }
+      this.db.exec("COMMIT");
+    } catch (error) {
+      this.db.exec("ROLLBACK");
+      throw error;
+    }
+    return { result, career: this.store.get(careerId)! };
+  }
   private integer(minimum: number, maximum: number) {
     const value = Math.min(0.9999999999999999, Math.max(0, this.random()));
     return minimum + Math.floor(value * (maximum - minimum + 1));
@@ -169,6 +297,16 @@ export class DailyInvitationService {
     return this.ensureForDate(career, career.currentDate, eventWindowId);
   }
 
+  private scheduledSponsorAppearances(careerId: string, date: string) {
+    return this.db
+      .prepare(
+        `SELECT a.*,c.brand_id,c.brand_name,c.category,c.tier,c.per_event_usd_cents,c.required_appearances,c.attended_appearances,c.matches_remaining
+      FROM sponsor_contract_appearances a JOIN sponsor_contracts c ON c.id=a.contract_id
+      WHERE a.career_id=? AND a.appearance_date=? AND a.status='scheduled' AND c.status='active' AND c.attended_appearances<c.required_appearances ORDER BY c.brand_name,a.id`,
+      )
+      .all(careerId, date);
+  }
+
   ensureForDate(
     career: Career,
     date: string,
@@ -180,13 +318,7 @@ export class DailyInvitationService {
       (career.season.seasonEndDate && date >= career.season.seasonEndDate)
     )
       return null;
-    const sponsors = this.db
-      .prepare(
-        `SELECT a.*,c.brand_id,c.brand_name,c.category,c.tier,c.per_event_usd_cents,c.required_appearances,c.attended_appearances,c.matches_remaining
-      FROM sponsor_contract_appearances a JOIN sponsor_contracts c ON c.id=a.contract_id
-      WHERE a.career_id=? AND a.appearance_date=? AND a.status='scheduled' AND c.status='active' AND c.attended_appearances<c.required_appearances ORDER BY c.brand_name,a.id`,
-      )
-      .all(career.id, date);
+    const sponsors = this.scheduledSponsorAppearances(career.id, date);
     const existing = this.db
       .prepare(
         "SELECT * FROM daily_decision_groups WHERE career_id=? AND in_game_date=?",
@@ -898,7 +1030,7 @@ export class DailyInvitationService {
     } else {
       if (attended) {
         identities.fan = lifestyleMultiplier;
-        followers = this.integer(750, 2000);
+        followers = this.charityFollowers();
       } else {
         payment = -charityRefusalDonationUsdCents(balanceBaseline);
         this.db
@@ -959,7 +1091,7 @@ export class DailyInvitationService {
       Object.keys(identities) as Array<keyof typeof identities>
     ).find((key) => identities[key]);
     if (identity) {
-      player.identity.actions.push({
+      recordIdentity(player.identity, {
         id: randomUUID(),
         date: group.inGameDate,
         sourceType: "daily_invitation",
@@ -967,14 +1099,6 @@ export class DailyInvitationService {
         identity,
         points: identities[identity],
       });
-      player.identity.careerScores = emptyIdentity();
-      for (const action of player.identity.actions)
-        player.identity.careerScores[action.identity] += action.points;
-      player.identity.recentScores = emptyIdentity();
-      for (const action of [...player.identity.actions]
-        .sort((a, b) => a.date.localeCompare(b.date))
-        .slice(-10))
-        player.identity.recentScores[action.identity] += action.points;
     }
     this.db
       .prepare("UPDATE players SET data=? WHERE career_id=?")

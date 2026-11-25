@@ -1,3 +1,4 @@
+import { locationNames } from "../domain/career";
 import { categoryNames } from "../domain/career";
 import { teamLogo, teamName } from "../domain/teams";
 import type { Team } from "../types/career";
@@ -30,7 +31,7 @@ export default function CalendarView({
   const days = new Date(Date.UTC(y, m, 0)).getUTCDate();
   const first = new Date(Date.UTC(y, m - 1, 1)).getUTCDay();
   const label = (game: Game) =>
-    `${game.location === "home" ? "Home" : "Away"} · ${teamName(teams, game.opponentId)} · ${categoryNames[game.category]}`;
+    `${locationNames[game.location]} · ${teamName(teams, game.opponentId)} · ${categoryNames[game.category]}`;
   const sponsorEvents = sponsorContracts.flatMap((contract) =>
     contract.appearanceSchedule
       .filter((appearance) => appearance.status === "scheduled")
@@ -120,7 +121,7 @@ export default function CalendarView({
                     className={`pointer-events-none absolute inset-0 ${
                       game.location === "home"
                         ? "bg-court-blue/40"
-                        : "bg-court-red/40"
+                        : game.location === "away" ? "bg-court-red/40" : "bg-white/10"
                     }`}
                   />
                   <button

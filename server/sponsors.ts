@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import type { DatabaseSync } from "node:sqlite";
 import { sponsorCatalog } from "../src/domain/sponsors.ts";
 import { nextCalendarDate } from "../src/domain/calendarDate.ts";
+import { isCompetitiveGame } from "../src/domain/career.ts";
 import { teamName } from "../src/domain/teams.ts";
 import {
   fallbackSponsorApproach,
@@ -397,7 +398,7 @@ export function remainingRegularSeasonGames(career: Career) {
 function qualifyingAppearance(
   game: Game,
 ): game is Game & { stats: NonNullable<Game["stats"]> } {
-  return game.status === "completed" && game.played === true && !!game.stats;
+  return isCompetitiveGame(game) && game.status === "completed" && game.played === true && !!game.stats;
 }
 
 function milestoneValue(
@@ -450,7 +451,8 @@ export class SponsorService {
     duration: number,
   ): string | null {
     const knownGames = career.season.games
-      .filter((game) => game.date > after)
+      .filter((game) => game.date > after &&
+        game.status !== "notNeeded" && isCompetitiveGame(game))
       .sort((a, b) => a.date.localeCompare(b.date) || a.id.localeCompare(b.id));
     // Dates before a recorded game in the first `duration` matches are safely
     // inside the contract, even when later fixture coverage is still unknown.
@@ -726,10 +728,14 @@ export class SponsorService {
   }
 
   private completedMatchBoundary(careerId: string) {
+    // Preserve match boundaries already earned under the previous counting rules.
     const row = this.db
       .prepare(
         `SELECT COUNT(*) AS count FROM games g JOIN seasons s ON s.id=g.season_id
-      WHERE s.career_id=? AND json_extract(g.data, '$.status')='completed'`,
+      WHERE s.career_id=? AND json_extract(g.data, '$.status')='completed'
+        AND (json_extract(g.data, '$.countsTowardRegularSeason')=1
+          OR json_extract(g.data, '$.category') IN ('playIn', 'playoffs')
+          OR EXISTS (SELECT 1 FROM postgame_processing p WHERE p.game_id=g.id))`,
       )
       .get(careerId);
     return Number(row?.count ?? 0);
@@ -1132,7 +1138,8 @@ export class SponsorService {
   ) {
     const current = career.currentDate!;
     const future = career.season.games
-      .filter((game) => game.date > current)
+      .filter((game) => game.date > current &&
+        game.status !== "notNeeded" && isCompetitiveGame(game))
       .sort((a, b) => a.date.localeCompare(b.date) || a.id.localeCompare(b.id));
     const projected = future.slice(0, durationMatches);
     const coverageComplete = projected.length >= durationMatches;
@@ -1595,7 +1602,8 @@ export class SponsorService {
         return brands.length ? [{ date, brands }] : [];
       });
       const expirationGame = career.season.games
-        .filter((item) => item.date > game.date)
+        .filter((item) => item.date > game.date &&
+        item.status !== "notNeeded" && isCompetitiveGame(item))
         .sort(
           (a, b) => a.date.localeCompare(b.date) || a.id.localeCompare(b.id),
         )[2];
@@ -2150,7 +2158,8 @@ export class SponsorService {
         if (mutation.action === "standby") {
           const boundary = this.completedMatchBoundary(career.id);
           const expirationGame = career.season.games
-            .filter((item) => item.date > (career.currentDate ?? ""))
+            .filter((item) => item.date > (career.currentDate ?? "") &&
+        item.status !== "notNeeded" && isCompetitiveGame(item))
             .sort(
               (a, b) =>
                 a.date.localeCompare(b.date) || a.id.localeCompare(b.id),
@@ -2353,7 +2362,8 @@ export class SponsorService {
     }));
     const boundary = this.completedMatchBoundary(career.id);
     const expirationGame = career.season.games
-      .filter((item) => item.date > game.date)
+      .filter((item) => item.date > game.date &&
+        item.status !== "notNeeded" && isCompetitiveGame(item))
       .sort(
         (a, b) => a.date.localeCompare(b.date) || a.id.localeCompare(b.id),
       )[2];
@@ -2439,7 +2449,7 @@ export class SponsorService {
     game: Game,
     processingReference = `postgame:${game.id}`,
   ) {
-    if (game.status !== "completed") return [];
+    if (game.status !== "completed" || !isCompetitiveGame(game)) return [];
     const belongs = this.db
       .prepare(
         `SELECT 1 FROM games g JOIN seasons s ON s.id=g.season_id

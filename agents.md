@@ -61,6 +61,11 @@ Domain logic in `src/domain/*.ts` is the single source of truth, imported direct
   `careers/:id/contract-offers*`, `careers/:id/lifestyle*`,
   `ai/status`, `ai/import`, `ai/box-score`, `ai/:provider/{select,test}`.
 
+Rising Stars and All Stars are fixture-only teams and categories. They may use a
+neutral venue and do not count toward the regular season. Unchecked non-postseason
+games are excluded from sponsor match progression, shoe sales, follower changes,
+and interview selection. Postseason games retain their existing progression rules.
+
 ### Storage pattern (important — applies DB-wide)
 
 Mostly **JSON blobs in TEXT columns** per logical entity (profile, season, game, snapshot,
@@ -129,6 +134,10 @@ appearances or a rolled event window), `daily_invitations` (sponsor appearance o
 generated team/player/fan/charity invitations), `daily_event_results`, `daily_invitation_mutations`
 (idempotency). At most one invitation attended per day; all others auto-refused. AI generates
 copy with deterministic fallback.
+On confirmed off-days with no incoming invitations, including previously refused ones,
+the player can optionally invite one active network player or teammate. The
+`player_activities` table persists one result per career/date and deduplicates retries.
+Activities give +1 player affinity and either +1 identity or the standard charity follower roll.
 
 ### `server/basketball-network.ts` — `BasketballNetworkService`
 
@@ -364,6 +373,7 @@ Framework-free core logic, imported by server (and reusable client-side).
   active/potential sponsor previews in saved order.
 - `career/OffCourtInvites.tsx`: modal invitation loading, then inline selection and results.
   Pending invitations disable Next day until an invitation is accepted or all are refused.
+  `PlayerActivity.tsx` shows outgoing player invites and their saved result in the same panel.
 - `career/InterviewModal.tsx`: post-game Q&A UI ("press conference" theme, `pressBackground.jpg`,
   `.interview-dialog` CSS).
 - `career/BasketballNetworkSettings.tsx`, `CalendarSettings.tsx`, `CalendarSetup.tsx`,

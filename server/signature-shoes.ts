@@ -13,6 +13,7 @@ import {
   calculatePerformanceAdjustment,
   calculateRandomVariationUnits,
 } from "../src/domain/signatureShoes.ts";
+import { isCompetitiveGame } from "../src/domain/career.ts";
 import type { Career } from "../src/types/career.ts";
 import type { Game } from "../src/types/game.ts";
 import type {
@@ -305,14 +306,14 @@ export class SignatureShoeService {
   }
 
   processCompletedGame(career: Career, game: Game) {
-    if (game.status !== "completed") return;
+    if (game.status !== "completed" || !isCompetitiveGame(game)) return;
     const contracts = this.db
       .prepare(
         `SELECT * FROM sponsor_contracts WHERE career_id=? AND status='active' AND category='footwear' ORDER BY id`,
       )
       .all(career.id);
     const earlierGames = career.season.games.filter(
-      (item) => item.id !== game.id && item.date < game.date,
+      (item) => isCompetitiveGame(item) && item.id !== game.id && item.date < game.date,
     );
     const adjustment = calculatePerformanceAdjustment(game, earlierGames);
     for (const contract of contracts) {

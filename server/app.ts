@@ -25,6 +25,7 @@ import type {
 import { SponsorOfferError } from "./sponsors.ts";
 import { DailyInvitationError } from "./daily-invitations.ts";
 import type { DailyInvitationMutation } from "../src/types/daily-invitations.ts";
+import type { PlayerActivityRequest } from "../src/types/player-activity.ts";
 import { BasketballNetworkError } from "./basketball-network.ts";
 import { SignatureShoeError } from "./signature-shoes.ts";
 import type { SignatureShoeLaunchMutation } from "../src/types/signature-shoe.ts";
@@ -647,6 +648,29 @@ export function connectionServer(
           200,
           careers.invitations.pending(career.id, career.currentDate),
         );
+      }
+      const playerActivityRoute = req.url?.match(
+        /^\/api\/careers\/([\w-]+)\/daily-invitations\/player-activity$/,
+      );
+      if (careers && playerActivityRoute) {
+        const careerId = playerActivityRoute[1];
+        if (req.method === "GET") {
+          const career = careers.get(careerId);
+          if (!career) return send(404, { message: "Career not found." });
+          return send(200, careers.invitations.playerActivityStatus(career));
+        }
+        if (req.method === "POST") {
+          const body = (await readBody(req, 4096)) as PlayerActivityRequest;
+          if (
+            !body ||
+            typeof body.requestId !== "string" ||
+            !/^[\w-]{20,80}$/.test(body.requestId) ||
+            typeof body.expectedDate !== "string" ||
+            typeof body.activityId !== "string" ||
+            typeof body.playerId !== "string"
+          ) throw new ValidationError("Invalid player activity. Reload and retry.");
+          return send(200, careers.invitations.completePlayerActivity(careerId, body));
+        }
       }
       const invitationRoute = req.url?.match(
         /^\/api\/careers\/([\w-]+)\/daily-invitations\/([\w-]+)\/(presentation|resolve)$/,

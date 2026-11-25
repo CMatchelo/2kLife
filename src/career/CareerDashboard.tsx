@@ -14,6 +14,7 @@ import GameEditor from "./GameEditor";
 import { api } from "./api";
 import { Endorsements, NextMatchup, PlayerBanner } from "./SeasonOverview";
 import { DailyInvitations, EventResults } from "./OffCourtInvites";
+import { PlayerActivity } from "./PlayerActivity";
 import AIConnection from "../AIConnection";
 import Sponsors from "./Sponsors";
 import SponsorFinances from "./SponsorFinances";
@@ -250,6 +251,7 @@ export default function CareerDashboard({
   const [interviewLoading, setInterviewLoading] = useState(false);
   const [interviewError, setInterviewError] = useState("");
   const [dayLoading, setDayLoading] = useState(false);
+  const [playerActivitySaving, setPlayerActivitySaving] = useState(false);
   const [calendarSaving, setCalendarSaving] = useState(false);
   const [dayError, setDayError] = useState("");
   const [dayMessage, setDayMessage] = useState("");
@@ -581,7 +583,7 @@ export default function CareerDashboard({
     (game) => game.date === current.currentDate && game.status !== "notNeeded",
   );
   const todayResolution = eventResolution?.group.inGameDate === current.currentDate ? eventResolution : null;
-  const nextDayDisabled = dayLoading || calendarSaving || !!editing || !!interviewGame ||
+  const nextDayDisabled = dayLoading || playerActivitySaving || calendarSaving || !!editing || !!interviewGame ||
     adding || !!editingFixture || !!invitationGroup || !!contractGeneration ||
     !!contractOffer || postseasonNextDayBlocked;
 
@@ -836,6 +838,18 @@ export default function CareerDashboard({
                 />
               ) : todayResolution ? (
                 <EventResults results={todayResolution.results} invitations={todayResolution.group.invitations} />
+              ) : !isMatchDay && current.currentDate ? (
+                <PlayerActivity
+                  key={`${current.id}:${current.currentDate}:${current.coverage.some((item) => item.month === current.currentDate?.slice(0, 7) && item.confirmed)}`}
+                  careerId={current.id}
+                  date={current.currentDate}
+                  dayLoading={dayLoading}
+                  disabled={nextDayDisabled}
+                  onBusy={setPlayerActivitySaving}
+                  onCompleted={(updated) => setCurrent((previous) =>
+                    previous.currentDate === updated.currentDate ? updated : previous
+                  )}
+                />
               ) : (
                 <p className="text-sm text-muted">{isMatchDay ? "Match day" : "Free day"}</p>
               )}

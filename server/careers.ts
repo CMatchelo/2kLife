@@ -37,6 +37,7 @@ import {
   countedRegularSeasonGames,
   emptyStats,
   gameWarnings,
+  isCompetitiveGame,
   normalizeSeason,
   nextSeasonYear,
   scheduledGame,
@@ -1112,7 +1113,6 @@ export class CareerStore {
       typeof f.date !== "string" ||
       typeof f.teamId !== "string" ||
       typeof f.opponentId !== "string" ||
-      (f.location !== "home" && f.location !== "away") ||
       typeof f.category !== "string" ||
       typeof f.countsTowardRegularSeason !== "boolean"
     )
@@ -1232,7 +1232,7 @@ export class CareerStore {
     }
     this.db.exec("BEGIN IMMEDIATE");
     try {
-      if (game.status === "scheduled" && updated.status === "completed")
+      if (isCompetitiveGame(updated) && game.status === "scheduled" && updated.status === "completed")
         this.sponsors.capturePregame(career, gameId);
       if (game.status === "scheduled" && updated.status === "completed")
         this.db
@@ -1291,7 +1291,7 @@ export class CareerStore {
         .run(JSON.stringify(player), careerId);
       const savedCareer = this.get(careerId)!;
       this.sponsors.recalculateAffected(savedCareer, gameId);
-      if (game.status === "completed")
+      if (isCompetitiveGame(updated) && game.status === "completed")
         this.sponsors.reevaluate(savedCareer, `correction:${gameId}`);
       this.db.exec("COMMIT");
     } catch (error) {
@@ -1317,7 +1317,6 @@ export class CareerStore {
       typeof fields.date !== "string" ||
       typeof fields.teamId !== "string" ||
       typeof fields.opponentId !== "string" ||
-      (fields.location !== "home" && fields.location !== "away") ||
       typeof fields.category !== "string" ||
       typeof fields.countsTowardRegularSeason !== "boolean"
     )

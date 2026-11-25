@@ -68,7 +68,7 @@ export default function ScheduleView({
                   {game.date}
                 </time>
                 <strong className="mt-1 block truncate">
-                  {game.location === "home" ? "vs" : "at"}{" "}
+                  {game.location === "away" ? "at" : "vs"}{" "}
                   {teamName(teams, game.opponentId)}
                 </strong>
               </button>

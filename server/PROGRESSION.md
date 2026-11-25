@@ -49,8 +49,9 @@ the season-end boundary stop a known break. Saved results are never rerolled.
 
 Sponsor eligibility and milestone processing runs after any interview is resolved
 and before the offer check. A durable per-game pregame snapshot prevents a
-game from counting for a brand it unlocks. All completed game categories qualify
-for permanent milestones; dynamic milestones use regular-season-counting games.
+game from counting for a brand it unlocks. Counted regular-season games and
+postseason games qualify for offer checks, contract payments, and permanent
+milestones. Dynamic milestones use regular-season-counting games.
 
 Sponsor results return an approach group and offer references. The transition
 pauses with `sponsor_offers`; a new request with its `resumeTransitionId`

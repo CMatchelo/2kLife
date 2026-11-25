@@ -1,3 +1,4 @@
+import { isCompetitiveGame } from "./career.ts";
 import type { Game } from "../types/game.ts";
 import type { BoxScore } from "../types/stats.ts";
 import type { SocialMedia } from "../types/social-media.ts";
@@ -127,8 +128,11 @@ export function recalculateFollowers(
       social.history.flatMap((item) => (item.gameId ? [item.gameId] : []))),
     savedGameId,
   ]);
+  // Keep follower results already recorded under the previous game rules.
+  const previouslyAwarded = new Set(social.history.map((item) => item.gameId));
   const ordered = games
     .filter(eligible)
+    .filter((game) => isCompetitiveGame(game) || previouslyAwarded.has(game.id))
     .sort((a, b) => a.date.localeCompare(b.date) || a.id.localeCompare(b.id));
   const startingFollowers = clamp(
     Math.round(social.startingFollowers),

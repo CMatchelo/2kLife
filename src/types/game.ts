@@ -1,13 +1,13 @@
 import type { BoxScore } from "./stats.ts";
 
-export type GameCategory = "regularSeason" | "playoffs" | "playIn" | "nbaCup";
+export type GameCategory = "regularSeason" | "playoffs" | "playIn" | "nbaCup" | "risingStars" | "allStars";
 export type GameStatus = "scheduled" | "completed" | "notNeeded";
 export type Game = {
   id: string;
   date: string;
   teamId: string;
   opponentId: string;
-  location: "home" | "away";
+  location: "home" | "away" | "neutral";
   category: GameCategory;
   countsTowardRegularSeason: boolean;
   status: GameStatus;

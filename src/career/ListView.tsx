@@ -1,3 +1,4 @@
+import { locationNames } from "../domain/career";
 import { categoryNames } from "../domain/career";
 import { teamLogo, teamName } from "../domain/teams";
 import type { Team } from "../types/career";
@@ -50,7 +51,7 @@ export default function ListView({
                   </span>
                 </span>
               </span>
-              <span className="text-xs text-muted">{game.location === "home" ? "Home" : "Away"}</span>
+              <span className="text-xs text-muted">{locationNames[game.location]}</span>
               <span className={`whitespace-nowrap font-bold ${outcome === 1 ? "text-green-400" : outcome === -1 ? "text-red-400" : "text-muted"}`}>
                 {outcome !== null
                   ? `${outcome > 0 ? "W " : outcome < 0 ? "L " : ""}${game.teamScore}–${game.opponentScore}`

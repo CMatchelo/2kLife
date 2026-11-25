@@ -1,7 +1,7 @@
 import type { Career } from '../types/career.ts';
 import type { Game } from '../types/game.ts';
 import type { Interview, InterviewContent, InterviewContext } from '../types/interview.ts';
-import { emptyStats } from './career.ts';
+import { emptyStats, isCompetitiveGame } from './career.ts';
 import { emptyMatchRecords, recordKeys } from './matchRecords.ts';
 import { teamName } from './teams.ts';
 import { interviewPolicy as policy } from './interview-policy.ts';
@@ -21,7 +21,7 @@ export function validateInterview(raw: unknown, context: InterviewContext): Inte
   return f;
 }
 export function interviewContext(before: Career, game: Game, history: Interview[]): InterviewContext | null {
-  if (game.status !== 'completed' || game.played !== true || !game.stats || game.teamScore === undefined || game.opponentScore === undefined) return null;
+  if (!isCompetitiveGame(game) || game.status !== 'completed' || game.played !== true || !game.stats || game.teamScore === undefined || game.opponentScore === undefined) return null;
   const earlier = before.season.games.filter(g => g.id !== game.id && g.date < game.date && g.status === 'completed' && g.teamId === game.teamId);
   const categoryGames = earlier.filter(g => game.countsTowardRegularSeason ? g.countsTowardRegularSeason : g.category === game.category);
   const appearances = categoryGames.filter(g => g.played === true);
@@ -74,6 +74,6 @@ export function selectInterview(context: InterviewContext, priorGames: Game[]): 
   if (context.game.category !== 'regularSeason') add('competition', `The recorded category was ${context.game.category}; no round or elimination stakes are known.`, 2);
   const latest = context.interviewHistory.at(-1);
   if (latest && latest.topics.some(t => context.selectionReasons.some(r => r.code === t))) add('follow_up', 'A relevant topic from a prior answered interview has a new development.', 1);
-  const appearancesSince = latest ? priorGames.filter(g => g.date > latest.date && g.date < context.game.date && g.status === 'completed' && g.played === true).length + 1 : Infinity;
+  const appearancesSince = latest ? priorGames.filter(g => isCompetitiveGame(g) && g.date > latest.date && g.date < context.game.date && g.status === 'completed' && g.played === true).length + 1 : Infinity;
   return score >= policy.selectionScore && (appearancesSince >= policy.appearanceGap || score >= policy.majorScore);
 }

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { postseasonResultLabel } from "../domain/seasonReview";
-import { teamLogo, teamName } from "../domain/teams";
+import { isExhibitionTeam, teamLogo, teamName } from "../domain/teams";
 import type { Career } from "../types/career";
 import type { Season } from "../types/season";
 import PlayerInfo from "./PlayerInfo";
@@ -47,7 +47,7 @@ export default function CareerHistory({
                     const result = season.seasonReview?.playerPostseasonResult ?? season.postseason?.playerPostseasonResult;
                     const teams = [...new Set([
                       season.playerSnapshot?.teamId,
-                      ...season.games.filter((game) => game.status === "completed").map((game) => game.teamId),
+                      ...season.games.filter((game) => game.status === "completed" && !isExhibitionTeam(game.teamId)).map((game) => game.teamId),
                       ...(season.status === "active" ? [career.profile.currentTeamId] : []),
                       season.seasonReview?.playerTeamId,
                     ].filter((id): id is string => !!id))];

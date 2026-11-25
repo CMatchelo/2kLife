@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { randomUUID } from "node:crypto";
 import { CareerStore } from "./careers.ts";
-import { scheduledGame } from "../src/domain/career.ts";
+import { emptyStats, scheduledGame } from "../src/domain/career.ts";
 import type { CareerDraft } from "../src/types/career.ts";
 
 const teams = [
@@ -234,6 +234,40 @@ test("legacy careers load without salary data and receive no retroactive payment
       store.db.prepare("SELECT COUNT(*) n FROM nba_salary_payments").get()!.n,
       0,
     );
+  } finally {
+    store.close();
+  }
+});
+
+test("neutral exhibition and unchecked Cup results stay outside competitive totals", () => {
+  const store = new CareerStore(":memory:");
+  try {
+    let career = store.create(draft(100, 1));
+    const initialRecords = career.season.matchRecords;
+    for (const [category, date, teamId, opponentId] of [
+      ["risingStars", "2026-10-11", "risingStars", "risingStars"],
+      ["allStars", "2026-10-12", "allStars", "allStars"],
+      ["nbaCup", "2026-10-13", "LAL", "BOS"],
+    ] as const) {
+      career = store.addGame(career.id, {
+        date, teamId, opponentId, location: "neutral", category,
+        countsTowardRegularSeason: false,
+      })!;
+      const game = career.season.games.find((item) => item.date === date)!;
+      assert.equal(game.location, "neutral");
+      career = store.updateGame(career.id, game.id, {
+        ...missed,
+        played: true,
+        stats: { ...emptyStats().totals, points: 30, fieldGoalsMade: 15, fieldGoalsAttempted: 15 },
+      })!;
+      assert.equal(career.season.games.find((item) => item.id === game.id)?.stats?.points, 30);
+      assert.deepEqual(store.sponsors.processContractMatch(career, career.season.games.find((item) => item.id === game.id)!), []);
+    }
+    assert.equal(career.season.regularSeason.stats.gamesPlayed, 0);
+    assert.deepEqual(career.season.matchRecords, initialRecords);
+    assert.equal(career.profile.socialMedia.history.length, 0);
+    assert.equal(store.db.prepare("SELECT COUNT(*) n FROM nba_salary_payments").get()!.n, 0);
+    assert.equal(store.db.prepare("SELECT COUNT(*) n FROM sponsor_game_boundaries").get()!.n, 0);
   } finally {
     store.close();
   }
