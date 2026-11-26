@@ -13,6 +13,8 @@ import { serveStaticFile } from "./static-files.ts";
 import { CareerStore, ValidationError } from "./careers.ts";
 import { parseImportRequest } from "./import-request.ts";
 import { normalizeImport } from "../src/domain/import.ts";
+import { leagueResults, saveLeagueResults } from "./league-results.ts";
+import { normalizeLeagueExtraction } from "../src/domain/leagueResults.ts";
 import { parseBoxScoreImportRequest } from "./box-score-import-request.ts";
 import { normalizeExtractedBoxScore } from "../src/domain/boxScoreImport.ts";
 import { advanceCareerDay } from "./progression.ts";
@@ -964,7 +966,32 @@ export function connectionServer(
             : { message: "Match not found." },
         );
       }
+      const leagueRoute = req.url?.match(/^\/api\/careers\/([\w-]+)\/league-results$/);
+      if (careers && leagueRoute && (req.method === "GET" || req.method === "POST")) {
+        const body = req.method === "POST" ? await readBody(req, 65536) : undefined;
+        const career = careers.get(leagueRoute[1]);
+        if (!career) return send(404, { message: "Career not found." });
+        return send(200, req.method === "POST"
+          ? saveLeagueResults(careers.db, career, body)
+          : leagueResults(careers.db, career));
+      }
       const settings = await readSettings(settingsFile);
+      if (req.url === "/api/ai/league-results" && req.method === "POST") {
+        const { image } = parseBoxScoreImportRequest(await readBody(req, 6 * 1024 * 1024));
+        const provider = settings.selectedProvider && providers[settings.selectedProvider];
+        try {
+          if (!provider || !provider.extractBoxScore || !(await provider.check()).configured)
+            return send(409, { message: "Configure AI or enter final scores manually." });
+          const raw = await provider.extractBoxScore(image, "league");
+          try {
+            return send(200, normalizeLeagueExtraction(raw));
+          } catch {
+            return send(422, { message: "AI could not read valid final scores from this screenshot." });
+          }
+        } catch (error) {
+          return send(502, { message: safeError(error) });
+        }
+      }
       if (req.url === "/api/ai/box-score" && req.method === "POST") {
         const body = await readBody(req, 6 * 1024 * 1024);
         const { provider: requestedProvider, image } =

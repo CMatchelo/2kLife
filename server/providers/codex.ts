@@ -1,3 +1,4 @@
+import { leagueExtractionPrompt, leagueExtractionSchema } from "../../src/domain/leagueResults.ts";
 import { interviewPrompt } from "../../src/domain/interviewPrompt.ts";
 import { interviewSchema } from "../../src/domain/interviews.ts";
 import { runProcess } from "./process.ts";
@@ -75,7 +76,9 @@ export function codexProvider(run: Run = runCodex): Provider {
         await rm(directory, { recursive: true, force: true });
       }
     },
-    async extractBoxScore(image) {
+    async extractBoxScore(image, mode) {
+      const extractionPrompt = mode === "league" ? leagueExtractionPrompt : boxScoreExtractionPrompt;
+      const extractionSchema = mode === "league" ? leagueExtractionSchema : boxScoreExtractionSchema;
       const directory = await mkdtemp(join(tmpdir(), "2klife-box-score-"));
       try {
         const file = join(directory, `image.${image.mediaType.split("/")[1]}`);
@@ -84,7 +87,7 @@ export function codexProvider(run: Run = runCodex): Provider {
         await writeFile(file, Buffer.from(image.data, "base64"), {
           mode: 0o600,
         });
-        await writeFile(schemaFile, JSON.stringify(boxScoreExtractionSchema), {
+        await writeFile(schemaFile, JSON.stringify(extractionSchema), {
           mode: 0o600,
         });
         await run(
@@ -102,7 +105,7 @@ export function codexProvider(run: Run = runCodex): Provider {
             schemaFile,
             "--output-last-message",
             outputFile,
-            boxScoreExtractionPrompt(),
+            extractionPrompt(),
           ],
           directory,
         );

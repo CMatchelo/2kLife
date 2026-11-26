@@ -1,3 +1,5 @@
+import { leagueResults, saveLeagueResults } from "./league-results.ts";
+import { leagueStandings, trackedLeagueMatches } from "../src/domain/leagueResults.ts";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
@@ -266,8 +268,23 @@ test("Next Day opens standings at the boundary without crossing it", () => {
       { requestId: randomUUID(), expectedDate: "2027-04-10" },
       "session",
     );
-    assert.equal(next?.kind, "standings_required");
-    assert.equal(next?.career.currentDate, "2027-04-11");
+    assert.equal(next?.kind, "league_results_required");
+    assert.equal(next?.career.currentDate, "2027-04-10");
+    saveLeagueResults(store.db, next!.career, {
+      seasonId: next!.career.season.id,
+      date: "2027-04-10",
+      status: "skipped",
+      matches: [],
+      requestId: randomUUID(),
+    });
+    const resumed = advanceCareerDay(
+      store,
+      created.id,
+      { requestId: randomUUID(), expectedDate: "2027-04-10" },
+      "session",
+    );
+    assert.equal(resumed?.kind, "standings_required");
+    assert.equal(resumed?.career.currentDate, "2027-04-11");
     const again = advanceCareerDay(
       store,
       created.id,
@@ -837,6 +854,49 @@ test("Finish Season is rejected before postseason completion requirements are me
       /Complete every Play-In/,
     );
     assert.equal(store.get(created.id)!.season.phase, "postseason");
+  } finally {
+    store.close();
+  }
+});
+
+test("backfilling a legacy day includes calendar results once and corrections preserve progression", () => {
+  const store = new CareerStore(":memory:");
+  try {
+    const created = store.create(draft());
+    const gameId = created.season.games[0].id;
+    store.updateGame(created.id, gameId, {
+      status: "completed", teamScore: 100, opponentScore: 90, played: false, stats: null,
+    });
+    atBoundary(store, created.id);
+    const career = store.get(created.id)!;
+    const date = "2027-04-10";
+    const seasonId = career.season.id;
+    const readRows = () => leagueStandings(trackedLeagueMatches(
+      store.get(created.id)!.season.games, leagueResults(store.db, career).days,
+    ));
+    assert.deepEqual(leagueResults(store.db, career).days, [
+      { date, status: "unrecorded", matches: [] },
+    ]);
+    assert.equal(readRows().find(({ team }) => team.id === "LAL")!.wins, 1);
+    const first = {
+      seasonId, date, status: "saved", requestId: randomUUID(),
+      matches: [
+        { awayId: "BOS", homeId: "LAL", awayScore: 91, homeScore: 101 },
+        { awayId: "PHI", homeId: "NYK", awayScore: 105, homeScore: 117 },
+      ],
+    };
+    saveLeagueResults(store.db, career, first);
+    assert.equal(leagueResults(store.db, career).days[0].matches.length, 1);
+    assert.equal(readRows().find(({ team }) => team.id === "LAL")!.pointsFor, 100);
+    saveLeagueResults(store.db, career, {
+      ...first, requestId: randomUUID(),
+      matches: [{ ...first.matches[1], awayScore: 120 }],
+    });
+    saveLeagueResults(store.db, career, first);
+    const rows = readRows();
+    assert.equal(rows.find(({ team }) => team.id === "PHI")!.wins, 1);
+    assert.equal(rows.find(({ team }) => team.id === "NYK")!.pointsAgainst, 120);
+    assert.equal(store.get(created.id)!.currentDate, "2027-04-11");
   } finally {
     store.close();
   }

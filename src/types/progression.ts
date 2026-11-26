@@ -46,6 +46,7 @@ export type AdvanceDayOutcome =
       invitationWindow: InvitationWindowReference | null;
       group: DailyDecisionGroup;
     }
+  | { kind: "league_results_required"; date: string }
   | { kind: "advanced_date"; date: string }
   | { kind: "season_end"; seasonEndDate: string; message: string }
   | { kind: "standings_required"; seasonEndDate: string }

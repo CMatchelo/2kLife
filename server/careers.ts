@@ -9,6 +9,7 @@ import {
 } from "../src/domain/matchRecords.ts";
 import { parseGameDetails } from "../src/domain/gameDetails.ts";
 import { DatabaseSync } from "node:sqlite";
+import { migrateLeagueResults } from "./league-results.ts";
 import { migrateProgression } from "./progression.ts";
 import { SponsorService } from "./sponsors.ts";
 import { DailyInvitationService } from "./daily-invitations.ts";
@@ -139,6 +140,7 @@ export class CareerStore {
     INSERT OR IGNORE INTO interview_evaluations (game_id, career_id, interview_id)
       SELECT g.id, s.career_id, g.id FROM games g JOIN seasons s ON s.id = g.season_id WHERE json_extract(g.data, '$.status') = 'completed';`);
     migrateProgression(this.db);
+    migrateLeagueResults(this.db);
     migratePostseason(this.db);
     this.sponsors = new SponsorService(this.db);
     this.salary = new SalaryService(this.db);

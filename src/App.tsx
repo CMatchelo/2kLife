@@ -9,7 +9,13 @@ import { api } from "./career/api";
 import type { Career, CareerSummary } from "./types/career";
 
 const careerNavigation = [
-  { label: "Season", value: "progress" },
+  {
+    label: "Season",
+    items: [
+      { label: "Calendar", value: "progress" },
+      { label: "Standings", value: "standings" },
+    ],
+  },
   {
     label: "Career",
     items: [
@@ -40,7 +46,7 @@ function CareerViewIcon({ view }: { view: CareerView }) {
     strokeWidth: 1.8,
     "aria-hidden": true,
   } as const;
-  if (view === "progress")
+  if (view === "progress" || view === "standings")
     return (
       <svg {...shared}>
         <path d="M4 19V9m5 10V5m5 14v-7m5 7V3" />
@@ -391,7 +397,7 @@ function App() {
       <main
         className={`mx-auto px-4 sm:px-6 ${
           career?.hasActiveSeason &&
-          (careerView === "progress" || careerView === "info" || careerView === "network" || careerView === "sponsors" || careerView === "finances" || careerView === "lifestyle")
+          (careerView === "progress" || careerView === "standings" || careerView === "info" || careerView === "network" || careerView === "sponsors" || careerView === "finances" || careerView === "lifestyle")
             ? "max-w-[96rem] py-5 sm:py-7"
             : career ? "max-w-6xl py-10 md:py-12" : "max-w-6xl py-16 md:py-24"
         }`}

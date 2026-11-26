@@ -529,6 +529,16 @@ export function advanceCareerDay(
           return result;
         }
       }
+      if (
+        career.season.phase === "regularSeason" && (!end || date < end) &&
+        !db.prepare("SELECT 1 FROM league_result_days WHERE season_id = ? AND date = ?")
+          .get(career.season.id, date)
+      ) {
+        const result = remember({ kind: "league_results_required", career, date });
+        db.exec("COMMIT");
+        transaction = false;
+        return result;
+      }
       // Keep completed sponsor work even if date validation or entry later fails.
       db.exec("COMMIT");
       transaction = false;

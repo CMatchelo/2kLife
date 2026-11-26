@@ -514,3 +514,49 @@
     font-family: var(--font-sans);
   }
 }
+
+.league-score {
+  appearance: textfield;
+}
+.league-score::-webkit-inner-spin-button,
+.league-score::-webkit-outer-spin-button {
+  appearance: none;
+}
+
+.league-option-logo {
+  display: none;
+}
+
+@supports (appearance: base-select) {
+  .league-team-picker,
+  .league-team-picker::picker(select) {
+    appearance: base-select;
+  }
+
+  .league-team-picker::picker(select) {
+    background-color: var(--color-night);
+    color: white;
+    max-height: 18rem;
+  }
+
+  .league-team-picker option {
+    gap: 0.5rem;
+    padding: 0.375rem;
+  }
+
+  .league-option-logo {
+    display: inline-block;
+    width: 1.25rem;
+    height: 1.25rem;
+    object-fit: contain;
+  }
+
+  .league-team-picker:open option:hover,
+  .league-team-picker:open option:focus-visible {
+    background-color: var(--color-court-blue);
+  }
+
+  .league-team-picker-wrap > img {
+    display: none;
+  }
+}

@@ -108,6 +108,14 @@ survives a crash. See `server/PROGRESSION.md` for the authoritative prose spec o
 (season-end boundary is exclusive, sponsor rolls never reroll, etc.) — **read that file directly
 for progression work**, this section is only a map.
 
+### `server/league-results.ts` — League standings
+
+Regular-season departure pauses for results after sponsor processing. A day can
+store scores, an explicit skip, or a confirmation that no games occurred. The
+standings are derived from those results and completed counted calendar games.
+Older dates remain editable from Season → Standings → Daily Results. Final
+standings use these totals as editable inputs before postseason seeding.
+
 ### `server/sponsors.ts` — `SponsorService` (largest subsystem, ~2900 lines)
 
 Per-brand eligibility (`sponsor_tracking`, `sponsor_eligibility_periods`), milestone progress

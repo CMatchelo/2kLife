@@ -25,6 +25,12 @@ activated. Activation creates a new regular-season row and calendar atomically,
 initializes the saved progression date to the selected starting date, and leaves
 the completed season's games and processing data historical.
 
+After sponsor settlements and offer presentation, regular-season departure pauses
+for Daily Results. A saved score list, a confirmed game-free day, or an explicit
+skip lets the same transition continue. Results are stored by season and date.
+Reopening a past day edits the standings without advancing time or replaying
+daily events. Calendar scores are included directly, including in legacy saves.
+
 The season-end date is an exclusive boundary: a Next day attempt whose destination
 is on or beyond it returns `season_end` without changing the date. The existing
 July–June season calendar also prevents entering a new season when no boundary has

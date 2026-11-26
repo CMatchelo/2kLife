@@ -9,6 +9,9 @@ import { createPortal } from "react-dom";
 import CalendarSettings from "./CalendarSettings";
 import type { AdvanceDayRequest, AdvanceDayResult } from "../types/progression";
 import type { Career } from "../types/career";
+import { DailyResultsModal, LeagueStandings } from "./LeagueStandings";
+import { useLeagueResults } from "./useLeagueResults";
+import { leagueStandings, trackedLeagueMatches } from "../domain/leagueResults";
 import ScheduleView from "./ScheduleView";
 import GameEditor from "./GameEditor";
 import { api } from "./api";
@@ -211,6 +214,7 @@ function SponsorSettlementModal({
 
 export type CareerView =
   | "progress"
+  | "standings"
   | "info"
   | "network"
   | "sponsors"
@@ -232,6 +236,8 @@ export default function CareerDashboard({
   onOpenFinances: () => void;
 }) {
   const [current, setCurrent] = useState(career);
+  const [resultsDate, setResultsDate] = useState<{ date: string; departure: boolean } | null>(null);
+  const league = useLeagueResults(current);
   const [settingsSection, setSettingsSection] = useState<
     "ai" | "calendar"
   >("ai");
@@ -451,6 +457,9 @@ export default function CareerDashboard({
         case "pending_interview":
           void prepareInterview(result.gameId);
           break;
+        case "league_results_required":
+          setResultsDate({ date: result.date, departure: true });
+          break;
         case "advanced_date":
           setDayMessage(`Current date: ${result.date}.`);
           break;
@@ -587,7 +596,8 @@ export default function CareerDashboard({
     adding || !!editingFixture || !!invitationGroup || !!contractGeneration ||
     !!contractOffer || postseasonNextDayBlocked;
 
-  const redesigned = view === "progress" || view === "info" || view === "network" || view === "sponsors" || view === "finances" || view === "lifestyle";
+  const seasonView = view === "progress" || view === "standings";
+  const redesigned = seasonView || view === "info" || view === "network" || view === "sponsors" || view === "finances" || view === "lifestyle";
 
   return (
     <div className={redesigned ? "career-redesigned space-y-6" : "space-y-6"}>
@@ -607,7 +617,7 @@ export default function CareerDashboard({
         </p>
       )}
       <PlayerBanner career={current} />
-      {view === "progress" ? null : view === "info" ? (
+      {seasonView ? null : view === "info" ? (
         <CareerHistory
           career={current}
           onOpenFinances={onOpenFinances}
@@ -693,7 +703,7 @@ export default function CareerDashboard({
           )}
         </div>
       )}
-      <div className={view === "progress" ? "season-layout" : "hidden"}>
+      <div className={seasonView ? "season-layout" : "hidden"}>
         <div className="season-matchup">
           <NextMatchup
             game={nextMatch}
@@ -711,8 +721,14 @@ export default function CareerDashboard({
           />
         </div>
         <div className="season-main min-w-0 space-y-6">
-          <SeasonProgress current={current} />
-          <section aria-labelledby="season-schedule-title">
+          {view === "progress" && <SeasonProgress current={current} />}
+          {view === "standings" && (league.results ? (
+            <LeagueStandings career={current} results={league.results}
+              onEdit={(date) => setResultsDate({ date, departure: false })} />
+          ) : league.error ? (
+            <p role="alert">{league.error} <button type="button" onClick={league.reload}>Retry</button></p>
+          ) : <p role="status">Loading standings…</p>)}
+          <section hidden={view !== "progress"} aria-labelledby="season-schedule-title">
             <ScheduleView
               dashboard
               currentTeamId={p.currentTeamId}
@@ -797,7 +813,7 @@ export default function CareerDashboard({
               )}
             </ScheduleView>
           </section>
-          {current.season.postseason && (
+          {view === "progress" && current.season.postseason && (
             <PostseasonProgress
               career={current}
               onSaved={(updated) => {
@@ -806,7 +822,7 @@ export default function CareerDashboard({
               }}
             />
           )}
-          {!current.season.seasonEndDate && (
+          {view === "progress" && !current.season.seasonEndDate && (
             <section className="career-card dashboard-card">
               <h2 className="section-title mb-5">Calendar settings</h2>
               <CalendarSettings
@@ -877,9 +893,37 @@ export default function CareerDashboard({
           }}
         />
       )}
-      {standingsOpen && current.season.phase !== "postseason" && (
+      {resultsDate && (
+        <DailyResultsModal
+          key={resultsDate.date}
+          career={current}
+          day={league.results?.days.find((day) => day.date === resultsDate.date) ??
+            { date: resultsDate.date, status: "unrecorded", matches: [] }}
+          departure={resultsDate.departure}
+          onClose={() => setResultsDate(null)}
+          onGame={(id) => {
+            const game = current.season.games.find((item) => item.id === id);
+            if (game) {
+              setResultsDate(null);
+              setEditing(game);
+            }
+          }}
+          onSaved={(result) => {
+            league.setResults(result);
+            setResultsDate(null);
+            if (resultsDate.departure) void nextDay();
+          }}
+        />
+      )}
+      {standingsOpen && current.season.phase !== "postseason" && !league.results && !league.error && (
+        <p role="status">Loading league results for final standings…</p>
+      )}
+      {standingsOpen && current.season.phase !== "postseason" && (league.results || league.error) && (
         <FinalStandingsModal
           career={current}
+          tracked={leagueStandings(trackedLeagueMatches(current.season.games, league.results?.days ?? []))}
+          partial={!league.results || league.results.days.some(({ status }) =>
+            status === "unrecorded" || status === "skipped")}
           onSaved={(updated) => {
             setCurrent(updated);
             setStandingsOpen(false);

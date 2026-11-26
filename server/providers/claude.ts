@@ -1,3 +1,4 @@
+import { leagueExtractionPrompt, leagueExtractionSchema } from "../../src/domain/leagueResults.ts";
 import { interviewPrompt } from "../../src/domain/interviewPrompt.ts";
 import { interviewSchema } from "../../src/domain/interviews.ts";
 import Anthropic from "@anthropic-ai/sdk";
@@ -154,7 +155,9 @@ export function claudeProvider(
         await rm(directory, { recursive: true, force: true });
       }
     },
-    async extractBoxScore(image) {
+    async extractBoxScore(image, mode) {
+      const extractionPrompt = mode === "league" ? leagueExtractionPrompt : boxScoreExtractionPrompt;
+      const extractionSchema = mode === "league" ? leagueExtractionSchema : boxScoreExtractionSchema;
       if (hasKey()) {
         const reply = await makeClient(env.ANTHROPIC_API_KEY!).messages.create(
           {
@@ -163,9 +166,11 @@ export function claudeProvider(
             tools: [
               {
                 name: "extract_box_score",
-                description: "Return the highlighted player's game statistics.",
+                description: mode === "league"
+                  ? "Return the visible NBA matchups and final scores."
+                  : "Return the highlighted player's game statistics.",
                 input_schema:
-                  boxScoreExtractionSchema as unknown as Anthropic.Tool.InputSchema,
+                  extractionSchema as unknown as Anthropic.Tool.InputSchema,
               },
             ],
             tool_choice: { type: "tool", name: "extract_box_score" },
@@ -181,7 +186,7 @@ export function claudeProvider(
                       data: image.data,
                     },
                   },
-                  { type: "text", text: boxScoreExtractionPrompt() },
+                  { type: "text", text: extractionPrompt() },
                 ],
               },
             ],
@@ -204,7 +209,7 @@ export function claudeProvider(
           Buffer.from(image.data, "base64"),
           { mode: 0o600 },
         );
-        const prompt = `${boxScoreExtractionPrompt([name])}\nUse the Read tool to open the screenshot, then use the Write tool to save only the JSON object to result.json.`;
+        const prompt = `${extractionPrompt([name])}\nUse the Read tool to open the screenshot, then use the Write tool to save only the JSON object to result.json.`;
         const output = await run(
           [
             "-p",

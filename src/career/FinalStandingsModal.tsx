@@ -1,4 +1,5 @@
-import { useMemo, useRef, useState } from "react";
+import type { leagueStandings } from "../domain/leagueResults";
+import { useRef, useState } from "react";
 import type { Career } from "../types/career";
 import type { StandingInput } from "../types/postseason";
 import {
@@ -12,27 +13,37 @@ import { api } from "./api";
 export default function FinalStandingsModal({
   career,
   onSaved,
+  tracked,
+  partial,
 }: {
+  tracked?: ReturnType<typeof leagueStandings>;
+  partial?: boolean;
   career: Career;
   onSaved: (career: Career) => void;
 }) {
-  const initial = useMemo(
-    () => ({
-      east: career.teams.filter(
+  const [order, setOrder] = useState(() => {
+    const positions = new Map(tracked?.map((row, index) => [row.team.id, index]));
+    const teams = [...career.teams].sort((a, b) =>
+      (positions.get(a.id) ?? Infinity) - (positions.get(b.id) ?? Infinity));
+    return {
+      east: teams.filter(
         (t) => teamConference(career.teams, t.id) === "east",
       ),
-      west: career.teams.filter(
+      west: teams.filter(
         (t) => teamConference(career.teams, t.id) === "west",
       ),
-    }),
-    [career.teams],
-  );
-  const [order, setOrder] = useState(initial);
+    };
+  });
   const [records, setRecords] = useState<
     Record<string, { wins: string; losses: string }>
   >(() =>
     Object.fromEntries(
-      career.teams.map((team) => [team.id, { wins: "1", losses: "1" }]),
+      career.teams.map((team) => {
+        const row = tracked?.find((item) => item.team.id === team.id);
+        return [team.id, row?.played
+          ? { wins: String(row.wins), losses: String(row.losses) }
+          : { wins: "", losses: "" }];
+      }),
     ),
   );
   const [error, setError] = useState("");
@@ -183,11 +194,14 @@ export default function FinalStandingsModal({
               Final regular-season standings
             </h2>
             <p>
-              Enter every record, then arrange each conference in its official
+              Review the records and arrange each conference in its official
               order.
             </p>
           </div>
         </div>
+        {partial && <p className="mt-3 text-sm text-gold">
+          The tracked results are incomplete. Check each team’s record and seed before confirming.
+        </p>}
         <div className="mt-5 grid gap-6 xl:grid-cols-2">
           <section>
             <h3 className="mb-3 text-xl font-bold">Eastern Conference</h3>
@@ -237,8 +251,8 @@ export default function FinalStandingsModal({
                 conference,
                 position: index + 1,
                 teamId: team.id,
-                wins: Number(records[team.id]?.wins),
-                losses: Number(records[team.id]?.losses),
+                wins: records[team.id]?.wins === "" ? NaN : Number(records[team.id]?.wins),
+                losses: records[team.id]?.losses === "" ? NaN : Number(records[team.id]?.losses),
               })),
             );
             if (
